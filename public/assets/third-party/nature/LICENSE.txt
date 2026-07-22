@@ -1,0 +1,10 @@
+Quaternius — Simple Nature Pack
+
+License: CC0 1.0 Universal (CC0 1.0)
+Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The official pack page labels this pack "CC0". The shared source folder does
+not contain a separate License.txt, so this notice records the license displayed
+on the exact official pack page:
+https://quaternius.com/packs/simplenature.html
