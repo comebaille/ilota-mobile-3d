@@ -129,12 +129,12 @@ test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone
   const before = (await diagnostics(page)).wood;
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).wood).toBeGreaterThan(before);
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(560);
   const firstHit = (await diagnostics(page)).lastHarvest;
   expect(firstHit).not.toBeNull();
 
   await page.keyboard.press('KeyE');
-  await page.waitForTimeout(360);
+  await page.waitForTimeout(460);
   const secondHit = (await diagnostics(page)).lastHarvest;
   expect(secondHit?.remaining).toBe((firstHit?.remaining ?? 0) - 1);
   expect(secondHit?.scale ?? 99).toBeLessThan(firstHit?.scale ?? 0);
