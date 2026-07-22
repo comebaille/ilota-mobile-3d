@@ -109,37 +109,37 @@ test('parcourt le détour, bâtit le camp et atteint la seconde île', async ({ 
   await moveTo(7.2, 4.5, 0.65);
   await page.waitForTimeout(120);
   await expect(page.locator('#context-prompt')).toContainText('Cache oubliée');
-  await page.keyboard.press('KeyE');
+  await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { cacheFound: boolean } }).__ILOTA__.cacheFound)).toBe(true);
 
   await moveTo(0, 0, 1.5);
   await page.waitForTimeout(120);
   await expect(page.locator('#context-prompt')).toContainText('Bâtir le camp');
-  await page.keyboard.press('KeyE');
+  await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { campBuilt: boolean } }).__ILOTA__.campBuilt)).toBe(true);
 
   await moveTo(-3.1, -2.4, 0.8);
   await page.waitForTimeout(120);
   await expect(page.locator('#context-prompt')).toContainText('Recruter le bûcheron');
-  await page.keyboard.press('KeyE');
+  await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { workers: number } }).__ILOTA__.workers)).toBe(1);
 
   await moveTo(3.1, -2.4, 0.8);
   await page.waitForTimeout(120);
   await expect(page.locator('#context-prompt')).toContainText('Recruter le mineur');
-  await page.keyboard.press('KeyE');
+  await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { workers: number } }).__ILOTA__.workers)).toBe(2);
 
   await moveTo(0, -9.3, 0.8);
   await page.waitForTimeout(120);
   await expect(page.locator('#context-prompt')).toContainText('Construire le pont');
-  await page.keyboard.press('KeyE');
+  await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { bridgeBuilt: boolean } }).__ILOTA__.bridgeBuilt)).toBe(true);
 
   await moveTo(0, -20, 0.8);
   await page.waitForTimeout(120);
   await expect(page.locator('#context-prompt')).toContainText('Rallumer la balise');
-  await page.keyboard.press('KeyE');
+  await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { completed: boolean } }).__ILOTA__.completed)).toBe(true);
   await expect(page.getByRole('heading', { name: 'L’île s’agrandit !' })).toBeVisible();
   await page.screenshot({ path: 'test-results/ilota-victory.png' });
