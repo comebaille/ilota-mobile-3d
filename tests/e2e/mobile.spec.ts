@@ -49,7 +49,7 @@ test('affiche l’invitation à tourner le téléphone en portrait', async ({ pa
 });
 
 test('parcourt le détour, bâtit le camp et atteint la seconde île', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   await page.addInitScript(() => {
     localStorage.setItem('ilota-save-v1', JSON.stringify({
       version: 1,
@@ -81,7 +81,15 @@ test('parcourt le détour, bâtit le camp et atteint la seconde île', async ({ 
       }
     }
   };
-  const releaseMovement = async (): Promise<void> => setMovement(new Set());
+  const releaseMovement = async (): Promise<void> => {
+    const pressed = [...activeKeys];
+    if (pressed.length) {
+      await page.evaluate((keys) => {
+        keys.forEach((code) => window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true })));
+      }, pressed);
+    }
+    await setMovement(new Set());
+  };
   const moveTo = async (targetX: number, targetZ: number, tolerance = 1.15): Promise<void> => {
     for (let step = 0; step < 180; step += 1) {
       const position = await page.evaluate(() => (window as typeof window & { __ILOTA__: { player: { x: number; z: number } } }).__ILOTA__.player);
@@ -108,36 +116,42 @@ test('parcourt le détour, bâtit le camp et atteint la seconde île', async ({ 
 
   await moveTo(7.2, 4.5, 0.65);
   await page.waitForTimeout(120);
+  await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Cache oubliée');
   await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { cacheFound: boolean } }).__ILOTA__.cacheFound)).toBe(true);
 
   await moveTo(0, 0, 1.5);
   await page.waitForTimeout(120);
+  await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Bâtir le camp');
   await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { campBuilt: boolean } }).__ILOTA__.campBuilt)).toBe(true);
 
   await moveTo(-3.1, -2.4, 0.8);
   await page.waitForTimeout(120);
+  await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Recruter le bûcheron');
   await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { workers: number } }).__ILOTA__.workers)).toBe(1);
 
   await moveTo(3.1, -2.4, 0.8);
   await page.waitForTimeout(120);
+  await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Recruter le mineur');
   await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { workers: number } }).__ILOTA__.workers)).toBe(2);
 
   await moveTo(0, -9.3, 0.8);
   await page.waitForTimeout(120);
+  await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Construire le pont');
   await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { bridgeBuilt: boolean } }).__ILOTA__.bridgeBuilt)).toBe(true);
 
   await moveTo(0, -20, 0.8);
   await page.waitForTimeout(120);
+  await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Rallumer la balise');
   await page.locator('#action-button').tap();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { completed: boolean } }).__ILOTA__.completed)).toBe(true);

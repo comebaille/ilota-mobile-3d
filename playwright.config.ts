@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
+const isPublicRun = Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -9,9 +10,9 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL,
-    trace: 'retain-on-failure',
+    trace: isPublicRun ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: isPublicRun ? 'off' : 'retain-on-failure',
   },
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: 'npm run preview -- --port 4173',
