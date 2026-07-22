@@ -1,7 +1,7 @@
 {
   "name": "Ilota — Bâtis ton archipel",
   "short_name": "Ilota",
-  "description": "Jeu 3D mobile de collecte, gestion de travailleurs et expansion d’un archipel de cinq îles.",
+  "description": "Jeu 3D mobile de collecte, logistique par ponts, talents persistants et cycles de Marées.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

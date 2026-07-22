@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#174b3b" />
-    <meta name="description" content="Ilota, un jeu 3D mobile de récolte et de construction d’île." />
+    <meta name="description" content="Ilota, jeu 3D mobile de récolte, logistique par ponts, talents persistants et Nouvelles Marées." />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
@@ -18,6 +18,9 @@
         <div class="brand-chip"><span class="brand-mark">I</span><strong>ILOTA</strong></div>
         <button id="crew-button" class="crew-button" type="button" aria-label="Gérer l’équipe" hidden>
           <span>♟</span><strong>ÉQUIPE</strong><small id="crew-button-count">0/0</small>
+        </button>
+        <button id="talent-button" class="talent-button" type="button" aria-label="Ouvrir l’arbre de talents">
+          <span>✧</span><strong>TALENTS</strong><small><b id="talent-button-count">0</b> SAVOIR</small>
         </button>
         <div class="resources" aria-label="Ressources">
           <div class="resource-chip wood"><span class="resource-icon">▰</span><span id="wood-count">0</span><small>bois</small></div>
@@ -69,12 +72,33 @@
         </div>
       </section>
 
+      <section id="talent-panel" class="talent-panel" role="dialog" aria-modal="true" aria-labelledby="talent-title" hidden>
+        <div class="talent-sheet">
+          <header class="crew-header talent-header">
+            <div>
+              <p class="kicker">MÉMOIRE DE L’ARCHIPEL</p>
+              <h2 id="talent-title">Arbre de talents</h2>
+            </div>
+            <button id="talent-close-button" class="icon-button" type="button" aria-label="Fermer l’arbre de talents">×</button>
+          </header>
+          <div class="talent-summary">
+            <strong id="talent-knowledge">0 Savoir disponible</strong>
+            <span id="tide-count">Marée 1 · exigence ×1.00</span>
+            <small id="forecast-text">Débloque Prévisions pour lire le prochain manque.</small>
+          </div>
+          <div id="skill-branches" class="skill-branches" aria-live="polite"></div>
+          <button id="auto-regulation-button" class="auto-regulation-button" type="button" aria-pressed="false" disabled>
+            AUTO-RÉGULATION · SOMMET INTELLIGENCE REQUIS
+          </button>
+        </div>
+      </section>
+
       <section id="start-screen" class="overlay start-screen">
         <div class="title-card">
           <div class="island-emblem" aria-hidden="true"><span></span></div>
           <p class="kicker">UNE ÎLE À FAIRE GRANDIR</p>
           <h1>ILOTA</h1>
-          <p>Récolte quatre ressources, relie cinq îles et dirige une équipe que tu peux recruter, améliorer et réassigner.</p>
+          <p>Récolte quatre ressources, relie cinq îles, dirige tes renards et transmets tes talents d’une Marée à la suivante.</p>
           <div class="mini-guide" aria-label="Comment jouer">
             <span><b>1</b> Déplace-toi</span>
             <span><b>2</b> Maintiens pour récolter</span>
@@ -98,10 +122,17 @@
         <div class="victory-card">
           <p class="kicker">NOUVEL HORIZON</p>
           <h2>L’archipel s’éveille !</h2>
-          <p>Les cinq îles sont reliées et les quatre métiers alimentent désormais le Cœur.</p>
-          <div class="victory-stats"><span><b id="victory-workers">8</b> travailleurs</span><span><b id="victory-time">0:00</b> temps</span></div>
+          <p>Les cinq îles sont reliées. Tu peux optimiser cette Marée ou recommencer en conservant tout ton arbre de talents.</p>
+          <div class="victory-stats">
+            <span><b id="victory-workers">8</b> travailleurs</span>
+            <span><b id="victory-time">0:00</b> temps</span>
+            <span><b id="victory-knowledge">0</b> Savoir</span>
+            <span>Marée <b id="victory-tide">1</b></span>
+          </div>
+          <small id="rebirth-reward" class="rebirth-reward">Nouvelle Marée : talents conservés</small>
+          <button id="rebirth-button" class="primary-button rebirth-button" type="button">LANCER UNE NOUVELLE MARÉE</button>
           <button id="continue-button" class="primary-button" type="button">OPTIMISER L’ARCHIPEL</button>
-          <button id="reset-button" class="text-button" type="button">Recommencer l’île</button>
+          <button id="reset-button" class="text-button" type="button">Effacer toute la progression</button>
         </div>
       </section>
 

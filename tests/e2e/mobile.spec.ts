@@ -14,6 +14,21 @@ interface IlotaDiagnostics {
   chapter: number;
   completed: boolean;
   crewOpen: boolean;
+  talentOpen: boolean;
+  knowledge: number;
+  rebirths: number;
+  skills: string;
+  autoRegulation: boolean;
+  workersOnWalkable: boolean;
+  workerNavigation: Array<{
+    id: string;
+    x: number;
+    z: number;
+    phase: string;
+    routeBridges: number[];
+    bridgesUsed: number[];
+    routeDistance: number;
+  }>;
   player: { x: number; z: number };
   facingAlignment: number;
   lastHarvest: { kind: string; remaining: number; capacity: number; scale: number } | null;
@@ -32,7 +47,7 @@ const waitForGame = async (page: Page): Promise<void> => {
 };
 
 const richSave = () => ({
-  version: 2,
+  version: 3,
   wood: 999,
   stone: 999,
   copper: 999,
@@ -46,6 +61,12 @@ const richSave = () => ({
   workers: [],
   completed: false,
   elapsedSeconds: 0,
+  knowledge: 0,
+  skills: [],
+  autoRegulation: false,
+  rebirths: 0,
+  cycleMilestones: [],
+  lifetimeDeliveries: 0,
 });
 
 const createNavigator = (page: Page) => {
@@ -228,6 +249,112 @@ test('reprend une sauvegarde v1 au début du deuxième chapitre', async ({ page 
   const state = await diagnostics(page);
   expect(state).toMatchObject({ workers: 2, bridges: 1, chapter: 2, completed: false });
   await expect(page.getByText('Construis l’atelier des Pins')).toBeVisible();
+});
+
+test('les ouvriers restent sur les îles et empruntent les ponts, même après réaffectation', async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    workshopBuilt: true,
+    foundryBuilt: true,
+    observatoryBuilt: true,
+    bridgesBuilt: [true, true, true, true],
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'wood', level: 2 }],
+  });
+  await waitForGame(page);
+  await openCrew(page);
+  const before = (await diagnostics(page)).workerNavigation[0]!;
+  await assignWorker(page, 'Milo', 'cristal');
+  await expect.poll(async () => (await diagnostics(page)).workerTasks).toBe('crystal');
+  const after = (await diagnostics(page)).workerNavigation[0]!;
+  expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThan(1.2);
+  expect(after.routeBridges).toEqual(expect.arrayContaining([0, 1, 2]));
+  await closeCrew(page);
+  for (let sample = 0; sample < 8; sample += 1) {
+    await page.waitForTimeout(350);
+    expect((await diagnostics(page)).workersOnWalkable).toBe(true);
+  }
+  expect((await diagnostics(page)).workerNavigation[0]!.bridgesUsed).toEqual(expect.arrayContaining([0, 1, 2]));
+});
+
+test('débloque la branche Intelligence puis active l’auto-régulation', async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    knowledge: 10,
+  });
+  await waitForGame(page);
+  await page.getByRole('button', { name: /ouvrir l’arbre de talents/i }).click();
+  await expect(page.getByRole('dialog', { name: 'Arbre de talents' })).toBeVisible();
+  await page.getByRole('button', { name: /débloquer sens des pistes/i }).click();
+  await page.getByRole('button', { name: /débloquer routes calculées/i }).click();
+  await page.getByRole('button', { name: /débloquer prévisions/i }).click();
+  await page.getByRole('button', { name: /débloquer auto-régulation/i }).click();
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(0);
+  await expect.poll(async () => (await diagnostics(page)).skills).toContain('auto_regulation');
+  await page.getByRole('button', { name: /activer l’auto-régulation/i }).click();
+  await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
+  await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
+});
+
+test('l’auto-régulation envoie réellement un renard vers la ressource en pénurie', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    wood: 500,
+    stone: 500,
+    copper: 0,
+    crystal: 500,
+    campBuilt: true,
+    workshopBuilt: true,
+    foundryBuilt: true,
+    observatoryBuilt: true,
+    bridgesBuilt: [true, true, true, true],
+    workers: [
+      { id: 'worker-1', name: 'Milo', task: 'wood', level: 2 },
+      { id: 'worker-2', name: 'Nila', task: 'wood', level: 1 },
+      { id: 'worker-3', name: 'Sève', task: 'wood', level: 1 },
+      { id: 'worker-4', name: 'Roc', task: 'stone', level: 2 },
+      { id: 'worker-5', name: 'Pollen', task: 'stone', level: 2 },
+      { id: 'worker-6', name: 'Lune', task: 'copper', level: 1 },
+      { id: 'worker-7', name: 'Braise', task: 'crystal', level: 2 },
+      { id: 'worker-8', name: 'Azur', task: 'crystal', level: 1 },
+    ],
+    skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
+    autoRegulation: true,
+  });
+  await waitForGame(page);
+  expect((await diagnostics(page)).workerTasks.split(',').filter((task) => task === 'copper')).toHaveLength(1);
+  await expect.poll(async () => (await diagnostics(page)).workerTasks.split(',').filter((task) => task === 'copper').length, { timeout: 8_000 }).toBe(2);
+  expect((await diagnostics(page)).workersOnWalkable).toBe(true);
+});
+
+test('une Nouvelle Marée garde les talents et recommence la campagne', async ({ page }) => {
+  await page.addInitScript((save) => {
+    if (sessionStorage.getItem('ilota-rebirth-seeded')) return;
+    localStorage.setItem('ilota-save-v1', JSON.stringify(save));
+    sessionStorage.setItem('ilota-rebirth-seeded', '1');
+  }, {
+    ...richSave(),
+    campBuilt: true,
+    workshopBuilt: true,
+    foundryBuilt: true,
+    observatoryBuilt: true,
+    bridgesBuilt: [true, true, true, true],
+    completed: true,
+    skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
+  });
+  await waitForGame(page);
+  await expect(page.getByRole('heading', { name: 'L’archipel s’éveille !' })).toBeVisible();
+  const rebirth = page.getByRole('button', { name: /lancer une nouvelle marée/i });
+  await rebirth.click();
+  await page.getByRole('button', { name: /confirmer la nouvelle marée/i }).click();
+  await page.waitForFunction(() => (window as typeof window & { __ILOTA__?: { rebirths: number } }).__ILOTA__?.rebirths === 1);
+  const state = await diagnostics(page);
+  expect(state).toMatchObject({ rebirths: 1, completed: false, knowledge: 3 });
+  expect(state.skills).toContain('auto_regulation');
+  await expect(page.getByRole('button', { name: /commencer|reprendre/i })).toBeVisible();
 });
 
 test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async ({ page }) => {

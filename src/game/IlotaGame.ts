@@ -1,29 +1,37 @@
 import * as THREE from 'three';
 import { AssetLibrary, findAnimation } from './assets';
 import {
-  BRIDGE_COSTS,
   Economy,
-  FINAL_COST,
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
-  STRUCTURE_COSTS,
   formatBridgeRequirement,
   formatCost,
+  getBridgeCost,
+  getCacheReward,
   getChapter,
+  getFinalCost,
+  getManualYield,
+  getPlayerSpeed,
   getRecruitCost,
+  getRespawnMultiplier,
+  getStructureCost,
   getTotalWorkerLevels,
   getUpgradeCost,
   getWorkerCapacity,
-  getWorkerCycleSeconds,
+  getWorkerGatherSeconds,
+  getWorkerTravelSpeed,
   getWorkerYield,
+  hasSkill,
   type Cost,
   type ResourceKind,
+  type SkillId,
   type StructureKind,
   type WorkerLevel,
   type WorkerState,
 } from './economy';
 import { InputController } from './input';
+import { isPointOnWalkableNetwork, planRoute, type PlannedRoute } from './pathfinding';
 import {
   BRIDGES,
   CACHES,
@@ -56,10 +64,15 @@ interface WorkerEntity {
   mixer: THREE.AnimationMixer;
   task: ResourceKind;
   level: WorkerLevel;
-  routeStart: THREE.Vector3;
-  routeEnd: THREE.Vector3;
-  offset: number;
-  lastDelivery: number;
+  phase: 'toResource' | 'gathering' | 'toHub' | 'depositing';
+  phaseTimer: number;
+  route: THREE.Vector3[];
+  routeIndex: number;
+  routeDistance: number;
+  routeBridgeIndices: number[];
+  bridgesUsed: Set<number>;
+  target: ResourceNode | null;
+  hub: THREE.Vector3;
 }
 
 interface BridgeEntity {
@@ -113,6 +126,21 @@ interface Diagnostics {
   cacheFound: boolean;
   completed: boolean;
   crewOpen: boolean;
+  talentOpen: boolean;
+  knowledge: number;
+  rebirths: number;
+  skills: string;
+  autoRegulation: boolean;
+  workersOnWalkable: boolean;
+  workerNavigation: Array<{
+    id: string;
+    x: number;
+    z: number;
+    phase: WorkerEntity['phase'];
+    routeBridges: number[];
+    bridgesUsed: number[];
+    routeDistance: number;
+  }>;
   player: { x: number; z: number };
   facingAlignment: number;
   lastHarvest: { kind: ResourceKind; remaining: number; capacity: number; scale: number } | null;
@@ -120,7 +148,6 @@ interface Diagnostics {
 }
 
 const SAVE_KEY = 'ilota-save-v1';
-const PLAYER_SPEED = 5.25;
 
 const PALETTE = {
   sea: 0x164f56,
@@ -193,6 +220,7 @@ export class IlotaGame {
   private harvestCooldown = 0;
   private worldTime = 0;
   private saveCooldown = 0;
+  private autoRegulationCooldown = 3;
   private lastFrameTime = performance.now();
   private fpsAverage = 60;
   private victoryShown = false;
@@ -222,7 +250,7 @@ export class IlotaGame {
     this.createWorld();
     this.playerMixer = this.createPlayer();
     this.restoreVisualProgress();
-    this.bindCrewManagement();
+    this.bindManagement();
     this.resize();
     window.addEventListener('resize', this.resize);
 
@@ -245,6 +273,13 @@ export class IlotaGame {
       cacheFound: progress.cachesFound.includes('main-cache'),
       completed: progress.completed,
       crewOpen: false,
+      talentOpen: false,
+      knowledge: progress.knowledge,
+      rebirths: progress.rebirths,
+      skills: progress.skills.join(','),
+      autoRegulation: progress.autoRegulation,
+      workersOnWalkable: true,
+      workerNavigation: [],
       player: { x: this.player.position.x, z: this.player.position.z },
       facingAlignment: 1,
       lastHarvest: null,
@@ -255,6 +290,13 @@ export class IlotaGame {
   }
 
   start(): void {
+    if (this.economy.progress.completed) {
+      this.active = false;
+      this.victoryShown = true;
+      this.input.enabled = false;
+      this.ui.showVictory(this.economy.progress);
+      return;
+    }
     this.active = true;
     this.input.enabled = !this.managementOpen;
     this.victoryShown = false;
@@ -271,21 +313,56 @@ export class IlotaGame {
     window.location.reload();
   }
 
-  private bindCrewManagement(): void {
+  beginNewTide(): void {
+    const reward = this.economy.rebirth();
+    if (!reward) return;
+    this.save();
+    window.location.reload();
+  }
+
+  private bindManagement(): void {
+    const onOpenChange = (open: boolean): void => {
+      this.managementOpen = open;
+      this.input.release();
+      this.input.enabled = this.active && !open;
+      if (open) {
+        this.interaction = null;
+        this.ui.clearContext();
+      }
+    };
     this.ui.bindCrewHandlers({
-      onOpenChange: (open) => {
-        this.managementOpen = open;
-        this.input.release();
-        this.input.enabled = this.active && !open;
-        if (open) {
-          this.interaction = null;
-          this.ui.clearContext();
-        }
-      },
+      onOpenChange,
       onRecruit: () => this.recruitWorker(),
       onAssign: (workerId, task) => this.assignWorker(workerId, task),
       onUpgrade: (workerId) => this.upgradeWorker(workerId),
     });
+    this.ui.bindTalentHandlers({
+      onOpenChange,
+      onUnlock: (skill) => this.unlockSkill(skill),
+      onAutoToggle: (enabled) => this.toggleAutoRegulation(enabled),
+    });
+  }
+
+  private unlockSkill(skill: SkillId): void {
+    if (!this.economy.unlockSkill(skill)) {
+      this.ui.toast('Talent verrouillé ou Savoir insuffisant.');
+      return;
+    }
+    if (skill === 'optimal_routes' || skill === 'trail_sense') {
+      this.workers.forEach((entity) => {
+        const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
+        if (state) this.syncWorker(entity, state, true);
+      });
+    }
+    this.ui.toast(skill === 'auto_regulation' ? 'Auto-régulation débloquée · active-la dans cette branche.' : 'Nouveau talent appris !');
+    this.changed();
+  }
+
+  private toggleAutoRegulation(enabled: boolean): void {
+    if (!this.economy.setAutoRegulation(enabled)) return;
+    this.autoRegulationCooldown = 0.4;
+    this.ui.toast(enabled ? 'Auto-régulation active · l’équipe surveille les pénuries.' : 'Auto-régulation désactivée.');
+    this.changed();
   }
 
   private recruitWorker(): void {
@@ -314,7 +391,7 @@ export class IlotaGame {
   private upgradeWorker(workerId: string): void {
     const before = this.economy.progress.workers.find((worker) => worker.id === workerId);
     if (!before) return;
-    const upgradeCost = getUpgradeCost(before);
+    const upgradeCost = getUpgradeCost(before, this.economy.progress);
     if (!this.economy.upgradeWorker(workerId)) {
       this.showMissing(upgradeCost);
       return;
@@ -809,6 +886,8 @@ export class IlotaGame {
     const walk = findAnimation(clips, /walk|gallop/i) ?? clips[0];
     if (walk) mixer.clipAction(walk).play();
     const index = this.workers.length;
+    const lateral = ((index % 3) - 1) * 0.55;
+    root.position.set(lateral, 0, 1 + (index % 2) * 0.45);
     const entity: WorkerEntity = {
       id: state.id,
       root,
@@ -816,36 +895,108 @@ export class IlotaGame {
       mixer,
       task: state.task,
       level: state.level,
-      routeStart: vec(0, 0),
-      routeEnd: vec(0, 0),
-      offset: index * 1.37,
-      lastDelivery: 0,
+      phase: 'depositing',
+      phaseTimer: index * 0.16,
+      route: [],
+      routeIndex: 0,
+      routeDistance: 0,
+      routeBridgeIndices: [],
+      bridgesUsed: new Set<number>(),
+      target: null,
+      hub: vec(0, 1),
     };
     this.workers.push(entity);
     this.syncWorker(entity, state, true);
   }
 
-  private syncWorker(entity: WorkerEntity, state: WorkerState, relocate: boolean): void {
+  private syncWorker(entity: WorkerEntity, state: WorkerState, reroute: boolean): void {
     entity.task = state.task;
     entity.level = state.level;
     entity.marker.material.color.setHex(RESOURCE_COLORS[state.task]);
     entity.marker.scale.setScalar(0.9 + state.level * 0.12);
     entity.root.scale.setScalar(0.9 + state.level * 0.055);
-    const matchingResources = this.resources.filter((node) => node.kind === state.task);
-    const workerIndex = Math.max(0, this.economy.progress.workers.findIndex((worker) => worker.id === state.id));
-    const target = matchingResources[workerIndex % Math.max(1, matchingResources.length)];
-    const hub = state.task === 'copper'
+    if (reroute) this.planWorkerCycle(entity, state);
+  }
+
+  private builtWorkerHubs(): THREE.Vector3[] {
+    return STRUCTURES
+      .filter((definition) => structureBuilt(this.economy.progress, definition.kind))
+      .map((definition) => vec(definition.x, definition.z + 0.9));
+  }
+
+  private defaultWorkerHub(task: ResourceKind): THREE.Vector3 {
+    const preferred = task === 'copper'
       ? STRUCTURES.find((item) => item.kind === 'foundry')
-      : state.task === 'crystal'
+      : task === 'crystal'
         ? STRUCTURES.find((item) => item.kind === 'observatory')
-        : target && target.root.position.z < -11
-          ? STRUCTURES.find((item) => item.kind === 'workshop')
-          : STRUCTURES.find((item) => item.kind === 'camp');
-    const lateral = ((workerIndex % 3) - 1) * 0.55;
-    entity.routeStart.set((hub?.x ?? 0) + lateral, 0, (hub?.z ?? 0) + 1 + (workerIndex % 2) * 0.45);
-    entity.routeEnd.copy(target?.root.position ?? vec(0, 4)).add(new THREE.Vector3(lateral * 0.25, 0, 0.4));
-    entity.lastDelivery = Math.floor((this.worldTime + entity.offset) / getWorkerCycleSeconds(state.level));
-    if (relocate) entity.root.position.copy(entity.routeStart);
+        : STRUCTURES.find((item) => item.kind === 'camp');
+    return vec(preferred?.x ?? 0, (preferred?.z ?? 0) + 0.9);
+  }
+
+  private planFrom(start: THREE.Vector3, target: THREE.Vector3): PlannedRoute | null {
+    return planRoute(
+      { x: start.x, z: start.z },
+      { x: target.x, z: target.z },
+      this.economy.progress.bridgesBuilt,
+    );
+  }
+
+  private applyWorkerRoute(entity: WorkerEntity, planned: PlannedRoute, phase: WorkerEntity['phase']): void {
+    entity.route = planned.points.map((point) => vec(point.x, point.z));
+    entity.routeIndex = 0;
+    entity.routeDistance = planned.distance;
+    entity.routeBridgeIndices = [...planned.bridgeIndices];
+    planned.bridgeIndices.forEach((index) => entity.bridgesUsed.add(index));
+    entity.phase = phase;
+    entity.phaseTimer = 0;
+  }
+
+  private planWorkerCycle(entity: WorkerEntity, state: WorkerState): void {
+    const start = entity.root.position;
+    const matchingResources = this.resources.filter((node) => node.kind === state.task);
+    const reachable = matchingResources
+      .map((node) => ({ node, outbound: this.planFrom(start, node.root.position) }))
+      .filter((candidate): candidate is { node: ResourceNode; outbound: PlannedRoute } => Boolean(candidate.outbound));
+    if (!reachable.length) {
+      entity.route = [];
+      entity.routeBridgeIndices = [];
+      entity.target = null;
+      entity.phase = 'depositing';
+      entity.phaseTimer = 1;
+      return;
+    }
+
+    const workerIndex = Math.max(0, this.economy.progress.workers.findIndex((worker) => worker.id === state.id));
+    let selected = reachable[workerIndex % reachable.length]!;
+    let selectedHub = this.defaultWorkerHub(state.task);
+
+    if (hasSkill(this.economy.progress, 'optimal_routes')) {
+      const hubs = this.builtWorkerHubs();
+      const options = reachable.flatMap((candidate) => hubs.map((hub) => ({
+        ...candidate,
+        hub,
+        returning: planRoute(
+          { x: candidate.node.root.position.x, z: candidate.node.root.position.z },
+          { x: hub.x, z: hub.z },
+          this.economy.progress.bridgesBuilt,
+        ),
+      }))).filter((candidate) => Boolean(candidate.returning));
+      const shortest = options.sort((a, b) =>
+        a.outbound.distance + (a.returning?.distance ?? Infinity) - b.outbound.distance - (b.returning?.distance ?? Infinity))[0];
+      if (shortest) {
+        selected = shortest;
+        selectedHub = shortest.hub;
+      }
+    }
+
+    const fallbackReturn = this.planFrom(selected.node.root.position, selectedHub);
+    if (!fallbackReturn) {
+      const safeHub = this.builtWorkerHubs().find((hub) => this.planFrom(selected.node.root.position, hub));
+      if (safeHub) selectedHub = safeHub;
+    }
+    entity.target = selected.node;
+    entity.hub.copy(selectedHub);
+    this.applyWorkerRoute(entity, selected.outbound, 'toResource');
   }
 
   private animate = (): void => {
@@ -875,7 +1026,8 @@ export class IlotaGame {
       this.handleAction(delta);
     }
     this.updateResources(delta);
-    this.updateWorkers();
+    this.updateWorkers(delta);
+    this.updateAutoRegulation(delta);
 
     this.saveCooldown -= delta;
     if (this.saveCooldown <= 0) {
@@ -898,7 +1050,7 @@ export class IlotaGame {
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const direction = right.multiplyScalar(move.x).add(forward.multiplyScalar(move.y)).normalize();
     this.lastMoveDirection.copy(direction);
-    const candidate = this.player.position.clone().addScaledVector(direction, PLAYER_SPEED * magnitude * delta);
+    const candidate = this.player.position.clone().addScaledVector(direction, getPlayerSpeed(this.economy.progress) * magnitude * delta);
     if (this.isWalkable(candidate)) this.player.position.copy(candidate);
     const desiredRotation = Math.atan2(direction.x, direction.z);
     let difference = desiredRotation - this.player.rotation.y;
@@ -947,36 +1099,85 @@ export class IlotaGame {
     });
   }
 
-  private updateWorkers(): void {
+  private advanceWorker(entity: WorkerEntity, speed: number, delta: number): boolean {
+    let remaining = speed * delta;
+    while (remaining > 0 && entity.routeIndex < entity.route.length) {
+      const target = entity.route[entity.routeIndex];
+      if (!target) break;
+      const dx = target.x - entity.root.position.x;
+      const dz = target.z - entity.root.position.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance <= 0.025) {
+        entity.root.position.copy(target);
+        entity.routeIndex += 1;
+        continue;
+      }
+      entity.root.rotation.y = Math.atan2(dx, dz);
+      const step = Math.min(remaining, distance);
+      entity.root.position.x += (dx / distance) * step;
+      entity.root.position.z += (dz / distance) * step;
+      remaining -= step;
+      if (step >= distance - 0.001) {
+        entity.root.position.copy(target);
+        entity.routeIndex += 1;
+      }
+    }
+    return entity.routeIndex >= entity.route.length;
+  }
+
+  private updateWorkers(delta: number): void {
     this.workers.forEach((entity) => {
       const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
       if (!state) return;
       if (state.task !== entity.task || state.level !== entity.level) this.syncWorker(entity, state, state.task !== entity.task);
-      const cycleDuration = getWorkerCycleSeconds(state.level);
-      const shifted = this.worldTime + entity.offset;
-      const cycle = Math.floor(shifted / cycleDuration);
-      const phase = (shifted % cycleDuration) / cycleDuration;
-      const outward = phase < 0.38;
-      const gathering = phase >= 0.38 && phase < 0.58;
-      const returning = phase >= 0.58 && phase < 0.92;
-      const t = outward ? phase / 0.38 : gathering ? 1 : returning ? 1 - (phase - 0.58) / 0.34 : 0;
-      const smooth = t * t * (3 - 2 * t);
-      entity.root.position.lerpVectors(entity.routeStart, entity.routeEnd, smooth);
-      const target = outward || gathering ? entity.routeEnd : entity.routeStart;
-      const dx = target.x - entity.root.position.x;
-      const dz = target.z - entity.root.position.z;
-      if (Math.abs(dx) + Math.abs(dz) > 0.01) entity.root.rotation.y = Math.atan2(dx, dz);
-      entity.root.rotation.z = gathering ? Math.sin(this.worldTime * 11) * 0.06 : entity.root.rotation.z * 0.85;
-
-      if (cycle > entity.lastDelivery) {
-        entity.lastDelivery = cycle;
-        const amount = getWorkerYield(state.level);
-        this.economy.add(state.task, amount);
-        this.ui.update(this.economy.progress);
-        this.spawnParticles(entity.routeStart.clone().setY(0.8), state.task, 4 + state.level * 2);
-        this.save();
+      if (entity.phase === 'toResource') {
+        if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
+          entity.phase = 'gathering';
+          entity.phaseTimer = getWorkerGatherSeconds(state.level);
+        }
+      } else if (entity.phase === 'gathering') {
+        entity.phaseTimer -= delta;
+        if (entity.phaseTimer <= 0) {
+          const returning = this.planFrom(entity.root.position, entity.hub);
+          if (returning) this.applyWorkerRoute(entity, returning, 'toHub');
+          else {
+            entity.phase = 'depositing';
+            entity.phaseTimer = 1;
+          }
+        }
+      } else if (entity.phase === 'toHub') {
+        if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
+          const amount = getWorkerYield(state.level, this.economy.progress);
+          this.economy.add(state.task, amount);
+          this.economy.recordDelivery();
+          this.ui.update(this.economy.progress);
+          this.spawnParticles(entity.hub.clone().setY(0.8), state.task, 4 + state.level * 2);
+          this.save();
+          entity.phase = 'depositing';
+          entity.phaseTimer = 0.55;
+        }
+      } else {
+        entity.phaseTimer -= delta;
+        if (entity.phaseTimer <= 0) this.planWorkerCycle(entity, state);
       }
+      entity.root.rotation.z = entity.phase === 'gathering'
+        ? Math.sin(this.worldTime * 11 + entity.root.id) * 0.06
+        : THREE.MathUtils.damp(entity.root.rotation.z, 0, 9, delta);
     });
+  }
+
+  private updateAutoRegulation(delta: number): void {
+    if (!this.economy.progress.autoRegulation || !hasSkill(this.economy.progress, 'auto_regulation')) return;
+    this.autoRegulationCooldown -= delta;
+    if (this.autoRegulationCooldown > 0) return;
+    this.autoRegulationCooldown = 8;
+    const move = this.economy.autoRegulate();
+    if (!move) return;
+    const state = this.economy.progress.workers.find((worker) => worker.id === move.workerId);
+    const entity = this.workers.find((worker) => worker.id === move.workerId);
+    if (state && entity) this.syncWorker(entity, state, true);
+    if (state) this.ui.toast(`Auto-régulation · ${state.name} passe au ${RESOURCE_LABELS[move.to]}.`);
+    this.changed();
   }
 
   private findInteraction(): Interaction | null {
@@ -1018,12 +1219,12 @@ export class IlotaGame {
     }
     if (interaction.type === 'structure') {
       const { kind } = interaction.entity.definition;
-      this.setCostContext(STRUCTURE_COPY[kind].built, STRUCTURE_COSTS[kind], 'BÂTIR', kind === 'camp' ? '⌂' : kind === 'observatory' ? '✦' : '▣');
+      this.setCostContext(STRUCTURE_COPY[kind].built, getStructureCost(this.economy.progress, kind), 'BÂTIR', kind === 'camp' ? '⌂' : kind === 'observatory' ? '✦' : '▣');
       return;
     }
     if (interaction.type === 'bridge') {
       const { index, definition } = interaction.entity;
-      const cost = BRIDGE_COSTS[index];
+      const cost = getBridgeCost(this.economy.progress, index);
       if (!cost) return;
       const requirementMet = this.economy.bridgeRequirementsMet(index);
       const suffix = requirementMet ? '' : ` · ${formatBridgeRequirement(this.economy.progress, index)}`;
@@ -1035,11 +1236,12 @@ export class IlotaGame {
       return;
     }
     const ready = Economy.finalRequirementsMet(this.economy.progress);
+    const finalCost = getFinalCost(this.economy.progress);
     this.ui.setContext(
-      ready ? `Éveiller le Cœur · ${formatCost(FINAL_COST)}` : 'Cœur scellé · 8 travailleurs · 4 métiers · 12 niveaux',
+      ready ? `Éveiller le Cœur · ${formatCost(finalCost)}` : 'Cœur scellé · 8 travailleurs · 4 métiers · 12 niveaux',
       'ÉVEILLER',
       '✦',
-      ready && this.economy.canAfford(FINAL_COST),
+      ready && this.economy.canAfford(finalCost),
     );
   }
 
@@ -1067,21 +1269,21 @@ export class IlotaGame {
         this.interaction.entity.building.visible = true;
         this.interaction.entity.building.scale.setScalar(0.08);
         this.interaction.entity.building.userData.growing = true;
-        this.ui.toast(STRUCTURE_COPY[kind].toast);
+        this.ui.toast(`${STRUCTURE_COPY[kind].toast} · +1 Savoir`);
         this.spawnParticles(this.interaction.entity.building.position.clone().setY(1.2), kind === 'foundry' ? 'copper' : kind === 'observatory' ? 'crystal' : 'wood', 20);
         this.changed();
-      } else this.showMissing(STRUCTURE_COSTS[kind]);
+      } else this.showMissing(getStructureCost(this.economy.progress, kind));
       return;
     }
     if (this.interaction.type === 'bridge') {
       const { index, root, definition } = this.interaction.entity;
-      const bridgeCost = BRIDGE_COSTS[index];
+      const bridgeCost = getBridgeCost(this.economy.progress, index);
       if (!bridgeCost) return;
       if (this.economy.buildBridge(index)) {
         root.visible = true;
         root.scale.y = 0.05;
         root.userData.growingBridge = true;
-        this.ui.toast(`${definition.name} terminé · une nouvelle île est accessible !`);
+        this.ui.toast(`${definition.name} terminé · nouvelle île · +1 Savoir`);
         this.spawnParticles(this.interaction.entity.start.clone().lerp(this.interaction.entity.end, 0.5).setY(0.7), index >= 2 ? 'crystal' : 'stone', 26);
         this.changed();
       } else if (!this.economy.bridgeRequirementsMet(index)) {
@@ -1091,9 +1293,10 @@ export class IlotaGame {
     }
     if (this.interaction.type === 'cache') {
       const { definition, root } = this.interaction.entity;
+      const reward = getCacheReward(this.economy.progress, definition.reward);
       if (this.economy.findCache(definition.id, definition.reward)) {
         root.visible = false;
-        this.ui.toast(`Cache découverte · +${formatCost(definition.reward)}`);
+        this.ui.toast(`Cache découverte · +${formatCost(reward)}`);
         this.spawnParticles(root.position.clone().setY(0.8), definition.reward.crystal ? 'crystal' : definition.reward.copper ? 'copper' : 'wood', 14);
         this.changed();
       }
@@ -1111,7 +1314,7 @@ export class IlotaGame {
         window.setTimeout(() => this.ui.showVictory(this.economy.progress), 700);
       } else if (!Economy.finalRequirementsMet(this.economy.progress)) {
         this.ui.toast('Il faut 8 travailleurs, les 4 métiers et 12 niveaux cumulés.');
-      } else this.showMissing(FINAL_COST);
+      } else this.showMissing(getFinalCost(this.economy.progress));
     }
   }
 
@@ -1120,11 +1323,11 @@ export class IlotaGame {
     node.amount -= 1;
     node.pulse = 0.22;
     this.lastHarvestedNode = node;
-    this.economy.add(node.kind, 1);
+    this.economy.add(node.kind, getManualYield(this.economy.progress));
     const height = node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
     this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
     if (node.amount <= 0) {
-      node.respawn = node.respawnSeconds;
+      node.respawn = node.respawnSeconds * getRespawnMultiplier(this.economy.progress);
       this.ui.toast(node.kind === 'wood' ? 'Arbre épuisé · il repousse bientôt' : `${RESOURCE_LABELS[node.kind]} épuisé · le filon se reforme`);
     }
     this.ui.update(this.economy.progress);
@@ -1254,7 +1457,25 @@ export class IlotaGame {
     this.diagnostics.chapter = getChapter(progress);
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');
     this.diagnostics.completed = progress.completed;
-    this.diagnostics.crewOpen = this.managementOpen;
+    this.diagnostics.crewOpen = this.ui.isCrewOpen;
+    this.diagnostics.talentOpen = this.ui.isTalentOpen;
+    this.diagnostics.knowledge = progress.knowledge;
+    this.diagnostics.rebirths = progress.rebirths;
+    this.diagnostics.skills = progress.skills.join(',');
+    this.diagnostics.autoRegulation = progress.autoRegulation;
+    this.diagnostics.workersOnWalkable = this.workers.every((worker) => isPointOnWalkableNetwork(
+      { x: worker.root.position.x, z: worker.root.position.z },
+      progress.bridgesBuilt,
+    ));
+    this.diagnostics.workerNavigation = this.workers.map((worker) => ({
+      id: worker.id,
+      x: Number(worker.root.position.x.toFixed(2)),
+      z: Number(worker.root.position.z.toFixed(2)),
+      phase: worker.phase,
+      routeBridges: [...worker.routeBridgeIndices],
+      bridgesUsed: [...worker.bridgesUsed].sort((a, b) => a - b),
+      routeDistance: Number(worker.routeDistance.toFixed(2)),
+    }));
     this.diagnostics.player.x = Number(this.player.position.x.toFixed(2));
     this.diagnostics.player.z = Number(this.player.position.z.toFixed(2));
     if (this.playerModel) {

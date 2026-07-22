@@ -2,17 +2,24 @@ import {
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
+  SKILL_BRANCH_LABELS,
+  SKILL_DEFINITIONS,
   formatCost,
+  getCycleMultiplier,
   getObjective,
+  getPriorityShortage,
   getRecruitCost,
+  getRebirthReward,
   getUnlockedWorkerTasks,
   getUpgradeCost,
   getWorkerCapacity,
-  getWorkerCycleSeconds,
   getWorkerLevelCap,
   getWorkerYield,
+  hasSkill,
   type IslandProgress,
   type ResourceKind,
+  type SkillBranch,
+  type SkillId,
 } from '../game/economy';
 
 type InstallPrompt = Event & {
@@ -25,6 +32,12 @@ interface CrewHandlers {
   onRecruit: () => void;
   onAssign: (workerId: string, task: ResourceKind) => void;
   onUpgrade: (workerId: string) => void;
+}
+
+interface TalentHandlers {
+  onOpenChange: (open: boolean) => void;
+  onUnlock: (skill: SkillId) => void;
+  onAutoToggle: (enabled: boolean) => void;
 }
 
 const byId = <T extends HTMLElement>(id: string): T => {
@@ -53,6 +66,7 @@ export class GameUI {
   readonly startButton = byId<HTMLButtonElement>('start-button');
   readonly continueButton = byId<HTMLButtonElement>('continue-button');
   readonly resetButton = byId<HTMLButtonElement>('reset-button');
+  readonly rebirthButton = byId<HTMLButtonElement>('rebirth-button');
   readonly joystick = byId<HTMLElement>('joystick');
   readonly joystickKnob = byId<HTMLElement>('joystick-knob');
   readonly actionButton = byId<HTMLButtonElement>('action-button');
@@ -65,6 +79,9 @@ export class GameUI {
   private readonly victoryScreen = byId<HTMLElement>('victory-screen');
   private readonly victoryWorkers = byId<HTMLElement>('victory-workers');
   private readonly victoryTime = byId<HTMLElement>('victory-time');
+  private readonly victoryKnowledge = byId<HTMLElement>('victory-knowledge');
+  private readonly victoryTide = byId<HTMLElement>('victory-tide');
+  private readonly rebirthReward = byId<HTMLElement>('rebirth-reward');
   private readonly resourceCounts: Record<ResourceKind, HTMLElement> = {
     wood: byId<HTMLElement>('wood-count'),
     stone: byId<HTMLElement>('stone-count'),
@@ -87,9 +104,19 @@ export class GameUI {
   private readonly workerList = byId<HTMLElement>('worker-list');
   private readonly recruitButton = byId<HTMLButtonElement>('recruit-button');
   private readonly recruitCost = byId<HTMLElement>('recruit-cost');
+  private readonly talentButton = byId<HTMLButtonElement>('talent-button');
+  private readonly talentButtonCount = byId<HTMLElement>('talent-button-count');
+  private readonly talentPanel = byId<HTMLElement>('talent-panel');
+  private readonly talentCloseButton = byId<HTMLButtonElement>('talent-close-button');
+  private readonly talentKnowledge = byId<HTMLElement>('talent-knowledge');
+  private readonly tideCount = byId<HTMLElement>('tide-count');
+  private readonly forecastText = byId<HTMLElement>('forecast-text');
+  private readonly skillBranches = byId<HTMLElement>('skill-branches');
+  private readonly autoRegulationButton = byId<HTMLButtonElement>('auto-regulation-button');
   private toastTimer = 0;
   private installPrompt: InstallPrompt | null = null;
   private crewHandlers: CrewHandlers | null = null;
+  private talentHandlers: TalentHandlers | null = null;
   private latestProgress: IslandProgress | null = null;
 
   constructor() {
@@ -122,8 +149,24 @@ export class GameUI {
         this.crewHandlers?.onAssign(workerId, target.dataset.task as ResourceKind);
       }
     });
+    this.talentButton.addEventListener('click', () => this.showTalents());
+    this.talentCloseButton.addEventListener('click', () => this.hideTalents());
+    this.talentPanel.addEventListener('pointerdown', (event) => {
+      if (event.target === this.talentPanel) this.hideTalents();
+    });
+    this.skillBranches.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-skill]') : null;
+      if (!target || target.disabled || !target.dataset.skill) return;
+      this.talentHandlers?.onUnlock(target.dataset.skill as SkillId);
+    });
+    this.autoRegulationButton.addEventListener('click', () => {
+      if (!this.latestProgress) return;
+      this.talentHandlers?.onAutoToggle(!this.latestProgress.autoRegulation);
+    });
     window.addEventListener('keydown', (event) => {
-      if (event.code === 'Escape' && !this.crewPanel.hidden) this.hideCrew();
+      if (event.code !== 'Escape') return;
+      if (!this.crewPanel.hidden) this.hideCrew();
+      else if (!this.talentPanel.hidden) this.hideTalents();
     });
   }
 
@@ -131,8 +174,16 @@ export class GameUI {
     this.crewHandlers = handlers;
   }
 
+  bindTalentHandlers(handlers: TalentHandlers): void {
+    this.talentHandlers = handlers;
+  }
+
   get isCrewOpen(): boolean {
     return !this.crewPanel.hidden;
+  }
+
+  get isTalentOpen(): boolean {
+    return !this.talentPanel.hidden;
   }
 
   showCrew(): void {
@@ -148,6 +199,21 @@ export class GameUI {
     this.crewPanel.hidden = true;
     this.crewHandlers?.onOpenChange(false);
     this.crewButton.focus({ preventScroll: true });
+  }
+
+  showTalents(): void {
+    if (!this.latestProgress) return;
+    this.talentPanel.hidden = false;
+    this.renderTalents(this.latestProgress);
+    this.talentHandlers?.onOpenChange(true);
+    window.setTimeout(() => this.talentCloseButton.focus(), 0);
+  }
+
+  hideTalents(): void {
+    if (this.talentPanel.hidden) return;
+    this.talentPanel.hidden = true;
+    this.talentHandlers?.onOpenChange(false);
+    this.talentButton.focus({ preventScroll: true });
   }
 
   setLoading(progress: number, label: string): void {
@@ -178,7 +244,10 @@ export class GameUI {
     this.crewButton.hidden = !progress.campBuilt;
     this.crewButtonCount.textContent = `${progress.workers.length}/${capacity}`;
     this.crewButton.setAttribute('aria-label', `Gérer l’équipe, ${progress.workers.length} travailleurs sur ${capacity}`);
+    this.talentButtonCount.textContent = String(progress.knowledge);
+    this.talentButton.setAttribute('aria-label', `Ouvrir l’arbre de talents, ${progress.knowledge} points de Savoir disponibles`);
     if (!this.crewPanel.hidden) this.renderCrew(progress);
+    if (!this.talentPanel.hidden) this.renderTalents(progress);
   }
 
   private renderCrew(progress: IslandProgress): void {
@@ -186,7 +255,9 @@ export class GameUI {
     const levelCap = getWorkerLevelCap(progress);
     const unlockedTasks = getUnlockedWorkerTasks(progress);
     this.crewCapacity.textContent = `${progress.workers.length} / ${capacity} postes · niveau max ${levelCap}`;
-    this.crewHelp.textContent = progress.observatoryBuilt
+    this.crewHelp.textContent = progress.autoRegulation
+      ? `Auto-régulation active · priorité actuelle : ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
+      : progress.observatoryBuilt
       ? 'Tous les métiers sont ouverts : adapte l’équipe à ton prochain coût.'
       : progress.foundryBuilt
         ? 'Le cuivre est ouvert. L’observatoire débloquera le cristal.'
@@ -216,7 +287,7 @@ export class GameUI {
       const name = element('strong');
       name.textContent = worker.name;
       const level = element('small');
-      level.textContent = `Niveau ${worker.level} · +${getWorkerYield(worker.level)} toutes les ${getWorkerCycleSeconds(worker.level).toFixed(1)} s`;
+      level.textContent = `Niveau ${worker.level} · +${getWorkerYield(worker.level, progress)} par livraison · trajet réel`;
       identity.append(name, level);
       heading.append(avatar, identity);
 
@@ -247,7 +318,7 @@ export class GameUI {
         upgrade.textContent = levelCap === 1 ? 'ATELIER REQUIS POUR AMÉLIORER' : 'FONDERIE REQUISE POUR LE NIVEAU 3';
         upgrade.disabled = true;
       } else {
-        const upgradeCost = getUpgradeCost(worker);
+        const upgradeCost = getUpgradeCost(worker, progress);
         upgrade.textContent = `AMÉLIORER NIVEAU ${worker.level + 1} · ${formatCost(upgradeCost)}`;
         upgrade.disabled = !canAfford(progress, upgradeCost);
       }
@@ -255,6 +326,64 @@ export class GameUI {
       card.append(heading, assignmentLabel, assignments, upgrade);
       this.workerList.append(card);
     });
+  }
+
+  private renderTalents(progress: IslandProgress): void {
+    this.talentKnowledge.textContent = `${progress.knowledge} Savoir disponible${progress.knowledge > 1 ? 's' : ''}`;
+    this.tideCount.textContent = `Marée ${progress.rebirths + 1} · exigence ×${getCycleMultiplier(progress).toFixed(2)}`;
+    this.forecastText.textContent = hasSkill(progress, 'forecasting')
+      ? `Prévision : la prochaine pénurie sera le ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
+      : 'Débloque Prévisions pour lire le prochain manque avant d’investir.';
+    this.skillBranches.replaceChildren();
+
+    (Object.keys(SKILL_BRANCH_LABELS) as SkillBranch[]).forEach((branch) => {
+      const copy = SKILL_BRANCH_LABELS[branch];
+      const column = element('section', `skill-branch branch-${branch}`);
+      const header = element('header', 'skill-branch-header');
+      const icon = element('span', 'skill-branch-icon');
+      icon.textContent = copy.icon;
+      const heading = element('div');
+      const title = element('h3');
+      title.textContent = copy.name;
+      const summary = element('p');
+      summary.textContent = copy.summary;
+      heading.append(title, summary);
+      header.append(icon, heading);
+      const track = element('div', 'skill-track');
+
+      SKILL_DEFINITIONS.filter((skill) => skill.branch === branch).forEach((skill) => {
+        const unlocked = hasSkill(progress, skill.id);
+        const prerequisiteMet = !skill.requires || hasSkill(progress, skill.requires);
+        const button = element('button', `skill-node${unlocked ? ' unlocked' : ''}`);
+        button.type = 'button';
+        button.dataset.skill = skill.id;
+        button.disabled = unlocked || !prerequisiteMet || progress.knowledge < skill.cost;
+        button.setAttribute('aria-label', unlocked ? `${skill.name}, débloqué` : `Débloquer ${skill.name} pour ${skill.cost} Savoir`);
+        const tier = element('span', 'skill-tier');
+        tier.textContent = unlocked ? '✓' : String(skill.tier);
+        const body = element('span', 'skill-node-body');
+        const name = element('strong');
+        name.textContent = skill.name;
+        const detail = element('small');
+        detail.textContent = skill.detail;
+        body.append(name, detail);
+        const price = element('span', 'skill-price');
+        price.textContent = unlocked ? 'ACQUIS' : prerequisiteMet ? `${skill.cost} SAVOIR` : 'PRÉREQUIS';
+        button.append(tier, body, price);
+        track.append(button);
+      });
+      column.append(header, track);
+      this.skillBranches.append(column);
+    });
+
+    const autoUnlocked = hasSkill(progress, 'auto_regulation');
+    this.autoRegulationButton.disabled = !autoUnlocked;
+    this.autoRegulationButton.setAttribute('aria-pressed', String(progress.autoRegulation));
+    this.autoRegulationButton.textContent = !autoUnlocked
+      ? 'AUTO-RÉGULATION · SOMMET INTELLIGENCE REQUIS'
+      : progress.autoRegulation
+        ? 'AUTO-RÉGULATION ACTIVE'
+        : 'ACTIVER L’AUTO-RÉGULATION';
   }
 
   setContext(text: string, actionLabel = 'RÉCOLTER', icon = '⌁', affordable = true): void {
@@ -282,9 +411,13 @@ export class GameUI {
 
   showVictory(progress: IslandProgress): void {
     this.hideCrew();
+    this.hideTalents();
     this.victoryWorkers.textContent = String(progress.workers.length);
     const total = Math.floor(progress.elapsedSeconds);
     this.victoryTime.textContent = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    this.victoryKnowledge.textContent = String(progress.knowledge);
+    this.victoryTide.textContent = String(progress.rebirths + 1);
+    this.rebirthReward.textContent = `Nouvelle Marée : +${getRebirthReward(progress)} Savoir · talents conservés · exigences ×${(1 + Math.min(8, progress.rebirths + 1) * 0.22).toFixed(2)}`;
     this.victoryScreen.hidden = false;
   }
 

@@ -22,6 +22,21 @@ interface IlotaWindow extends Window {
     cacheFound: boolean;
     completed: boolean;
     crewOpen: boolean;
+    talentOpen: boolean;
+    knowledge: number;
+    rebirths: number;
+    skills: string;
+    autoRegulation: boolean;
+    workersOnWalkable: boolean;
+    workerNavigation: Array<{
+      id: string;
+      x: number;
+      z: number;
+      phase: string;
+      routeBridges: number[];
+      bridgesUsed: number[];
+      routeDistance: number;
+    }>;
     player: { x: number; z: number };
     facingAlignment: number;
     lastHarvest: { kind: string; remaining: number; capacity: number; scale: number } | null;
@@ -51,6 +66,22 @@ const launch = async (): Promise<void> => {
       game.start();
     });
     ui.continueButton.addEventListener('click', () => game.continueAfterVictory());
+    let rebirthArmed = false;
+    let rebirthTimer = 0;
+    ui.rebirthButton.addEventListener('click', () => {
+      if (rebirthArmed) {
+        window.clearTimeout(rebirthTimer);
+        game.beginNewTide();
+        return;
+      }
+      rebirthArmed = true;
+      ui.rebirthButton.textContent = 'CONFIRMER LA NOUVELLE MARÉE';
+      ui.toast('La carte et l’équipe recommenceront, mais tes talents et ton Savoir resteront.');
+      rebirthTimer = window.setTimeout(() => {
+        rebirthArmed = false;
+        ui.rebirthButton.textContent = 'LANCER UNE NOUVELLE MARÉE';
+      }, 4500);
+    });
     let resetArmed = false;
     let resetTimer = 0;
     ui.resetButton.addEventListener('click', () => {
@@ -64,7 +95,7 @@ const launch = async (): Promise<void> => {
       ui.toast('Appuie encore une fois pour effacer toute la progression.');
       resetTimer = window.setTimeout(() => {
         resetArmed = false;
-        ui.resetButton.textContent = 'Recommencer l’île';
+        ui.resetButton.textContent = 'Effacer toute la progression';
       }, 3500);
     });
     ui.finishLoading();

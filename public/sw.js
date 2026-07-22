@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v2-archipel';
+const CACHE = 'ilota-v3-tides';
 const CORE = [
   './',
   './index.html',
