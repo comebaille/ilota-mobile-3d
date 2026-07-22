@@ -51,6 +51,7 @@ interface Diagnostics {
   cacheFound: boolean;
   completed: boolean;
   player: { x: number; z: number };
+  facingAlignment: number;
   fps: number;
 }
 
@@ -83,8 +84,11 @@ export class IlotaGame {
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 150);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly player = new THREE.Group();
+  private playerModel: THREE.Object3D | null = null;
   private readonly playerMixer: THREE.AnimationMixer;
   private readonly playerActions = new Map<string, THREE.AnimationAction>();
+  private readonly lastMoveDirection = new THREE.Vector3(0, 0, 1);
+  private readonly facingDirection = new THREE.Vector3(0, 0, 1);
   private currentPlayerAction = '';
   private readonly resources: ResourceNode[] = [];
   private readonly workers: WorkerEntity[] = [];
@@ -151,6 +155,7 @@ export class IlotaGame {
       cacheFound: economy.progress.cacheFound,
       completed: economy.progress.completed,
       player: { x: this.player.position.x, z: this.player.position.z },
+      facingAlignment: 1,
       fps: 60,
     };
     this.ui.update(economy.progress);
@@ -472,6 +477,7 @@ export class IlotaGame {
 
   private createPlayer(): THREE.AnimationMixer {
     const { root, clips } = this.assets.createFox(1.35);
+    this.playerModel = root;
     this.player.add(root);
     this.player.position.set(0, 0, 4.25);
     this.scene.add(this.player);
@@ -584,6 +590,7 @@ export class IlotaGame {
     forward.normalize();
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const direction = right.multiplyScalar(move.x).add(forward.multiplyScalar(move.y)).normalize();
+    this.lastMoveDirection.copy(direction);
     const candidate = this.player.position.clone().addScaledVector(direction, PLAYER_SPEED * magnitude * delta);
     if (this.isWalkable(candidate)) this.player.position.copy(candidate);
 
@@ -921,6 +928,10 @@ export class IlotaGame {
     this.diagnostics.completed = progress.completed;
     this.diagnostics.player.x = Number(this.player.position.x.toFixed(2));
     this.diagnostics.player.z = Number(this.player.position.z.toFixed(2));
+    if (this.playerModel) {
+      this.playerModel.getWorldDirection(this.facingDirection);
+      this.diagnostics.facingAlignment = Number(this.facingDirection.dot(this.lastMoveDirection).toFixed(3));
+    }
     this.diagnostics.fps = Math.round(this.fpsAverage);
     if (this.victoryShown) this.diagnostics.active = false;
   }

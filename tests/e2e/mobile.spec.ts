@@ -17,7 +17,14 @@ test('charge les assets et permet une première récolte sur iPhone SE paysage',
   const before = await page.evaluate(() => (window as typeof window & { __ILOTA__: { wood: number } }).__ILOTA__.wood);
   await page.keyboard.press('KeyE');
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __ILOTA__: { wood: number } }).__ILOTA__.wood)).toBeGreaterThan(before);
-  await page.screenshot({ path: 'test-results/ilota-iphone-se.png' });
+
+  await page.keyboard.down('ArrowRight');
+  await page.waitForTimeout(700);
+  await page.keyboard.up('ArrowRight');
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __ILOTA__: { facingAlignment: number } }
+  ).__ILOTA__.facingAlignment)).toBeGreaterThan(0.92);
+  await page.screenshot({ path: 'test-results/ilota-facing-right.png' });
 
   const metrics = await page.evaluate(() => {
     const controls = document.getElementById('touch-controls')!.getBoundingClientRect();

@@ -68,7 +68,7 @@ export class AssetLibrary {
     root.updateMatrixWorld(true);
     const normalized = new THREE.Box3().setFromObject(root);
     root.position.y -= normalized.min.y;
-    root.rotation.y = Math.PI;
+    // Le renard est déjà orienté vers +Z, comme les groupes qui pilotent son déplacement.
     return { root, clips: this.fox.animations };
   }
 }

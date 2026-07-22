@@ -16,6 +16,7 @@ interface IlotaWindow extends Window {
     cacheFound: boolean;
     completed: boolean;
     player: { x: number; z: number };
+    facingAlignment: number;
     fps: number;
   };
 }
