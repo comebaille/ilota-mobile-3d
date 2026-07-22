@@ -34,6 +34,10 @@ export class InputController {
     return value;
   }
 
+  release(): void {
+    this.reset();
+  }
+
   updateKeyboard(): void {
     if (!this.enabled) {
       if (this.joystickPointer === null) this.resetMove();

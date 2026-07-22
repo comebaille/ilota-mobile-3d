@@ -10,13 +10,21 @@ interface IlotaWindow extends Window {
     assetsLoaded: number;
     wood: number;
     stone: number;
+    copper: number;
+    crystal: number;
     campBuilt: boolean;
     workers: number;
+    workerLevels: number;
+    workerTasks: string;
     bridgeBuilt: boolean;
+    bridges: number;
+    chapter: number;
     cacheFound: boolean;
     completed: boolean;
+    crewOpen: boolean;
     player: { x: number; z: number };
     facingAlignment: number;
+    lastHarvest: { kind: string; remaining: number; capacity: number; scale: number } | null;
     fps: number;
   };
 }
@@ -43,7 +51,22 @@ const launch = async (): Promise<void> => {
       game.start();
     });
     ui.continueButton.addEventListener('click', () => game.continueAfterVictory());
-    ui.resetButton.addEventListener('click', () => game.resetProgress());
+    let resetArmed = false;
+    let resetTimer = 0;
+    ui.resetButton.addEventListener('click', () => {
+      if (resetArmed) {
+        window.clearTimeout(resetTimer);
+        game.resetProgress();
+        return;
+      }
+      resetArmed = true;
+      ui.resetButton.textContent = 'Confirmer la remise à zéro';
+      ui.toast('Appuie encore une fois pour effacer toute la progression.');
+      resetTimer = window.setTimeout(() => {
+        resetArmed = false;
+        ui.resetButton.textContent = 'Recommencer l’île';
+      }, 3500);
+    });
     ui.finishLoading();
   } catch (error) {
     console.error('Échec du chargement d’Ilota', error);
