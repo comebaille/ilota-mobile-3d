@@ -19,6 +19,8 @@ interface IlotaDiagnostics {
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
+  visibleIslands: number;
+  emergingIsland: string;
   workersOnWalkable: boolean;
   workerNavigation: Array<{
     id: string;
@@ -47,7 +49,7 @@ const waitForGame = async (page: Page): Promise<void> => {
 };
 
 const richSave = () => ({
-  version: 3,
+  version: 4,
   wood: 999,
   stone: 999,
   copper: 999,
@@ -63,6 +65,7 @@ const richSave = () => ({
   elapsedSeconds: 0,
   knowledge: 0,
   skills: [],
+  skillRanks: {},
   autoRegulation: false,
   rebirths: 0,
   cycleMilestones: [],
@@ -189,7 +192,8 @@ test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone
       fps: state.fps,
     };
   });
-  expect(metrics).toMatchObject({ controlsInside: true, actionInside: true, joystickInside: true, chipsInside: true, assetsLoaded: 6 });
+  expect(metrics).toMatchObject({ controlsInside: true, actionInside: true, joystickInside: true, chipsInside: true, assetsLoaded: 10 });
+  expect((await diagnostics(page)).visibleIslands).toBe(1);
   expect(metrics.fps).toBeGreaterThanOrEqual(18);
   expect(errors).toEqual([]);
 });
@@ -278,25 +282,54 @@ test('les ouvriers restent sur les îles et empruntent les ponts, même après r
   expect((await diagnostics(page)).workerNavigation[0]!.bridgesUsed).toEqual(expect.arrayContaining([0, 1, 2]));
 });
 
-test('débloque la branche Intelligence puis active l’auto-régulation', async ({ page }) => {
+test('fait naître le graphe hexagonal puis atteint l’auto-régulation profonde', async ({ page }) => {
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
-    knowledge: 10,
+    knowledge: 30,
   });
   await waitForGame(page);
   await page.getByRole('button', { name: /ouvrir l’arbre de talents/i }).click();
-  await expect(page.getByRole('dialog', { name: 'Arbre de talents' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Arbre des savoirs' })).toBeVisible();
+  await expect(page.locator('.skill-hex')).toHaveCount(1);
+  await page.getByRole('button', { name: /débloquer démarrer/i }).click();
+  await expect(page.getByRole('button', { name: /débloquer étincelle logique/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /débloquer premier mécanisme/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /débloquer appel du large/i })).toBeVisible();
+  await page.getByRole('button', { name: /débloquer étincelle logique/i }).click();
   await page.getByRole('button', { name: /débloquer sens des pistes/i }).click();
   await page.getByRole('button', { name: /débloquer routes calculées/i }).click();
   await page.getByRole('button', { name: /débloquer prévisions/i }).click();
+  await page.getByRole('button', { name: /débloquer relèves coordonnées/i }).click();
   await page.getByRole('button', { name: /débloquer auto-régulation/i }).click();
-  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(0);
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(8);
   await expect.poll(async () => (await diagnostics(page)).skills).toContain('auto_regulation');
   await page.getByRole('button', { name: /activer l’auto-régulation/i }).click();
   await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
   await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
   await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
+});
+
+test('achète plusieurs rangs de postes dont le prix augmente', async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    knowledge: 100,
+  });
+  await waitForGame(page);
+  await page.getByRole('button', { name: /ouvrir l’arbre de talents/i }).click();
+  await page.getByRole('button', { name: /débloquer démarrer/i }).click();
+  await page.getByRole('button', { name: /débloquer premier mécanisme/i }).click();
+  await page.getByRole('button', { name: /débloquer outils affûtés/i }).click();
+  await page.getByRole('button', { name: /débloquer charrettes renforcées/i }).click();
+  await page.getByRole('button', { name: /débloquer gisements vivants/i }).click();
+  await page.getByRole('button', { name: /débloquer cercle des bâtisseurs rang 1/i }).click();
+  await page.getByRole('button', { name: /débloquer cercle des bâtisseurs rang 2/i }).click();
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(82);
+  await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
+  await openCrew(page);
+  await expect(page.locator('#crew-capacity')).toContainText('0 / 5 postes');
 });
 
 test('l’auto-régulation envoie réellement un renard vers la ressource en pénurie', async ({ page }) => {
@@ -375,6 +408,8 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.locator('#context-prompt')).toContainText('Pont des Pins');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).bridges).toBe(1);
+  await expect.poll(async () => (await diagnostics(page)).emergingIsland).toBe('pins');
+  await expect.poll(async () => (await diagnostics(page)).visibleIslands, { timeout: 5_000 }).toBe(2);
 
   await moveTo(0, -10.1, 0.5);
   await moveTo(0, -14.3, 0.65);
@@ -391,6 +426,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.locator('#context-prompt')).toContainText('Pont Cuivré');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).bridges).toBe(2);
+  await expect.poll(async () => (await diagnostics(page)).visibleIslands, { timeout: 5_000 }).toBe(3);
 
   await moveTo(4.29, -26.15, 0.5);
   await moveTo(7.96, -30.55, 0.65);
@@ -406,6 +442,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.locator('#context-prompt')).toContainText('Pont des Cristaux');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).bridges).toBe(3);
+  await expect.poll(async () => (await diagnostics(page)).visibleIslands, { timeout: 5_000 }).toBe(4);
 
   await moveTo(7.92, -41.42, 0.5);
   await moveTo(3.45, -46.73, 0.65);
@@ -424,6 +461,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.locator('#context-prompt')).toContainText('Pont de la Couronne');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).bridges).toBe(4);
+  await expect.poll(async () => (await diagnostics(page)).visibleIslands, { timeout: 5_000 }).toBe(5);
 
   await openCrew(page);
   await recruitUntil(page, 8);

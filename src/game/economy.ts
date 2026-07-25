@@ -4,19 +4,34 @@ export type ResourceKind = (typeof RESOURCE_KINDS)[number];
 export type WorkerLevel = 1 | 2 | 3;
 export type StructureKind = 'camp' | 'workshop' | 'foundry' | 'observatory';
 export type SkillBranch = 'intelligence' | 'industry' | 'exploration';
+export type SkillFamily = SkillBranch | 'core' | 'hybrid';
 export type SkillId =
+  | 'awakening'
+  | 'insight_gateway'
+  | 'craft_gateway'
+  | 'exploration_gateway'
   | 'trail_sense'
   | 'optimal_routes'
   | 'forecasting'
+  | 'coordinated_shifts'
   | 'auto_regulation'
+  | 'collective_intelligence'
   | 'sharp_tools'
   | 'reinforced_carts'
   | 'living_quarries'
+  | 'expanded_roster'
   | 'master_builders'
+  | 'endless_engine'
   | 'tide_stride'
   | 'cache_instinct'
   | 'frugal_plans'
-  | 'tidal_memory';
+  | 'tidal_memory'
+  | 'far_horizons'
+  | 'ocean_legacy'
+  | 'logistics_network'
+  | 'adaptive_harvest'
+  | 'scouting_parties'
+  | 'archipelago_consciousness';
 
 export interface Cost {
   wood: number;
@@ -33,7 +48,7 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 3;
+  version: 4;
   wood: number;
   stone: number;
   copper: number;
@@ -49,13 +64,18 @@ export interface IslandProgress {
   elapsedSeconds: number;
   knowledge: number;
   skills: SkillId[];
+  skillRanks: Partial<Record<SkillId, number>>;
   autoRegulation: boolean;
   rebirths: number;
   cycleMilestones: string[];
   lifetimeDeliveries: number;
 }
 
-interface VersionTwoProgress extends Omit<IslandProgress, 'version' | 'knowledge' | 'skills' | 'autoRegulation' | 'rebirths' | 'cycleMilestones' | 'lifetimeDeliveries'> {
+interface VersionThreeProgress extends Omit<IslandProgress, 'version' | 'skillRanks'> {
+  version: 3;
+}
+
+interface VersionTwoProgress extends Omit<IslandProgress, 'version' | 'knowledge' | 'skills' | 'skillRanks' | 'autoRegulation' | 'rebirths' | 'cycleMilestones' | 'lifetimeDeliveries'> {
   version: 2;
 }
 
@@ -81,12 +101,17 @@ export interface ObjectiveCopy {
 
 export interface SkillDefinition {
   id: SkillId;
-  branch: SkillBranch;
+  branch: SkillFamily;
   tier: number;
   cost: number;
   name: string;
   detail: string;
-  requires?: SkillId;
+  icon: string;
+  x: number;
+  y: number;
+  requires?: readonly SkillId[];
+  maxRank?: number;
+  rankCosts?: readonly number[];
 }
 
 export interface AssignmentMove {
@@ -131,30 +156,50 @@ export const RESOURCE_ICONS: Record<ResourceKind, string> = {
 
 export const SKILL_BRANCH_LABELS: Record<SkillBranch, { name: string; icon: string; summary: string }> = {
   intelligence: { name: 'Intelligence', icon: '⌘', summary: 'Trajets, prévisions et décisions autonomes.' },
-  industry: { name: 'Industrie', icon: '⚒', summary: 'Récolte, cargaisons et régénération.' },
+  industry: { name: 'Technique', icon: '⚒', summary: 'Outils, effectifs et production mécanique.' },
   exploration: { name: 'Exploration', icon: '➶', summary: 'Mobilité, caches et départs accélérés.' },
 };
 
 export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
-  { id: 'trail_sense', branch: 'intelligence', tier: 1, cost: 1, name: 'Sens des pistes', detail: '+18 % de vitesse pour tous les travailleurs.' },
-  { id: 'optimal_routes', branch: 'intelligence', tier: 2, cost: 2, name: 'Routes calculées', detail: 'Choisit le gisement et le dépôt offrant le trajet réellement le plus court.', requires: 'trail_sense' },
-  { id: 'forecasting', branch: 'intelligence', tier: 3, cost: 3, name: 'Prévisions', detail: 'Affiche la pénurie prioritaire du prochain objectif.', requires: 'optimal_routes' },
-  { id: 'auto_regulation', branch: 'intelligence', tier: 4, cost: 4, name: 'Auto-régulation', detail: 'Les renards changent eux-mêmes de métier selon les stocks et les besoins.', requires: 'forecasting' },
-  { id: 'sharp_tools', branch: 'industry', tier: 1, cost: 1, name: 'Outils affûtés', detail: 'Chaque coup manuel rapporte 2 unités au lieu de 1.' },
-  { id: 'reinforced_carts', branch: 'industry', tier: 2, cost: 2, name: 'Charrettes renforcées', detail: '+30 % de ressources à chaque livraison.', requires: 'sharp_tools' },
-  { id: 'living_quarries', branch: 'industry', tier: 3, cost: 3, name: 'Gisements vivants', detail: 'Arbres et minerais réapparaissent 35 % plus vite.', requires: 'reinforced_carts' },
-  { id: 'master_builders', branch: 'industry', tier: 4, cost: 4, name: 'Maîtres bâtisseurs', detail: 'Les livraisons gagnent encore +35 %.', requires: 'living_quarries' },
-  { id: 'tide_stride', branch: 'exploration', tier: 1, cost: 1, name: 'Pas de marée', detail: '+20 % de vitesse pour ton renard.' },
-  { id: 'cache_instinct', branch: 'exploration', tier: 2, cost: 2, name: 'Instinct des caches', detail: 'Les caches d’exploration contiennent 50 % de ressources en plus.', requires: 'tide_stride' },
-  { id: 'frugal_plans', branch: 'exploration', tier: 3, cost: 3, name: 'Plans économes', detail: 'Constructions, recrutements et améliorations coûtent 12 % de moins.', requires: 'cache_instinct' },
-  { id: 'tidal_memory', branch: 'exploration', tier: 4, cost: 4, name: 'Mémoire des marées', detail: 'Chaque Nouvelle Marée commence avec une réserve croissante.', requires: 'frugal_plans' },
+  { id: 'awakening', branch: 'core', tier: 0, cost: 0, name: 'Démarrer', detail: 'Zéro Savoir : révèle les trois premières voies.', icon: '✦', x: 580, y: 68 },
+  { id: 'insight_gateway', branch: 'intelligence', tier: 1, cost: 1, name: 'Étincelle logique', detail: 'Ouvre la voie Intelligence.', icon: '⌘', x: 175, y: 190, requires: ['awakening'] },
+  { id: 'craft_gateway', branch: 'industry', tier: 1, cost: 1, name: 'Premier mécanisme', detail: 'Ouvre la voie Technique.', icon: '⚒', x: 580, y: 190, requires: ['awakening'] },
+  { id: 'exploration_gateway', branch: 'exploration', tier: 1, cost: 1, name: 'Appel du large', detail: 'Ouvre la voie Exploration.', icon: '➶', x: 985, y: 190, requires: ['awakening'] },
+
+  { id: 'trail_sense', branch: 'intelligence', tier: 2, cost: 2, name: 'Sens des pistes', detail: '+18 % de vitesse pour tous les travailleurs.', icon: '⌁', x: 145, y: 325, requires: ['insight_gateway'] },
+  { id: 'sharp_tools', branch: 'industry', tier: 2, cost: 2, name: 'Outils affûtés', detail: 'Chaque coup manuel rapporte 2 unités au lieu de 1.', icon: '⛏', x: 535, y: 325, requires: ['craft_gateway'] },
+  { id: 'tide_stride', branch: 'exploration', tier: 2, cost: 2, name: 'Pas de marée', detail: '+20 % de vitesse pour ton renard.', icon: '➤', x: 955, y: 325, requires: ['exploration_gateway'] },
+
+  { id: 'optimal_routes', branch: 'intelligence', tier: 3, cost: 3, name: 'Routes calculées', detail: 'Chaque renard choisit le trajet réellement le plus court.', icon: '⌘', x: 130, y: 465, requires: ['trail_sense'] },
+  { id: 'reinforced_carts', branch: 'industry', tier: 3, cost: 3, name: 'Charrettes renforcées', detail: '+30 % de ressources à chaque livraison.', icon: '▣', x: 555, y: 465, requires: ['sharp_tools'] },
+  { id: 'cache_instinct', branch: 'exploration', tier: 3, cost: 3, name: 'Instinct des caches', detail: 'Les caches contiennent 50 % de ressources en plus.', icon: '◇', x: 975, y: 465, requires: ['tide_stride'] },
+  { id: 'logistics_network', branch: 'hybrid', tier: 4, cost: 6, name: 'Réseau logistique', detail: 'Intelligence + Technique : trajets et livraisons gagnent encore en rendement.', icon: '⤨', x: 345, y: 515, requires: ['optimal_routes', 'reinforced_carts'] },
+
+  { id: 'forecasting', branch: 'intelligence', tier: 4, cost: 4, name: 'Prévisions', detail: 'Affiche la pénurie prioritaire du prochain objectif.', icon: '◉', x: 145, y: 610, requires: ['optimal_routes'] },
+  { id: 'living_quarries', branch: 'industry', tier: 4, cost: 4, name: 'Gisements vivants', detail: 'Arbres et minerais réapparaissent 35 % plus vite.', icon: '♻', x: 570, y: 610, requires: ['reinforced_carts'] },
+  { id: 'frugal_plans', branch: 'exploration', tier: 4, cost: 4, name: 'Plans économes', detail: 'Tous les investissements coûtent 12 % de moins.', icon: '⌂', x: 960, y: 610, requires: ['cache_instinct'] },
+  { id: 'adaptive_harvest', branch: 'hybrid', tier: 5, cost: 6, name: 'Récolte adaptative', detail: 'Technique + Exploration : un coup bonus sur la ressource prioritaire.', icon: '⟲', x: 775, y: 675, requires: ['living_quarries', 'cache_instinct'] },
+
+  { id: 'coordinated_shifts', branch: 'intelligence', tier: 5, cost: 5, name: 'Relèves coordonnées', detail: 'L’auto-gestion pourra réagir plus souvent.', icon: '⇄', x: 165, y: 755, requires: ['forecasting'] },
+  { id: 'expanded_roster', branch: 'industry', tier: 5, cost: 3, rankCosts: [3, 5, 8, 12, 17], maxRank: 5, name: 'Cercle des bâtisseurs', detail: '+1 poste par rang. Le prix augmente à chaque renard supplémentaire.', icon: '+1', x: 585, y: 755, requires: ['living_quarries'] },
+  { id: 'tidal_memory', branch: 'exploration', tier: 5, cost: 5, name: 'Mémoire des marées', detail: 'Chaque Nouvelle Marée commence avec une réserve croissante.', icon: '≈', x: 925, y: 755, requires: ['frugal_plans'] },
+  { id: 'scouting_parties', branch: 'hybrid', tier: 6, cost: 7, name: 'Éclaireurs autonomes', detail: 'Intelligence + Exploration : les caches sont récupérées à l’émergence d’une île.', icon: '⚑', x: 365, y: 815, requires: ['forecasting', 'frugal_plans'] },
+
+  { id: 'auto_regulation', branch: 'intelligence', tier: 6, cost: 7, name: 'Auto-régulation', detail: 'Les renards changent eux-mêmes de métier selon les vrais besoins.', icon: '◎', x: 205, y: 900, requires: ['coordinated_shifts'] },
+  { id: 'master_builders', branch: 'industry', tier: 6, cost: 7, name: 'Maîtres bâtisseurs', detail: 'Les livraisons gagnent encore +35 %.', icon: '⚙', x: 575, y: 900, requires: ['expanded_roster'] },
+  { id: 'far_horizons', branch: 'exploration', tier: 6, cost: 7, name: 'Horizon lointain', detail: 'Le renard accélère encore et les caches sont plus riches.', icon: '◒', x: 855, y: 900, requires: ['tidal_memory'] },
+
+  { id: 'collective_intelligence', branch: 'intelligence', tier: 7, cost: 10, name: 'Esprit collectif', detail: 'Sommet Intelligence : deux réaffectations possibles toutes les 3 secondes.', icon: '♜', x: 300, y: 1040, requires: ['auto_regulation', 'logistics_network'] },
+  { id: 'endless_engine', branch: 'industry', tier: 7, cost: 10, name: 'Moteur perpétuel', detail: 'Sommet Technique : toutes les cargaisons sont doublées.', icon: '∞', x: 505, y: 1040, requires: ['master_builders', 'adaptive_harvest'] },
+  { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Héritage océanique', detail: 'Sommet Exploration : conserve 35 % des quatre stocks lors d’une Nouvelle Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
+  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 8, cost: 18, name: 'Conscience de l’Archipel', detail: 'Fusion finale : +2 postes et 10 % de réduction sur chaque investissement.', icon: '✺', x: 580, y: 1180, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
 ];
 
 const SKILL_IDS = new Set<SkillId>(SKILL_DEFINITIONS.map((skill) => skill.id));
-const WORKER_NAMES = ['Milo', 'Nila', 'Sève', 'Roc', 'Pollen', 'Lune', 'Braise', 'Azur', 'Orme'];
+const WORKER_NAMES = ['Milo', 'Nila', 'Sève', 'Roc', 'Pollen', 'Lune', 'Braise', 'Azur', 'Orme', 'Mousse', 'Silex', 'Écho', 'Ronce', 'Aube', 'Flint', 'Nacre'];
 
 const freshProgress = (): IslandProgress => ({
-  version: 3,
+  version: 4,
   wood: 0,
   stone: 0,
   copper: 0,
@@ -170,6 +215,7 @@ const freshProgress = (): IslandProgress => ({
   elapsedSeconds: 0,
   knowledge: 0,
   skills: [],
+  skillRanks: {},
   autoRegulation: false,
   rebirths: 0,
   cycleMilestones: [],
@@ -211,19 +257,59 @@ const sanitizeWorkers = (value: unknown): WorkerState[] => {
 const sanitizeSkills = (value: unknown): SkillId[] => {
   if (!Array.isArray(value)) return [];
   const requested = new Set(value.filter(isSkillId));
-  const accepted = new Set<SkillId>();
+  const definitions = new Map(SKILL_DEFINITIONS.map((definition) => [definition.id, definition]));
+  const expanded = new Set<SkillId>();
+  const includeWithPrerequisites = (id: SkillId, visiting = new Set<SkillId>()): void => {
+    if (expanded.has(id) || visiting.has(id)) return;
+    visiting.add(id);
+    definitions.get(id)?.requires?.forEach((required) => includeWithPrerequisites(required, visiting));
+    visiting.delete(id);
+    expanded.add(id);
+  };
+  requested.forEach((id) => includeWithPrerequisites(id));
+
   SKILL_DEFINITIONS.forEach((definition) => {
-    if (requested.has(definition.id) && (!definition.requires || accepted.has(definition.requires))) accepted.add(definition.id);
+    if (expanded.has(definition.id)) requested.add(definition.id);
   });
-  return [...accepted];
+  return SKILL_DEFINITIONS.filter((definition) => requested.has(definition.id)).map((definition) => definition.id);
 };
 
-export const hasSkill = (progress: IslandProgress, id: SkillId): boolean => progress.skills.includes(id);
+const sanitizeSkillRanks = (value: unknown, skills: readonly SkillId[]): Partial<Record<SkillId, number>> => {
+  const source = value && typeof value === 'object' ? value as Partial<Record<SkillId, unknown>> : {};
+  const ranks: Partial<Record<SkillId, number>> = {};
+  skills.forEach((id) => {
+    const definition = SKILL_DEFINITIONS.find((candidate) => candidate.id === id);
+    const maximum = definition?.maxRank ?? 1;
+    ranks[id] = Math.min(maximum, Math.max(1, nonNegativeInteger(source[id] ?? 1)));
+  });
+  return ranks;
+};
+
+export const getSkillDefinition = (id: SkillId): SkillDefinition | undefined =>
+  SKILL_DEFINITIONS.find((definition) => definition.id === id);
+
+export const getSkillRank = (progress: IslandProgress, id: SkillId): number =>
+  Math.max(0, nonNegativeInteger(progress.skillRanks[id] ?? (progress.skills.includes(id) ? 1 : 0)));
+
+export const hasSkill = (progress: IslandProgress, id: SkillId): boolean => getSkillRank(progress, id) > 0;
+
+export const getSkillCost = (progress: IslandProgress, definition: SkillDefinition): number => {
+  const rank = getSkillRank(progress, definition.id);
+  return definition.rankCosts?.[rank] ?? definition.cost;
+};
+
+export const skillPrerequisitesMet = (progress: IslandProgress, definition: SkillDefinition): boolean =>
+  (definition.requires ?? []).every((required) => hasSkill(progress, required));
+
+export const isSkillVisible = (progress: IslandProgress, definition: SkillDefinition): boolean =>
+  definition.id === 'awakening' || hasSkill(progress, definition.id) || skillPrerequisitesMet(progress, definition);
 
 export const getCycleMultiplier = (progress: IslandProgress): number => 1 + Math.min(8, progress.rebirths) * 0.22;
 
 const scaleCost = (progress: IslandProgress, value: Cost): Cost => {
-  const multiplier = getCycleMultiplier(progress) * (hasSkill(progress, 'frugal_plans') ? 0.88 : 1);
+  const multiplier = getCycleMultiplier(progress)
+    * (hasSkill(progress, 'frugal_plans') ? 0.88 : 1)
+    * (hasSkill(progress, 'archipelago_consciousness') ? 0.9 : 1);
   return {
     wood: value.wood ? Math.max(1, Math.ceil(value.wood * multiplier)) : 0,
     stone: value.stone ? Math.max(1, Math.ceil(value.stone * multiplier)) : 0,
@@ -240,11 +326,14 @@ export const getBridgeCost = (progress: IslandProgress, index: number): Cost | n
 export const getFinalCost = (progress: IslandProgress): Cost => scaleCost(progress, FINAL_COST);
 
 export const getWorkerCapacity = (progress: IslandProgress): number => {
-  if (progress.observatoryBuilt) return 9;
-  if (progress.foundryBuilt) return 7;
-  if (progress.workshopBuilt) return 5;
-  if (progress.campBuilt) return 3;
-  return 0;
+  if (!progress.campBuilt) return 0;
+  const buildingCapacity = progress.observatoryBuilt ? 9
+    : progress.foundryBuilt ? 7
+      : progress.workshopBuilt ? 5
+        : 3;
+  return buildingCapacity
+    + getSkillRank(progress, 'expanded_roster')
+    + (hasSkill(progress, 'archipelago_consciousness') ? 2 : 0);
 };
 
 export const getWorkerLevelCap = (progress: IslandProgress): WorkerLevel => {
@@ -279,22 +368,30 @@ export const getUpgradeCost = (worker: WorkerState, progress?: IslandProgress): 
 export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): number => {
   const base = level === 1 ? 2 : level === 2 ? 4 : 7;
   if (!progress) return base;
-  const multiplier = (hasSkill(progress, 'reinforced_carts') ? 1.3 : 1) * (hasSkill(progress, 'master_builders') ? 1.35 : 1);
+  const multiplier = (hasSkill(progress, 'reinforced_carts') ? 1.3 : 1)
+    * (hasSkill(progress, 'master_builders') ? 1.35 : 1)
+    * (hasSkill(progress, 'logistics_network') ? 1.15 : 1)
+    * (hasSkill(progress, 'endless_engine') ? 2 : 1);
   return Math.ceil(base * multiplier);
 };
 
-// Conservé comme estimation d'interface ; la simulation v3 utilise la vraie
+// Conservé comme estimation d'interface ; la simulation utilise la vraie
 // distance parcourue et un temps de récolte séparé.
 export const getWorkerCycleSeconds = (level: WorkerLevel): number => level === 1 ? 8.2 : level === 2 ? 6.4 : 4.9;
 export const getWorkerTravelSpeed = (level: WorkerLevel, progress: IslandProgress): number =>
-  (2.35 + (level - 1) * 0.28) * (hasSkill(progress, 'trail_sense') ? 1.18 : 1);
+  (2.35 + (level - 1) * 0.28)
+  * (hasSkill(progress, 'trail_sense') ? 1.18 : 1)
+  * (hasSkill(progress, 'logistics_network') ? 1.18 : 1);
 export const getWorkerGatherSeconds = (level: WorkerLevel): number => level === 1 ? 1.65 : level === 2 ? 1.25 : 0.9;
-export const getPlayerSpeed = (progress: IslandProgress): number => 5.25 * (hasSkill(progress, 'tide_stride') ? 1.2 : 1);
-export const getManualYield = (progress: IslandProgress): number => hasSkill(progress, 'sharp_tools') ? 2 : 1;
+export const getPlayerSpeed = (progress: IslandProgress): number =>
+  5.25 * (hasSkill(progress, 'tide_stride') ? 1.2 : 1) * (hasSkill(progress, 'far_horizons') ? 1.15 : 1);
+export const getManualYield = (progress: IslandProgress, kind?: ResourceKind): number =>
+  (hasSkill(progress, 'sharp_tools') ? 2 : 1)
+  + (kind && hasSkill(progress, 'adaptive_harvest') && getPriorityShortage(progress) === kind ? 1 : 0);
 export const getRespawnMultiplier = (progress: IslandProgress): number => hasSkill(progress, 'living_quarries') ? 0.65 : 1;
 
 export const getCacheReward = (progress: IslandProgress, reward: Cost): Cost => {
-  const multiplier = hasSkill(progress, 'cache_instinct') ? 1.5 : 1;
+  const multiplier = (hasSkill(progress, 'cache_instinct') ? 1.5 : 1) * (hasSkill(progress, 'far_horizons') ? 1.25 : 1);
   return {
     wood: Math.ceil(reward.wood * multiplier),
     stone: Math.ceil(reward.stone * multiplier),
@@ -302,6 +399,12 @@ export const getCacheReward = (progress: IslandProgress, reward: Cost): Cost => 
     crystal: Math.ceil(reward.crystal * multiplier),
   };
 };
+
+export const getAutoRegulationInterval = (progress: IslandProgress): number =>
+  hasSkill(progress, 'collective_intelligence') ? 3 : hasSkill(progress, 'coordinated_shifts') ? 5 : 8;
+
+export const getAutoRegulationMoveCount = (progress: IslandProgress): number =>
+  hasSkill(progress, 'collective_intelligence') ? 2 : 1;
 
 export const getTotalWorkerLevels = (progress: IslandProgress): number =>
   progress.workers.reduce((total, worker) => total + worker.level, 0);
@@ -437,11 +540,13 @@ export class Economy {
   constructor(initial?: Partial<IslandProgress>) {
     const fresh = freshProgress();
     const sourceBridges = Array.isArray(initial?.bridgesBuilt) ? initial.bridgesBuilt : fresh.bridgesBuilt;
-    const skills = sanitizeSkills(initial?.skills);
+    const rankIds = initial?.skillRanks && typeof initial.skillRanks === 'object' ? Object.keys(initial.skillRanks) : [];
+    const skills = sanitizeSkills([...(initial?.skills ?? []), ...rankIds]);
+    const skillRanks = sanitizeSkillRanks(initial?.skillRanks, skills);
     this.progress = {
       ...fresh,
       ...initial,
-      version: 3,
+      version: 4,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
@@ -457,6 +562,7 @@ export class Economy {
       elapsedSeconds: Math.max(0, Number(initial?.elapsedSeconds) || 0),
       knowledge: nonNegativeInteger(initial?.knowledge),
       skills,
+      skillRanks,
       autoRegulation: skills.includes('auto_regulation') && Boolean(initial?.autoRegulation),
       rebirths: nonNegativeInteger(initial?.rebirths),
       cycleMilestones: Array.isArray(initial?.cycleMilestones) ? [...new Set(initial.cycleMilestones.filter((id): id is string => typeof id === 'string'))] : [],
@@ -593,10 +699,14 @@ export class Economy {
 
   unlockSkill(id: SkillId): boolean {
     const definition = SKILL_DEFINITIONS.find((candidate) => candidate.id === id);
-    if (!definition || hasSkill(this.progress, id) || this.progress.knowledge < definition.cost) return false;
-    if (definition.requires && !hasSkill(this.progress, definition.requires)) return false;
-    this.progress.knowledge -= definition.cost;
-    this.progress.skills.push(id);
+    if (!definition || !skillPrerequisitesMet(this.progress, definition)) return false;
+    const rank = getSkillRank(this.progress, id);
+    const maximum = definition.maxRank ?? 1;
+    const skillCost = getSkillCost(this.progress, definition);
+    if (rank >= maximum || this.progress.knowledge < skillCost) return false;
+    this.progress.knowledge -= skillCost;
+    if (!this.progress.skills.includes(id)) this.progress.skills.push(id);
+    this.progress.skillRanks[id] = rank + 1;
     return true;
   }
 
@@ -622,16 +732,28 @@ export class Economy {
     const reward = getRebirthReward(this.progress);
     const knowledge = this.progress.knowledge + reward;
     const skills = [...this.progress.skills];
+    const skillRanks = { ...this.progress.skillRanks };
     const autoRegulation = this.progress.autoRegulation && skills.includes('auto_regulation');
     const rebirths = this.progress.rebirths + 1;
     const lifetimeDeliveries = this.progress.lifetimeDeliveries;
+    const previousStocks = {
+      wood: this.progress.wood,
+      stone: this.progress.stone,
+      copper: this.progress.copper,
+      crystal: this.progress.crystal,
+    };
     const next = freshProgress();
     if (skills.includes('tidal_memory')) {
       next.wood = 12 + rebirths * 4;
       next.stone = 8 + rebirths * 3;
       next.copper = Math.max(0, rebirths - 1) * 2;
     }
-    Object.assign(this.progress, next, { knowledge, skills, autoRegulation, rebirths, lifetimeDeliveries });
+    if (skills.includes('ocean_legacy')) {
+      RESOURCE_KINDS.forEach((kind) => {
+        next[kind] = Math.max(next[kind], Math.floor(previousStocks[kind] * 0.35));
+      });
+    }
+    Object.assign(this.progress, next, { knowledge, skills, skillRanks, autoRegulation, rebirths, lifetimeDeliveries });
     return reward;
   }
 
@@ -646,8 +768,13 @@ export class Economy {
   static restore(raw: string | null): Economy {
     if (!raw) return new Economy();
     try {
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionTwoProgress | LegacyProgress;
-      if (value.version === 3) return new Economy(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 4) return new Economy(value as Partial<IslandProgress>);
+      if (value.version === 3) {
+        const previous = value as VersionThreeProgress;
+        const { version: _previousVersion, ...migrated } = previous;
+        return new Economy({ ...migrated, skillRanks: {} });
+      }
       if (value.version === 2) {
         const previous = value as VersionTwoProgress;
         const milestones = inferMilestones(previous);

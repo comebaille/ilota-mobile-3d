@@ -7,6 +7,8 @@ import {
   RESOURCE_LABELS,
   formatBridgeRequirement,
   formatCost,
+  getAutoRegulationInterval,
+  getAutoRegulationMoveCount,
   getBridgeCost,
   getCacheReward,
   getChapter,
@@ -15,6 +17,7 @@ import {
   getPlayerSpeed,
   getRecruitCost,
   getRespawnMultiplier,
+  getSkillRank,
   getStructureCost,
   getTotalWorkerLevels,
   getUpgradeCost,
@@ -95,6 +98,25 @@ interface CacheEntity {
   root: THREE.Group;
 }
 
+interface IslandEntity {
+  index: number;
+  definition: IslandDefinition;
+  root: THREE.Group;
+}
+
+interface IslandEmergence {
+  entity: IslandEntity;
+  elapsed: number;
+  duration: number;
+}
+
+interface EmergenceRipple {
+  mesh: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
+  elapsed: number;
+  duration: number;
+  delay: number;
+}
+
 interface Particle {
   mesh: THREE.Mesh;
   velocity: THREE.Vector3;
@@ -131,6 +153,8 @@ interface Diagnostics {
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
+  visibleIslands: number;
+  emergingIsland: string;
   workersOnWalkable: boolean;
   workerNavigation: Array<{
     id: string;
@@ -148,6 +172,7 @@ interface Diagnostics {
 }
 
 const SAVE_KEY = 'ilota-save-v1';
+const HIDDEN_ISLAND_Y = -8.5;
 
 const PALETTE = {
   sea: 0x164f56,
@@ -202,11 +227,13 @@ export class IlotaGame {
   private readonly facingDirection = new THREE.Vector3(0, 0, 1);
   private currentPlayerAction = '';
   private readonly resources: ResourceNode[] = [];
+  private readonly islands: IslandEntity[] = [];
   private readonly workers: WorkerEntity[] = [];
   private readonly bridges: BridgeEntity[] = [];
   private readonly structures = new Map<StructureKind, StructureEntity>();
   private readonly caches: CacheEntity[] = [];
   private readonly particles: Particle[] = [];
+  private readonly emergenceRipples: EmergenceRipple[] = [];
   private readonly heart = new THREE.Group();
   private readonly heartLight = new THREE.PointLight(PALETTE.gold, 0, 15, 2);
   private readonly heartCore = new THREE.Mesh(
@@ -221,6 +248,7 @@ export class IlotaGame {
   private worldTime = 0;
   private saveCooldown = 0;
   private autoRegulationCooldown = 3;
+  private islandEmergence: IslandEmergence | null = null;
   private lastFrameTime = performance.now();
   private fpsAverage = 60;
   private victoryShown = false;
@@ -258,7 +286,7 @@ export class IlotaGame {
     this.diagnostics = {
       ready: true,
       active: false,
-      assetsLoaded: 6,
+      assetsLoaded: 10,
       wood: progress.wood,
       stone: progress.stone,
       copper: progress.copper,
@@ -278,6 +306,8 @@ export class IlotaGame {
       rebirths: progress.rebirths,
       skills: progress.skills.join(','),
       autoRegulation: progress.autoRegulation,
+      visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
+      emergingIsland: '',
       workersOnWalkable: true,
       workerNavigation: [],
       player: { x: this.player.position.x, z: this.player.position.z },
@@ -348,13 +378,20 @@ export class IlotaGame {
       this.ui.toast('Talent verrouillé ou Savoir insuffisant.');
       return;
     }
-    if (skill === 'optimal_routes' || skill === 'trail_sense') {
+    if (skill === 'optimal_routes' || skill === 'trail_sense' || skill === 'logistics_network') {
       this.workers.forEach((entity) => {
         const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
         if (state) this.syncWorker(entity, state, true);
       });
     }
-    this.ui.toast(skill === 'auto_regulation' ? 'Auto-régulation débloquée · active-la dans cette branche.' : 'Nouveau talent appris !');
+    const message = skill === 'auto_regulation'
+      ? 'Auto-régulation débloquée · tu peux maintenant l’activer.'
+      : skill === 'expanded_roster'
+        ? `Cercle des bâtisseurs rang ${getSkillRank(this.economy.progress, skill)} · +1 poste permanent.`
+        : skill === 'awakening'
+          ? 'Le Savoir s’éveille · trois voies viennent d’apparaître.'
+          : 'Nouveau savoir acquis · la constellation s’étend.';
+    this.ui.toast(message);
     this.changed();
   }
 
@@ -423,7 +460,7 @@ export class IlotaGame {
 
   private createWorld(): void {
     this.createWater();
-    ISLANDS.forEach((island) => this.createIsland(island));
+    ISLANDS.forEach((island, index) => this.createIsland(island, index));
     BRIDGES.forEach((bridge, index) => this.createBridge(bridge, index));
     STRUCTURES.forEach((definition) => this.createStructure(definition));
     this.createHeart();
@@ -457,7 +494,10 @@ export class IlotaGame {
     }
   }
 
-  private createIsland(definition: IslandDefinition): void {
+  private createIsland(definition: IslandDefinition, index: number): void {
+    const root = new THREE.Group();
+    root.name = `île:${definition.id}`;
+    root.position.y = index === 0 || this.economy.progress.bridgesBuilt[index - 1] ? 0 : HIDDEN_ISLAND_Y;
     const sideMaterial = new THREE.MeshStandardMaterial({ color: PALETTE.earth, roughness: 0.96, flatShading: true });
     const topMaterial = new THREE.MeshStandardMaterial({ color: definition.topColor, roughness: 0.92, flatShading: true });
     const island = new THREE.Mesh(
@@ -469,7 +509,7 @@ export class IlotaGame {
     island.receiveShadow = true;
     island.castShadow = true;
     island.name = definition.name;
-    this.scene.add(island);
+    root.add(island);
 
     const shore = new THREE.Mesh(
       new THREE.CylinderGeometry(definition.radius + 0.18, definition.radius + 0.48, 0.3, 36),
@@ -477,7 +517,24 @@ export class IlotaGame {
     );
     shore.position.set(definition.x, -0.2, definition.z);
     shore.receiveShadow = true;
-    this.scene.add(shore);
+    root.add(shore);
+    this.scene.add(root);
+    this.islands.push({ index, definition, root });
+  }
+
+  private findIslandEntity(x: number, z: number): IslandEntity | undefined {
+    return [...this.islands]
+      .sort((a, b) => {
+        const aDistance = Math.hypot(x - a.definition.x, z - a.definition.z) / a.definition.radius;
+        const bDistance = Math.hypot(x - b.definition.x, z - b.definition.z) / b.definition.radius;
+        return aDistance - bDistance;
+      })[0];
+  }
+
+  private addToIsland(object: THREE.Object3D, x: number, z: number): void {
+    const island = this.findIslandEntity(x, z);
+    if (island) island.root.add(object);
+    else this.scene.add(object);
   }
 
   private createBridge(definition: BridgeDefinition, index: number): void {
@@ -500,6 +557,7 @@ export class IlotaGame {
       plank.rotation.y = yaw + Math.sin(plankIndex * 1.23) * 0.025;
       plank.castShadow = true;
       plank.receiveShadow = true;
+      plank.userData.bridgePlank = ratio;
       root.add(plank);
     }
 
@@ -524,7 +582,7 @@ export class IlotaGame {
     pad.position.copy(padPosition).setY(0.04);
     pad.add(this.createBuildPad(1.15, index === 2 ? PALETTE.copper : index === 3 ? PALETTE.crystal : 0x69a6a1));
     pad.visible = false;
-    this.scene.add(pad);
+    this.addToIsland(pad, padPosition.x, padPosition.z);
     this.bridges.push({ index, definition, root, pad, start, end });
   }
 
@@ -532,12 +590,12 @@ export class IlotaGame {
     const pad = new THREE.Group();
     pad.position.set(definition.x, 0.05, definition.z);
     pad.add(this.createBuildPad(definition.radius, definition.color));
-    this.scene.add(pad);
+    this.addToIsland(pad, definition.x, definition.z);
 
     const building = this.createStructureBuilding(definition.kind);
     building.position.set(definition.x, 0, definition.z);
     building.visible = false;
-    this.scene.add(building);
+    this.addToIsland(building, definition.x, definition.z);
     this.structures.set(definition.kind, { definition, pad, building });
   }
 
@@ -567,110 +625,63 @@ export class IlotaGame {
   }
 
   private createStructureBuilding(kind: StructureKind): THREE.Group {
-    if (kind === 'camp') return this.createCampBuilding();
     const group = new THREE.Group();
-    const platformColor = kind === 'workshop' ? 0xb7874f : kind === 'foundry' ? 0x8a6654 : 0x7a7890;
+    const platformColor = kind === 'camp' ? 0xb7874f : kind === 'workshop' ? 0x9b7447 : kind === 'foundry' ? 0x765d54 : 0x74758e;
     const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.85, 2, 0.3, 12),
+      new THREE.CylinderGeometry(kind === 'camp' ? 1.8 : 2.05, kind === 'camp' ? 1.95 : 2.2, 0.3, 12),
       new THREE.MeshStandardMaterial({ color: platformColor, roughness: 0.9, flatShading: true }),
     );
     platform.position.y = 0.15;
     platform.receiveShadow = true;
     group.add(platform);
 
-    if (kind === 'workshop') {
-      const hut = new THREE.Mesh(
-        new THREE.BoxGeometry(2.35, 1.4, 1.9),
-        new THREE.MeshStandardMaterial({ color: 0xd8aa68, roughness: 0.94, flatShading: true }),
+    const targetHeight: Record<StructureKind, number> = {
+      camp: 2.6,
+      workshop: 3.6,
+      foundry: 3.7,
+      observatory: 4.8,
+    };
+    const model = this.assets.createBuilding(kind, targetHeight[kind]);
+    model.position.y = 0.3;
+    model.rotation.y = kind === 'camp' ? -0.38 : kind === 'workshop' ? 0.3 : kind === 'foundry' ? -0.22 : 0.5;
+    model.name = `modèle:${kind}`;
+    group.add(model);
+
+    if (kind === 'camp') {
+      const ember = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.13, 0),
+        new THREE.MeshStandardMaterial({ color: 0xffc068, emissive: 0xa74318, emissiveIntensity: 2.4 }),
       );
-      hut.position.y = 1;
-      hut.castShadow = true;
-      group.add(hut);
-      const roof = new THREE.Mesh(
-        new THREE.ConeGeometry(1.85, 1.1, 4),
-        new THREE.MeshStandardMaterial({ color: 0x70452f, roughness: 0.95, flatShading: true }),
-      );
-      roof.position.y = 2.2;
-      roof.rotation.y = Math.PI / 4;
-      roof.castShadow = true;
-      group.add(roof);
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 0.28), new THREE.MeshStandardMaterial({ color: PALETTE.woodDark }));
-      beam.position.set(0, 0.72, 1.1);
-      group.add(beam);
+      ember.position.set(0.95, 0.38, 0.75);
+      ember.userData.structureGlow = true;
+      group.add(ember);
     } else if (kind === 'foundry') {
-      const furnace = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.15, 1.45, 1.9, 10),
-        new THREE.MeshStandardMaterial({ color: 0x6f625b, roughness: 0.92, flatShading: true }),
-      );
-      furnace.position.y = 1.1;
-      furnace.castShadow = true;
-      group.add(furnace);
-      const chimney = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.36, 0.52, 2.6, 8),
-        new THREE.MeshStandardMaterial({ color: 0x514a47, roughness: 1, flatShading: true }),
-      );
-      chimney.position.set(0.55, 2.55, -0.25);
-      chimney.castShadow = true;
-      group.add(chimney);
       const glow = new THREE.Mesh(
-        new THREE.CircleGeometry(0.48, 16),
-        new THREE.MeshBasicMaterial({ color: 0xff9a4f, side: THREE.DoubleSide }),
+        new THREE.CircleGeometry(0.34, 18),
+        new THREE.MeshBasicMaterial({ color: 0xff9a4f, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
       );
-      glow.position.set(0, 0.9, 1.17);
+      glow.position.set(0.1, 0.72, 1.42);
+      glow.userData.structureGlow = true;
       group.add(glow);
-    } else {
-      const tower = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.8, 1.25, 2.8, 10),
-        new THREE.MeshStandardMaterial({ color: 0xb9b4a8, roughness: 0.86, flatShading: true }),
-      );
-      tower.position.y = 1.55;
-      tower.castShadow = true;
-      group.add(tower);
-      const dome = new THREE.Mesh(
-        new THREE.SphereGeometry(0.95, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: 0x8882a8, metalness: 0.24, roughness: 0.5, flatShading: true }),
-      );
-      dome.position.y = 3;
-      dome.castShadow = true;
-      group.add(dome);
+    } else if (kind === 'observatory') {
       const lens = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.38),
+        new THREE.OctahedronGeometry(0.46),
         new THREE.MeshStandardMaterial({ color: PALETTE.crystal, emissive: 0x59558b, emissiveIntensity: 1.5, roughness: 0.25 }),
       );
-      lens.position.set(0, 3.35, 0);
+      lens.position.set(0, 5.72, 0);
       lens.userData.observatoryLens = true;
+      lens.userData.baseY = 5.72;
       group.add(lens);
+      const orbit = new THREE.Mesh(
+        new THREE.TorusGeometry(0.7, 0.075, 7, 28),
+        new THREE.MeshStandardMaterial({ color: 0xf0c56d, metalness: 0.42, roughness: 0.38 }),
+      );
+      orbit.position.y = 5.72;
+      orbit.rotation.x = Math.PI / 2;
+      orbit.userData.observatoryOrbit = true;
+      group.add(orbit);
     }
-    return group;
-  }
-
-  private createCampBuilding(): THREE.Group {
-    const group = new THREE.Group();
-    const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.05, 2.2, 0.28, 12),
-      new THREE.MeshStandardMaterial({ color: 0xb7874f, roughness: 0.9, flatShading: true }),
-    );
-    platform.position.y = 0.14;
-    platform.receiveShadow = true;
-    group.add(platform);
-    const walls = new THREE.Mesh(
-      new THREE.BoxGeometry(2.7, 1.65, 2.3),
-      new THREE.MeshStandardMaterial({ color: 0xe2bc76, roughness: 0.96, flatShading: true }),
-    );
-    walls.position.y = 1.1;
-    walls.castShadow = true;
-    group.add(walls);
-    const roof = new THREE.Mesh(
-      new THREE.ConeGeometry(2.25, 1.3, 4),
-      new THREE.MeshStandardMaterial({ color: 0x7f4934, roughness: 0.93, flatShading: true }),
-    );
-    roof.position.y = 2.55;
-    roof.rotation.y = Math.PI / 4;
-    roof.castShadow = true;
-    group.add(roof);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.1, 0.13), new THREE.MeshStandardMaterial({ color: PALETTE.woodDark }));
-    door.position.set(0, 0.87, 1.2);
-    group.add(door);
+    group.userData.structureKind = kind;
     return group;
   }
 
@@ -705,7 +716,7 @@ export class IlotaGame {
     crown.rotation.x = Math.PI / 2;
     crown.userData.heartRing = true;
     this.heart.add(crown);
-    this.scene.add(this.heart);
+    this.addToIsland(this.heart, island.x, island.z);
   }
 
   private createResources(): void {
@@ -718,7 +729,7 @@ export class IlotaGame {
       root.position.set(spawn.x, 0, spawn.z);
       root.scale.setScalar(spawn.scale);
       root.rotation.y = (spawn.x * 1.73 + spawn.z * 0.91) % (Math.PI * 2);
-      this.scene.add(root);
+      this.addToIsland(root, spawn.x, spawn.z);
       this.resources.push({
         kind: spawn.kind,
         root,
@@ -764,7 +775,7 @@ export class IlotaGame {
       const root = new THREE.Group();
       root.position.set(definition.x, 0.05, definition.z);
       root.add(this.createCacheModel());
-      this.scene.add(root);
+      this.addToIsland(root, definition.x, definition.z);
       this.caches.push({ definition, root });
     });
   }
@@ -797,7 +808,7 @@ export class IlotaGame {
         model.position.set(island.x + xFactor * island.radius, 0, island.z + zFactor * island.radius);
         model.rotation.y = islandIndex * 1.37 + index * 1.81;
         model.scale.setScalar(0.64 + ((islandIndex + index) % 3) * 0.08);
-        this.scene.add(model);
+        this.addToIsland(model, model.position.x, model.position.z);
       });
     });
 
@@ -812,7 +823,7 @@ export class IlotaGame {
       post.position.set(first.x + Math.cos(angle) * 10.2, 0.38, first.z + Math.sin(angle) * 10.2);
       post.rotation.z = Math.cos(angle) * 0.08;
       post.castShadow = true;
-      this.scene.add(post);
+      this.addToIsland(post, post.position.x, post.position.z);
     }
   }
 
@@ -846,6 +857,12 @@ export class IlotaGame {
 
   private refreshWorldLocks(): void {
     const progress = this.economy.progress;
+    this.islands.forEach((entity) => {
+      if (this.islandEmergence?.entity === entity) return;
+      const accessible = entity.index === 0 || progress.bridgesBuilt[entity.index - 1];
+      entity.root.position.y = accessible ? 0 : HIDDEN_ISLAND_Y;
+      entity.root.visible = true;
+    });
     this.structures.forEach((entity, kind) => {
       const built = structureBuilt(progress, kind);
       const accessible = kind === 'camp'
@@ -867,6 +884,90 @@ export class IlotaGame {
     this.caches.forEach((entity) => {
       entity.root.visible = !progress.cachesFound.includes(entity.definition.id);
     });
+  }
+
+  private revealIsland(index: number): void {
+    const entity = this.islands[index];
+    if (!entity || index === 0) return;
+    entity.root.visible = true;
+    entity.root.position.y = HIDDEN_ISLAND_Y;
+    this.islandEmergence = { entity, elapsed: 0, duration: 2.15 };
+    this.createEmergenceRipples(entity.definition);
+    this.spawnParticles(
+      new THREE.Vector3(entity.definition.x, -0.4, entity.definition.z),
+      index >= 3 ? 'crystal' : index === 2 ? 'copper' : 'stone',
+      34,
+    );
+  }
+
+  private createEmergenceRipples(island: IslandDefinition): void {
+    for (let index = 0; index < 4; index += 1) {
+      const material = new THREE.MeshBasicMaterial({
+        color: index % 2 ? 0xd9f3ef : 0x86cbc5,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(
+        new THREE.TorusGeometry(island.radius * (0.5 + index * 0.08), 0.075, 7, 54),
+        material,
+      );
+      mesh.position.set(island.x, -1.91, island.z);
+      mesh.rotation.x = Math.PI / 2;
+      mesh.scale.setScalar(0.45);
+      this.scene.add(mesh);
+      this.emergenceRipples.push({ mesh, elapsed: 0, duration: 2.5, delay: index * 0.22 });
+    }
+  }
+
+  private updateIslandEmergence(delta: number): void {
+    const emergence = this.islandEmergence;
+    if (emergence) {
+      emergence.elapsed += delta;
+      const ratio = THREE.MathUtils.clamp(emergence.elapsed / emergence.duration, 0, 1);
+      const eased = 1 - Math.pow(1 - ratio, 3);
+      const settle = ratio > 0.82 ? Math.sin((ratio - 0.82) / 0.18 * Math.PI) * 0.18 : 0;
+      emergence.entity.root.position.y = THREE.MathUtils.lerp(HIDDEN_ISLAND_Y, 0, eased) + settle;
+      if (ratio >= 1) {
+        emergence.entity.root.position.y = 0;
+        const emerged = emergence.entity;
+        this.islandEmergence = null;
+        this.ui.toast(`${emerged.definition.name} vient d’émerger des flots.`);
+        this.claimScoutedCache(emerged);
+      }
+    }
+
+    for (let index = this.emergenceRipples.length - 1; index >= 0; index -= 1) {
+      const ripple = this.emergenceRipples[index];
+      if (!ripple) continue;
+      ripple.elapsed += delta;
+      const local = ripple.elapsed - ripple.delay;
+      if (local < 0) continue;
+      const ratio = THREE.MathUtils.clamp(local / ripple.duration, 0, 1);
+      ripple.mesh.scale.setScalar(0.45 + ratio * 1.15);
+      ripple.mesh.material.opacity = Math.sin(ratio * Math.PI) * 0.52;
+      if (ratio < 1) continue;
+      this.scene.remove(ripple.mesh);
+      ripple.mesh.geometry.dispose();
+      ripple.mesh.material.dispose();
+      this.emergenceRipples.splice(index, 1);
+    }
+  }
+
+  private claimScoutedCache(island: IslandEntity): void {
+    if (!hasSkill(this.economy.progress, 'scouting_parties')) return;
+    const cache = this.caches.find((candidate) => {
+      if (!candidate.root.visible) return false;
+      return Math.hypot(
+        candidate.definition.x - island.definition.x,
+        candidate.definition.z - island.definition.z,
+      ) <= island.definition.radius;
+    });
+    if (!cache || !this.economy.findCache(cache.definition.id, cache.definition.reward)) return;
+    const reward = getCacheReward(this.economy.progress, cache.definition.reward);
+    cache.root.visible = false;
+    this.ui.toast(`Éclaireurs · cache récupérée : +${formatCost(reward)}`);
+    this.changed();
   }
 
   private spawnWorker(state: WorkerState): void {
@@ -1060,7 +1161,11 @@ export class IlotaGame {
   }
 
   private isWalkable(position: THREE.Vector3): boolean {
-    const onIsland = ISLANDS.some((island) => Math.hypot(position.x - island.x, position.z - island.z) <= island.radius - 0.42);
+    const onIsland = ISLANDS.some((island, index) => {
+      const accessible = (index === 0 || this.economy.progress.bridgesBuilt[index - 1])
+        && this.islandEmergence?.entity.index !== index;
+      return accessible && Math.hypot(position.x - island.x, position.z - island.z) <= island.radius - 0.42;
+    });
     if (onIsland) return true;
     return this.bridges.some((bridge) => this.economy.progress.bridgesBuilt[bridge.index]
       && this.distanceToSegmentSquared(position, bridge.start, bridge.end) <= 2.2 * 2.2);
@@ -1170,13 +1275,18 @@ export class IlotaGame {
     if (!this.economy.progress.autoRegulation || !hasSkill(this.economy.progress, 'auto_regulation')) return;
     this.autoRegulationCooldown -= delta;
     if (this.autoRegulationCooldown > 0) return;
-    this.autoRegulationCooldown = 8;
-    const move = this.economy.autoRegulate();
-    if (!move) return;
-    const state = this.economy.progress.workers.find((worker) => worker.id === move.workerId);
-    const entity = this.workers.find((worker) => worker.id === move.workerId);
-    if (state && entity) this.syncWorker(entity, state, true);
-    if (state) this.ui.toast(`Auto-régulation · ${state.name} passe au ${RESOURCE_LABELS[move.to]}.`);
+    this.autoRegulationCooldown = getAutoRegulationInterval(this.economy.progress);
+    const moves = Array.from({ length: getAutoRegulationMoveCount(this.economy.progress) })
+      .map(() => this.economy.autoRegulate())
+      .filter((move): move is NonNullable<typeof move> => Boolean(move));
+    if (!moves.length) return;
+    moves.forEach((move) => {
+      const state = this.economy.progress.workers.find((worker) => worker.id === move.workerId);
+      const entity = this.workers.find((worker) => worker.id === move.workerId);
+      if (state && entity) this.syncWorker(entity, state, true);
+    });
+    const names = moves.map((move) => this.economy.progress.workers.find((worker) => worker.id === move.workerId)?.name).filter(Boolean);
+    this.ui.toast(`Auto-régulation · ${names.join(' et ')} rééquilibrent l’équipe.`);
     this.changed();
   }
 
@@ -1267,10 +1377,14 @@ export class IlotaGame {
       const { kind } = this.interaction.entity.definition;
       if (this.economy.buildStructure(kind)) {
         this.interaction.entity.building.visible = true;
-        this.interaction.entity.building.scale.setScalar(0.08);
+        this.interaction.entity.building.scale.setScalar(0.04);
+        this.interaction.entity.building.position.y = -1.35;
+        this.interaction.entity.building.rotation.y = -0.18;
         this.interaction.entity.building.userData.growing = true;
+        this.interaction.entity.building.userData.growElapsed = 0;
         this.ui.toast(`${STRUCTURE_COPY[kind].toast} · +1 Savoir`);
-        this.spawnParticles(this.interaction.entity.building.position.clone().setY(1.2), kind === 'foundry' ? 'copper' : kind === 'observatory' ? 'crystal' : 'wood', 20);
+        const buildOrigin = this.interaction.entity.building.getWorldPosition(new THREE.Vector3());
+        this.spawnParticles(buildOrigin.setY(1.2), kind === 'foundry' ? 'copper' : kind === 'observatory' ? 'crystal' : 'wood', 20);
         this.changed();
       } else this.showMissing(getStructureCost(this.economy.progress, kind));
       return;
@@ -1281,8 +1395,12 @@ export class IlotaGame {
       if (!bridgeCost) return;
       if (this.economy.buildBridge(index)) {
         root.visible = true;
-        root.scale.y = 0.05;
         root.userData.growingBridge = true;
+        root.userData.bridgeBuildElapsed = 0;
+        root.children.forEach((child) => {
+          if (typeof child.userData.bridgePlank === 'number') child.scale.setScalar(0.03);
+        });
+        this.revealIsland(definition.toIsland);
         this.ui.toast(`${definition.name} terminé · nouvelle île · +1 Savoir`);
         this.spawnParticles(this.interaction.entity.start.clone().lerp(this.interaction.entity.end, 0.5).setY(0.7), index >= 2 ? 'crystal' : 'stone', 26);
         this.changed();
@@ -1323,7 +1441,7 @@ export class IlotaGame {
     node.amount -= 1;
     node.pulse = 0.22;
     this.lastHarvestedNode = node;
-    this.economy.add(node.kind, getManualYield(this.economy.progress));
+    this.economy.add(node.kind, getManualYield(this.economy.progress, node.kind));
     const height = node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
     this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
     if (node.amount <= 0) {
@@ -1386,6 +1504,7 @@ export class IlotaGame {
   }
 
   private updateAmbient(delta: number): void {
+    this.updateIslandEmergence(delta);
     this.scene.traverse((object) => {
       if (object.userData.floatMarker) {
         object.position.y = 0.75 + Math.sin(this.worldTime * 2.8 + object.id) * 0.12;
@@ -1398,17 +1517,46 @@ export class IlotaGame {
       }
       if (object.userData.heartRing) object.rotation.z += delta * (this.economy.progress.completed ? 1.5 : 0.25);
       if (object.userData.observatoryLens) {
-        object.position.y = 3.35 + Math.sin(this.worldTime * 1.9) * 0.08;
+        const baseY = Number(object.userData.baseY) || 5.72;
+        object.position.y = baseY + Math.sin(this.worldTime * 1.9) * 0.08;
         object.rotation.y += delta * 0.65;
       }
+      if (object.userData.observatoryOrbit) {
+        object.rotation.z += delta * 0.8;
+        object.rotation.y = Math.sin(this.worldTime * 0.75) * 0.35;
+      }
+      if (object.userData.structureGlow) {
+        const pulse = 1 + Math.sin(this.worldTime * 5.2 + object.id) * 0.09;
+        object.scale.setScalar(pulse);
+      }
       if (object.userData.growing) {
-        const next = THREE.MathUtils.damp(object.scale.x, 1, 7, delta);
-        object.scale.setScalar(next);
-        if (next > 0.995) object.userData.growing = false;
+        const elapsed = (Number(object.userData.growElapsed) || 0) + delta;
+        object.userData.growElapsed = elapsed;
+        const ratio = THREE.MathUtils.clamp(elapsed / 1.15, 0, 1);
+        const shifted = ratio - 1;
+        const overshoot = 1 + 2.70158 * shifted * shifted * shifted + 1.70158 * shifted * shifted;
+        const rise = 1 - Math.pow(1 - ratio, 3);
+        object.scale.setScalar(Math.max(0.04, overshoot));
+        object.position.y = THREE.MathUtils.lerp(-1.35, 0, rise);
+        object.rotation.y = THREE.MathUtils.lerp(-0.18, 0, rise);
+        if (ratio >= 1) {
+          object.scale.setScalar(1);
+          object.position.y = 0;
+          object.rotation.y = 0;
+          object.userData.growing = false;
+        }
       }
       if (object.userData.growingBridge) {
-        object.scale.y = THREE.MathUtils.damp(object.scale.y, 1, 7, delta);
-        if (object.scale.y > 0.995) object.userData.growingBridge = false;
+        const elapsed = (Number(object.userData.bridgeBuildElapsed) || 0) + delta;
+        object.userData.bridgeBuildElapsed = elapsed;
+        const progress = THREE.MathUtils.clamp(elapsed / 1.35, 0, 1);
+        object.children.forEach((child) => {
+          if (typeof child.userData.bridgePlank !== 'number') return;
+          const local = THREE.MathUtils.clamp((progress - child.userData.bridgePlank * 0.68) / 0.32, 0, 1);
+          const eased = 1 - Math.pow(1 - local, 3);
+          child.scale.setScalar(Math.max(0.03, eased));
+        });
+        if (progress >= 1) object.userData.growingBridge = false;
       }
     });
     this.heartCore.rotation.y += delta * (this.economy.progress.completed ? 1.9 : 0.35);
@@ -1463,6 +1611,8 @@ export class IlotaGame {
     this.diagnostics.rebirths = progress.rebirths;
     this.diagnostics.skills = progress.skills.join(',');
     this.diagnostics.autoRegulation = progress.autoRegulation;
+    this.diagnostics.visibleIslands = this.islands.filter((island) => island.root.position.y > -0.2).length;
+    this.diagnostics.emergingIsland = this.islandEmergence?.entity.definition.id ?? '';
     this.diagnostics.workersOnWalkable = this.workers.every((worker) => isPointOnWalkableNetwork(
       { x: worker.root.position.x, z: worker.root.position.z },
       progress.bridgesBuilt,

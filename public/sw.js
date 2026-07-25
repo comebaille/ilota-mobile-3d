@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v3-tides';
+const CACHE = 'ilota-v4-emergence';
 const CORE = [
   './',
   './index.html',
@@ -10,7 +10,16 @@ const CORE = [
   './assets/third-party/nature/Tree3.glb',
   './assets/third-party/nature/Rock1.glb',
   './assets/third-party/nature/Bush2.glb',
-  './assets/third-party/nature/Grass2.glb'
+  './assets/third-party/nature/Grass2.glb',
+  './assets/third-party/kaykit-buildings/tent.gltf',
+  './assets/third-party/kaykit-buildings/tent.bin',
+  './assets/third-party/kaykit-buildings/building_lumbermill_green.gltf',
+  './assets/third-party/kaykit-buildings/building_lumbermill_green.bin',
+  './assets/third-party/kaykit-buildings/building_blacksmith_red.gltf',
+  './assets/third-party/kaykit-buildings/building_blacksmith_red.bin',
+  './assets/third-party/kaykit-buildings/building_tower_B_blue.gltf',
+  './assets/third-party/kaykit-buildings/building_tower_B_blue.bin',
+  './assets/third-party/kaykit-buildings/hexagons_medieval.png'
 ];
 
 self.addEventListener('install', (event) => {

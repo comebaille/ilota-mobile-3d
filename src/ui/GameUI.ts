@@ -10,12 +10,16 @@ import {
   getPriorityShortage,
   getRecruitCost,
   getRebirthReward,
+  getSkillCost,
+  getSkillRank,
   getUnlockedWorkerTasks,
   getUpgradeCost,
   getWorkerCapacity,
   getWorkerLevelCap,
   getWorkerYield,
   hasSkill,
+  isSkillVisible,
+  skillPrerequisitesMet,
   type IslandProgress,
   type ResourceKind,
   type SkillBranch,
@@ -118,6 +122,7 @@ export class GameUI {
   private crewHandlers: CrewHandlers | null = null;
   private talentHandlers: TalentHandlers | null = null;
   private latestProgress: IslandProgress | null = null;
+  private selectedSkill: SkillId | null = null;
 
   constructor() {
     window.addEventListener('beforeinstallprompt', (event) => {
@@ -156,8 +161,12 @@ export class GameUI {
     });
     this.skillBranches.addEventListener('click', (event) => {
       const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-skill]') : null;
-      if (!target || target.disabled || !target.dataset.skill) return;
-      this.talentHandlers?.onUnlock(target.dataset.skill as SkillId);
+      if (!target?.dataset.skill) return;
+      this.selectedSkill = target.dataset.skill as SkillId;
+      const definition = SKILL_DEFINITIONS.find((skill) => skill.id === this.selectedSkill);
+      if (definition) this.forecastText.textContent = `${definition.name} · ${definition.detail}`;
+      if (target.dataset.unlockable !== 'true') return;
+      this.talentHandlers?.onUnlock(this.selectedSkill);
     });
     this.autoRegulationButton.addEventListener('click', () => {
       if (!this.latestProgress) return;
@@ -329,58 +338,102 @@ export class GameUI {
   }
 
   private renderTalents(progress: IslandProgress): void {
+    const previousScrollLeft = this.skillBranches.scrollLeft;
+    const previousScrollTop = this.skillBranches.scrollTop;
+    const previouslyRendered = Boolean(this.skillBranches.querySelector('.skill-map-canvas'));
     this.talentKnowledge.textContent = `${progress.knowledge} Savoir disponible${progress.knowledge > 1 ? 's' : ''}`;
     this.tideCount.textContent = `Marée ${progress.rebirths + 1} · exigence ×${getCycleMultiplier(progress).toFixed(2)}`;
-    this.forecastText.textContent = hasSkill(progress, 'forecasting')
-      ? `Prévision : la prochaine pénurie sera le ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
-      : 'Débloque Prévisions pour lire le prochain manque avant d’investir.';
+    const selectedDefinition = SKILL_DEFINITIONS.find((definition) => definition.id === this.selectedSkill);
+    this.forecastText.textContent = selectedDefinition
+      ? `${selectedDefinition.name} · ${selectedDefinition.detail}`
+      : hasSkill(progress, 'forecasting')
+        ? `Prévision : la prochaine pénurie sera le ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
+        : 'Touchez un hexagone pour lire son effet · Prévisions révélera aussi le prochain manque.';
     this.skillBranches.replaceChildren();
+    const visibleSkills = SKILL_DEFINITIONS.filter((definition) => isSkillVisible(progress, definition));
+    const canvas = element('div', 'skill-map-canvas');
+    canvas.setAttribute('role', 'group');
+    canvas.setAttribute('aria-label', 'Constellation des savoirs');
 
-    (Object.keys(SKILL_BRANCH_LABELS) as SkillBranch[]).forEach((branch) => {
-      const copy = SKILL_BRANCH_LABELS[branch];
-      const column = element('section', `skill-branch branch-${branch}`);
-      const header = element('header', 'skill-branch-header');
-      const icon = element('span', 'skill-branch-icon');
-      icon.textContent = copy.icon;
-      const heading = element('div');
-      const title = element('h3');
-      title.textContent = copy.name;
-      const summary = element('p');
-      summary.textContent = copy.summary;
-      heading.append(title, summary);
-      header.append(icon, heading);
-      const track = element('div', 'skill-track');
-
-      SKILL_DEFINITIONS.filter((skill) => skill.branch === branch).forEach((skill) => {
-        const unlocked = hasSkill(progress, skill.id);
-        const prerequisiteMet = !skill.requires || hasSkill(progress, skill.requires);
-        const button = element('button', `skill-node${unlocked ? ' unlocked' : ''}`);
-        button.type = 'button';
-        button.dataset.skill = skill.id;
-        button.disabled = unlocked || !prerequisiteMet || progress.knowledge < skill.cost;
-        button.setAttribute('aria-label', unlocked ? `${skill.name}, débloqué` : `Débloquer ${skill.name} pour ${skill.cost} Savoir`);
-        const tier = element('span', 'skill-tier');
-        tier.textContent = unlocked ? '✓' : String(skill.tier);
-        const body = element('span', 'skill-node-body');
-        const name = element('strong');
-        name.textContent = skill.name;
-        const detail = element('small');
-        detail.textContent = skill.detail;
-        body.append(name, detail);
-        const price = element('span', 'skill-price');
-        price.textContent = unlocked ? 'ACQUIS' : prerequisiteMet ? `${skill.cost} SAVOIR` : 'PRÉREQUIS';
-        button.append(tier, body, price);
-        track.append(button);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('skill-links');
+    svg.setAttribute('viewBox', '0 0 1160 1250');
+    svg.setAttribute('aria-hidden', 'true');
+    visibleSkills.forEach((definition) => {
+      definition.requires?.forEach((requiredId) => {
+        const required = visibleSkills.find((candidate) => candidate.id === requiredId);
+        if (!required) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', String(required.x));
+        line.setAttribute('y1', String(required.y));
+        line.setAttribute('x2', String(definition.x));
+        line.setAttribute('y2', String(definition.y));
+        line.classList.add('skill-link');
+        if (hasSkill(progress, required.id) && hasSkill(progress, definition.id)) line.classList.add('unlocked');
+        else if (skillPrerequisitesMet(progress, definition)) line.classList.add('available');
+        svg.append(line);
       });
-      column.append(header, track);
-      this.skillBranches.append(column);
+    });
+    canvas.append(svg);
+
+    if (hasSkill(progress, 'awakening')) (Object.keys(SKILL_BRANCH_LABELS) as SkillBranch[]).forEach((branch, index) => {
+      const copy = SKILL_BRANCH_LABELS[branch];
+      const badge = element('div', `skill-map-badge branch-${branch}`);
+      badge.style.left = `${[175, 580, 985][index]}px`;
+      badge.innerHTML = `<span aria-hidden="true">${copy.icon}</span><strong>${copy.name}</strong>`;
+      canvas.append(badge);
+    });
+
+    visibleSkills.forEach((skill) => {
+      const rank = getSkillRank(progress, skill.id);
+      const maximum = skill.maxRank ?? 1;
+      const unlocked = rank > 0;
+      const maxed = rank >= maximum;
+      const prerequisiteMet = skillPrerequisitesMet(progress, skill);
+      const priceValue = getSkillCost(progress, skill);
+      const available = prerequisiteMet && progress.knowledge >= priceValue && !maxed;
+      const locked = !available;
+      const button = element('button', `skill-hex branch-${skill.branch}${unlocked ? ' unlocked' : ''}${available ? ' available' : ''}${locked ? ' locked' : ''}${skill.maxRank ? ' repeatable' : ''}`);
+      button.type = 'button';
+      button.dataset.skill = skill.id;
+      button.dataset.rank = String(rank);
+      button.dataset.unlockable = String(available);
+      button.style.left = `${skill.x}px`;
+      button.style.top = `${skill.y}px`;
+      button.setAttribute('aria-disabled', String(locked));
+      const rankCopy = skill.maxRank ? `, rang ${rank} sur ${maximum}` : '';
+      button.setAttribute(
+        'aria-label',
+        maxed
+          ? `${skill.name}${rankCopy}, acquis. ${skill.detail}`
+          : `Débloquer ${skill.name}${skill.maxRank ? ` rang ${rank + 1}` : ''} pour ${priceValue} Savoir. ${skill.detail}`,
+      );
+      button.title = skill.detail;
+
+      const icon = element('span', 'skill-hex-icon');
+      icon.textContent = maxed && !skill.maxRank ? '✓' : skill.icon;
+      const name = element('strong', 'skill-hex-name');
+      name.textContent = skill.name;
+      const price = element('small', 'skill-hex-price');
+      price.textContent = maxed
+        ? skill.maxRank ? `MAX ${rank}/${maximum}` : 'ACQUIS'
+        : skill.maxRank ? `RANG ${rank + 1} · ${priceValue}` : `${priceValue} SAVOIR`;
+      button.append(icon, name, price);
+      canvas.append(button);
+    });
+    this.skillBranches.append(canvas);
+    window.requestAnimationFrame(() => {
+      this.skillBranches.scrollLeft = previouslyRendered
+        ? previousScrollLeft
+        : Math.max(0, 580 - this.skillBranches.clientWidth / 2);
+      this.skillBranches.scrollTop = previouslyRendered ? previousScrollTop : 0;
     });
 
     const autoUnlocked = hasSkill(progress, 'auto_regulation');
     this.autoRegulationButton.disabled = !autoUnlocked;
     this.autoRegulationButton.setAttribute('aria-pressed', String(progress.autoRegulation));
     this.autoRegulationButton.textContent = !autoUnlocked
-      ? 'AUTO-RÉGULATION · SOMMET INTELLIGENCE REQUIS'
+      ? 'AUTO-RÉGULATION · TALENT REQUIS'
       : progress.autoRegulation
         ? 'AUTO-RÉGULATION ACTIVE'
         : 'ACTIVER L’AUTO-RÉGULATION';

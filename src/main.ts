@@ -27,6 +27,8 @@ interface IlotaWindow extends Window {
     rebirths: number;
     skills: string;
     autoRegulation: boolean;
+    visibleIslands: number;
+    emergingIsland: string;
     workersOnWalkable: boolean;
     workerNavigation: Array<{
       id: string;

@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   Economy,
   chooseAutoRegulationMove,
+  getAutoRegulationInterval,
+  getAutoRegulationMoveCount,
   getBridgeCost,
   getCycleMultiplier,
+  getSkillRank,
   getTotalWorkerLevels,
   getWorkerCapacity,
+  getWorkerYield,
   type IslandProgress,
 } from './economy';
 
@@ -17,7 +21,7 @@ const richEconomy = (initial?: Partial<IslandProgress>): Economy => new Economy(
   ...initial,
 });
 
-describe('Economy v3', () => {
+describe('Economy v4', () => {
   it('récolte quatre ressources sans produire de valeur négative', () => {
     const economy = new Economy();
     economy.add('wood', 3);
@@ -107,7 +111,7 @@ describe('Economy v3', () => {
     expect(restored.progress.workers[0]).toMatchObject({ id: worker.id, task: 'stone', level: 2 });
   });
 
-  it('migre la petite campagne v1 vers le premier pont de la v3', () => {
+  it('migre la petite campagne v1 vers le premier pont de la v4', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 1,
       wood: 17,
@@ -120,7 +124,7 @@ describe('Economy v3', () => {
       completed: true,
       elapsedSeconds: 42,
     }));
-    expect(restored.progress).toMatchObject({ version: 3, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress).toMatchObject({ version: 4, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
     expect(restored.progress.bridgesBuilt).toEqual([true, false, false, false]);
     expect(restored.progress.workers.map((worker) => worker.task)).toEqual(['wood', 'stone']);
     expect(restored.progress.cachesFound).toContain('main-cache');
@@ -147,19 +151,82 @@ describe('Economy v3', () => {
       completed: true,
       elapsedSeconds: 600,
     }));
-    expect(restored.progress).toMatchObject({ version: 3, completed: true, knowledge: 10, rebirths: 0 });
+    expect(restored.progress).toMatchObject({ version: 4, completed: true, knowledge: 10, rebirths: 0 });
     expect(restored.progress.cycleMilestones).toHaveLength(9);
   });
 
   it('fait respecter les prérequis de l’arbre Intelligence', () => {
-    const economy = new Economy({ knowledge: 10 });
+    const economy = new Economy({ knowledge: 30 });
     expect(economy.unlockSkill('auto_regulation')).toBe(false);
+    expect(economy.unlockSkill('awakening')).toBe(true);
+    expect(economy.unlockSkill('insight_gateway')).toBe(true);
     expect(economy.unlockSkill('trail_sense')).toBe(true);
     expect(economy.unlockSkill('optimal_routes')).toBe(true);
     expect(economy.unlockSkill('forecasting')).toBe(true);
+    expect(economy.unlockSkill('coordinated_shifts')).toBe(true);
     expect(economy.unlockSkill('auto_regulation')).toBe(true);
-    expect(economy.progress.knowledge).toBe(0);
+    expect(economy.progress.knowledge).toBe(8);
     expect(economy.setAutoRegulation(true)).toBe(true);
+  });
+
+  it('augmente le nombre de postes sur cinq rangs au coût croissant', () => {
+    const economy = new Economy({ knowledge: 100, campBuilt: true });
+    ['awakening', 'craft_gateway', 'sharp_tools', 'reinforced_carts', 'living_quarries', 'expanded_roster', 'expanded_roster']
+      .forEach((skill) => expect(economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0])).toBe(true));
+    expect(getSkillRank(economy.progress, 'expanded_roster')).toBe(2);
+    expect(getWorkerCapacity(economy.progress)).toBe(5);
+    expect(economy.progress.knowledge).toBe(82);
+  });
+
+  it('connecte vraiment les voies pour les savoirs hybrides', () => {
+    const economy = new Economy({ knowledge: 100 });
+    ['awakening', 'insight_gateway', 'trail_sense', 'optimal_routes']
+      .forEach((skill) => economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0]));
+    expect(economy.unlockSkill('logistics_network')).toBe(false);
+    ['craft_gateway', 'sharp_tools', 'reinforced_carts']
+      .forEach((skill) => economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0]));
+    expect(economy.unlockSkill('logistics_network')).toBe(true);
+  });
+
+  it('migre les anciens talents v3 dans le nouveau graphe sans les perdre', () => {
+    const restored = Economy.restore(JSON.stringify({
+      version: 3,
+      knowledge: 2,
+      skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
+      autoRegulation: true,
+    }));
+    expect(restored.progress.version).toBe(4);
+    expect(restored.progress.skills).toEqual(expect.arrayContaining([
+      'awakening',
+      'insight_gateway',
+      'trail_sense',
+      'optimal_routes',
+      'forecasting',
+      'coordinated_shifts',
+      'auto_regulation',
+    ]));
+    expect(restored.progress.autoRegulation).toBe(true);
+  });
+
+  it('donne à chaque sommet une mécanique qui change la méta', () => {
+    const collective = new Economy({ skills: ['collective_intelligence'] });
+    expect(getAutoRegulationInterval(collective.progress)).toBe(3);
+    expect(getAutoRegulationMoveCount(collective.progress)).toBe(2);
+
+    const builders = new Economy({ skills: ['master_builders'] });
+    const engine = new Economy({ skills: ['endless_engine'] });
+    expect(getWorkerYield(1, engine.progress)).toBe(getWorkerYield(1, builders.progress) * 2);
+
+    const legacy = new Economy({
+      completed: true,
+      skills: ['ocean_legacy'],
+      wood: 100,
+      stone: 80,
+      copper: 60,
+      crystal: 40,
+    });
+    legacy.rebirth();
+    expect(legacy.progress).toMatchObject({ wood: 35, stone: 28, copper: 21, crystal: 14 });
   });
 
   it('conserve les talents et le Savoir lors d’une Nouvelle Marée', () => {
@@ -172,7 +239,7 @@ describe('Economy v3', () => {
     });
     const reward = economy.rebirth();
     expect(reward).toBe(3);
-    expect(economy.progress).toMatchObject({ version: 3, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
+    expect(economy.progress).toMatchObject({ version: 4, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
     expect(economy.progress.skills).toContain('tidal_memory');
     expect(economy.progress.workers).toEqual([]);
     expect(getCycleMultiplier(economy.progress)).toBeCloseTo(1.22);
