@@ -133,6 +133,8 @@ export class GameUI {
   private readonly islandGoalIsland = byId<HTMLElement>('island-goal-island');
   private readonly islandGoalTitle = byId<HTMLElement>('island-goal-title');
   private readonly islandGoalCount = byId<HTMLElement>('island-goal-count');
+  private readonly islandGoalToggle = byId<HTMLButtonElement>('island-goal-toggle');
+  private readonly islandGoalNextLabel = byId<HTMLElement>('island-goal-next-label');
   private readonly islandGoalList = byId<HTMLElement>('island-goal-list');
   private readonly toastElement = byId<HTMLElement>('toast');
   private readonly fatalError = byId<HTMLElement>('fatal-error');
@@ -225,7 +227,10 @@ export class GameUI {
   private menuTideArmed = false;
   private menuTimer = 0;
   private lastGoalKey = '';
+  private lastGoalIsland = -1;
+  private islandGoalExpanded = false;
   private projectIslandIndex: 1 | 2 | 3 | 4 | null = null;
+  private projectInputReadyAt = 0;
   private tutorialCloseHandler: (() => void) | null = null;
   private lastLevelUpKey = '';
 
@@ -288,6 +293,7 @@ export class GameUI {
       if (event.target === this.projectsPanel) this.hideProjects();
     });
     this.projectTiers.addEventListener('click', (event) => {
+      if (performance.now() < this.projectInputReadyAt) return;
       const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-project]') : null;
       if (!target?.dataset.project || target.disabled) return;
       this.projectHandlers?.onBuild(target.dataset.project as ProjectId);
@@ -368,6 +374,16 @@ export class GameUI {
     });
     this.menuTideButton.addEventListener('click', () => this.confirmMenuTide());
     this.menuResetButton.addEventListener('click', () => this.confirmMenuReset());
+    this.islandGoalToggle.addEventListener('click', () => {
+      if (this.islandGoal.classList.contains('completed')) return;
+      this.islandGoalExpanded = !this.islandGoalExpanded;
+      this.islandGoal.classList.toggle('expanded', this.islandGoalExpanded);
+      this.islandGoalToggle.setAttribute('aria-expanded', String(this.islandGoalExpanded));
+      this.islandGoalToggle.setAttribute(
+        'aria-label',
+        `${this.islandGoalExpanded ? 'Réduire' : 'Afficher'} toutes les étapes de cette île`,
+      );
+    });
   }
 
   bindCrewHandlers(handlers: CrewHandlers): void {
@@ -456,8 +472,11 @@ export class GameUI {
     if (!localProjects.some((project) => isProjectVisible(this.latestProgress!, project))) return;
     this.projectIslandIndex = islandIndex;
     this.projectsPanel.hidden = false;
+    this.projectInputReadyAt = performance.now() + 360;
+    this.projectTiers.inert = true;
     this.renderProjects(this.latestProgress);
     this.projectHandlers?.onOpenChange(true);
+    window.setTimeout(() => { this.projectTiers.inert = false; }, 360);
     window.setTimeout(() => this.projectsCloseButton.focus(), 0);
   }
 
@@ -863,12 +882,11 @@ export class GameUI {
       definition.islandIndex === islandIndex
       && isProjectVisible(progress, definition));
     const localCompleted = localProjects.filter((definition) => hasProject(progress, definition.id)).length;
-    const totalCompleted = getCompletedProjectCount(progress);
     this.projectsKicker.textContent = `${island?.name.toUpperCase() ?? 'ÎLE'} · UNE MAISON · TROIS TRAVAUX`;
-    this.projectsProgress.textContent = `${localCompleted} / 3 achevés ici · ${totalCompleted} / ${ISLAND_PROJECTS.length} dans l’archipel`;
+    this.projectsProgress.textContent = `${localCompleted} / 3 TRAVAUX ACHEVÉS`;
     this.projectsHelp.textContent = localCompleted >= 3
       ? 'Maison complète · ce palier restera définitivement validé.'
-      : `Choisis un Travail, lis son effet et finance-le ici. Encore ${3 - localCompleted} à achever.`;
+      : 'Touche une carte pour lire son bonus, son coût, puis la financer.';
     this.projectTiers.replaceChildren();
     if (!localProjects.length) {
       const empty = element('div', 'projects-empty');
@@ -915,7 +933,11 @@ export class GameUI {
         effect.textContent = definition.effect;
         copy.append(name, detail, effect);
         const footer = element('span', 'project-card-footer');
-        footer.textContent = built ? 'ACHEVÉ' : `${formatCost(projectCost)} · +${definition.knowledge} Savoir`;
+        footer.textContent = built
+          ? '✓ ACHEVÉ · BONUS ACTIF'
+          : affordable
+            ? `${formatCost(projectCost)} · +${definition.knowledge} Savoir · FINANCER`
+            : `${formatCost(projectCost)} · RESSOURCES MANQUANTES`;
         button.append(icon, copy, footer);
         grid.append(button);
       });
@@ -1204,7 +1226,14 @@ export class GameUI {
     if (passageAlreadyCompleted) {
       this.islandGoal.hidden = true;
       this.lastGoalKey = '';
+      this.lastGoalIsland = -1;
       return goal;
+    }
+    if (islandIndex !== this.lastGoalIsland) {
+      this.lastGoalIsland = islandIndex;
+      this.islandGoalExpanded = false;
+      this.islandGoal.classList.remove('expanded');
+      this.islandGoalToggle.setAttribute('aria-expanded', 'false');
     }
     const key = JSON.stringify([
       islandIndex,
@@ -1217,10 +1246,26 @@ export class GameUI {
     this.lastGoalKey = key;
     const island = ISLANDS[islandIndex];
     const done = goal.items.filter((item) => item.done).length;
+    const next = goal.items.find((item) => !item.done);
     this.islandGoal.classList.toggle('completed', goal.completed);
+    if (goal.completed) {
+      this.islandGoalExpanded = false;
+      this.islandGoal.classList.remove('expanded');
+    }
+    this.islandGoalToggle.disabled = goal.completed;
+    this.islandGoalToggle.setAttribute('aria-expanded', String(this.islandGoalExpanded));
+    this.islandGoalToggle.setAttribute(
+      'aria-label',
+      goal.completed
+        ? 'Toutes les étapes sont validées'
+        : `${this.islandGoalExpanded ? 'Réduire' : 'Afficher'} toutes les étapes de cette île`,
+    );
     this.islandGoalIsland.textContent = island?.name.toUpperCase() ?? 'ARCHIPEL';
     this.islandGoalTitle.textContent = goal.completed ? 'ÎLE PRÊTE · PASSAGE OUVERT' : goal.title;
     this.islandGoalCount.textContent = `${done}/${goal.items.length}`;
+    this.islandGoalNextLabel.textContent = goal.completed
+      ? 'Tous les objectifs sont validés · suis les flèches vers le pont.'
+      : next?.label ?? 'Explore l’île pour révéler la suite.';
     this.islandGoalList.replaceChildren();
     goal.items.forEach((item) => {
       const row = element('li', item.done ? 'done' : '');

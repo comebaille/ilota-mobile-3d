@@ -210,6 +210,7 @@ interface Diagnostics {
   copper: number;
   crystal: number;
   campBuilt: boolean;
+  observatoryBuilt: boolean;
   workers: number;
   workerLevels: number;
   workerTasks: string;
@@ -420,6 +421,7 @@ export class IlotaGame {
       copper: progress.copper,
       crystal: progress.crystal,
       campBuilt: progress.campBuilt,
+      observatoryBuilt: progress.observatoryBuilt,
       workers: progress.workers.length,
       workerLevels: getTotalWorkerLevels(progress),
       workerTasks: progress.workers.map((worker) => worker.task).join(','),
@@ -2220,7 +2222,9 @@ export class IlotaGame {
           getStructureCost(this.economy.progress, kind),
           'BÂTIR',
           kind === 'camp' ? '⌂' : kind === 'observatory' ? '✦' : '▣',
-          'Les pièces s’assembleront ici.',
+          kind === 'observatory'
+            ? 'Grand chantier de l’îlot central · les quatre ressources sont indispensables.'
+            : 'Les pièces s’assembleront ici.',
         );
         return;
       }
@@ -2395,7 +2399,7 @@ export class IlotaGame {
           this.maybeShowTutorial(
             'observatory',
             'L’Autel du Savoir',
-            'Touche un hexagone pour lire son pouvoir. L’achat ne se fait jamais au premier toucher : il faut ensuite le confirmer dans la grande fiche.',
+            'Tu as ramené les quatre ressources jusqu’au foyer. Touche un hexagone pour lire son pouvoir : il faut ensuite confirmer tout achat dans la grande fiche.',
             '✦',
           );
         }
@@ -2916,6 +2920,7 @@ export class IlotaGame {
     this.diagnostics.active = this.active && !this.victoryShown;
     RESOURCE_KINDS.forEach((kind) => { this.diagnostics[kind] = progress[kind]; });
     this.diagnostics.campBuilt = progress.campBuilt;
+    this.diagnostics.observatoryBuilt = progress.observatoryBuilt;
     this.diagnostics.workers = progress.workers.length;
     this.diagnostics.workerLevels = getTotalWorkerLevels(progress);
     this.diagnostics.workerTasks = progress.workers.map((worker) => worker.task).join(',');

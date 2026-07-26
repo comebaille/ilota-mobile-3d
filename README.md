@@ -13,12 +13,13 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - cinq dépôts physiques : le central est le premier bâtiment gratuit, puis un nouveau dépôt local devient constructible à chaque Nouvelle Marée ;
 - vrais trajets logistiques : sans dépôt local, un renard éloigné retraverse tous les ponts jusqu’au hangar construit le plus proche ;
 - quatre métiers réassignables : bois, pierre, cuivre et cristal ;
-- systèmes matérialisés : le camp ouvre la nurserie, l’atelier forme au niveau 2, la fonderie au niveau 3 et l’Autel du Savoir ouvre l’arbre des savoirs ;
+- systèmes matérialisés : le camp ouvre la nurserie, l’atelier forme au niveau 2, la fonderie au niveau 3 et le grand chantier de l’Autel du Savoir revient sur l’île principale pour ouvrir l’arbre ;
 - nurserie lumineuse et scrollable : le niveau reste écrit sur chaque renard, un toucher ouvre sa fiche, mais les formations ne sont possibles que dans le bon bâtiment ;
 - neuf postes par les bâtiments, dix postes supplémentaires via projets et savoirs, et trois niveaux de rendement ;
-- vraie nurserie, dépôts, atelier, fonderie et Autel du Savoir fondés sur des modèles 3D CC0, assemblés pièce par pièce lors de leur construction ;
-- douze Grands Travaux regroupés dans quatre Maisons des Travaux identiques : un seul bâtiment par île présente ses trois projets et allume trois sceaux d’avancement ;
-- panneau d’objectif à droite : chaque condition est explicitement cochée, le panneau disparaît définitivement dès que son pont est payé, puis des flèches 3D guident jusqu’au passage ;
+- vraie nurserie, dépôts, atelier, fonderie et Autel du Savoir fondés sur des modèles 3D CC0, assemblés pièce par pièce lors de leur construction et séparés par une marge anti-collision vérifiée ;
+- Autel central exigeant `120 bois + 110 pierre + 90 cuivre + 70 cristal` : la quatrième ressource impose un vrai retour logistique vers le foyer avant l’ouverture de l’arbre ;
+- douze Grands Travaux regroupés dans quatre Maisons identiques : un seul bâtiment par île ouvre trois grandes cartes lisibles et allume trois sceaux d’avancement ;
+- HUD paysage compact : l’étape suivante reste visible, le détail des objectifs se déplie à la demande, disparaît définitivement après le paiement du pont, puis des flèches 3D guident jusqu’au passage ;
 - tutoriel contextuel réservé aux sauvegardes neuves : dépôt, cargaison, nurserie, objectifs, formations, talents et Nouvelle Marée ;
 - arbre hexagonal à 26 nœuds : futur invisible, doubles prérequis stricts, pincement tactile, trois sommets et convergence finale très coûteuse ;
 - sélection d’un savoir sans achat automatique : une grande fiche explique l’effet, le prix et les prérequis avant confirmation ;

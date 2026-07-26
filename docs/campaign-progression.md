@@ -19,7 +19,7 @@
 | 1. Camp des Marées | jouable | 8–12 min | Dépôt, nurserie, 2 travailleurs, pont des Pins | Cargaison visible, déchargement, recrutement et affectation bois/pierre | Récolte manuelle | Capacité 3 | Premier pont puis émergence | Accès aux Pins |
 | 2. Atelier des Pins | jouable | 10–15 min | Atelier, équipe de 4, niveau 2 et 3 travaux | Première infrastructure durable | Affectations et vrais trajets | Capacité 5 puis +1 | Pont cuivré | Accès au cuivre |
 | 3. Île Cuivrée | jouable | 10–16 min | Fonderie, cuivrier, équipe de 5 et 6 travaux cumulés | Troisième ressource et industrie | Arbitrage stocks / coûts | Capacité 7, niveau 3 | Pont des Cristaux | Accès au cristal |
-| 4. Autel du Savoir | jouable | 12–18 min | Autel, cristallier, 10 niveaux et 9 travaux | Quatrième ressource et arbre physique | Tous les systèmes précédents | Capacité 9, métier cristal | Pont de la Couronne | Accès au Cœur |
+| 4. Retour à l’Autel | jouable | 12–18 min | Cristallier, 9 travaux, puis retour au centre avec 120 bois, 110 pierre, 90 cuivre et 70 cristal | Quatrième ressource et grand chantier central | Tous les systèmes précédents et la logistique inter-îles | Capacité 9, métier cristal et arbre physique | Construction de l’Autel puis pont de la Couronne | Accès au Cœur |
 | 5. Cœur de l’Archipel | jouable | 10–16 min | 8 travailleurs, 4 métiers, 12 niveaux, 12 travaux et offrande | Réseau final de l’archipel | Économie et logistique combinées | +5 Savoir des travaux, puis +2 du Cœur | Éveil du Cœur | Mode libre ou rebirth |
 
 ## Méta-progression persistante
@@ -60,7 +60,7 @@ Le contenu supplémentaire ne multiplie pas les minerais. Il multiplie les usage
 | Cristal | Treuils cuivrés, Rails de débardage, Cour de maintenance | récolte ouvrière +18 %, vitesse +12 %, recrutement/niveaux −15 % | 9 travaux avant la Couronne |
 | Couronne | Balises cristallines, Réservoir prismatique, Phare de l’unisson | repousse +18 %, livraisons +15 % puis +25 %, bonus de Savoir | 12 travaux avant le Cœur |
 
-Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants. Chaque projet est un pad puis un bâtiment visible sur son île ; les trois chantiers du palier restent libres dans leur ordre. Leur construction assemble successivement les pièces du modèle au lieu de faire surgir un bloc entier.
+Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants. Une seule Maison des Travaux identique est implantée sur chaque île : elle ouvre trois cartes de projet indépendantes et matérialise leur achèvement par trois sceaux sur sa façade. Les trois travaux restent libres dans leur ordre, sans ajouter trois bâtiments qui surchargeraient l’île.
 
 ## Navigation et intelligence des ouvriers
 
@@ -142,6 +142,10 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur fait apparaître les trois voies depuis le nœud gratuit, confirme que le futur reste absent, atteint l’auto-régulation, vérifie l’inspecteur avant achat et simule un pincement tactile.
 - Un test navigateur affiche seize renards, fait défiler la nurserie, ouvre la dernière fiche et confirme que la formation n’y est pas achetable.
 - Un test navigateur achève les douze Grands Travaux depuis les quatre Maisons physiques, une par île, avant d’autoriser le Cœur.
+- Un test navigateur ouvre une Maison sur un écran de 568 × 320, vérifie que ses trois cartes restent simultanément lisibles et interdit tout achat fantôme au relâchement du toucher.
+- Des tests de géométrie imposent une marge intérieure aux îles et au moins deux unités libres entre les volumes de tous les bâtiments d’une même île.
+- Un test navigateur rapporte les quatre grandes réserves sur l’île principale, y construit l’Autel pour exactement 120 bois, 110 pierre, 90 cuivre et 70 cristal, puis ouvre l’arbre.
+- Un test navigateur vérifie que le HUD paysage reste compact et que la liste complète des objectifs ne s’affiche qu’après une demande du joueur.
 - Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
 - La sauvegarde courante est en v7 ; les sauvegardes v1 à v6 migrent sans perdre leur progression. Les notifications automatiques de pouvoirs sont coupées par défaut après migration.

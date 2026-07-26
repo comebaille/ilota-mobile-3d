@@ -12,6 +12,7 @@ import {
   getPlayerCargoTotal,
   getPlayerSpeed,
   getSkillRank,
+  getStructureCost,
   getTotalWorkerLevels,
   getWorkerCapacity,
   getWorkerYield,
@@ -39,6 +40,12 @@ const completeProjectsUntil = (economy: Economy, targetCount: number): void => {
 };
 
 describe('Economy v7', () => {
+  it('réserve l’Autel du Savoir à un grand paiement des quatre ressources', () => {
+    const cost = getStructureCost(new Economy().progress, 'observatory');
+    expect(cost).toEqual({ wood: 120, stone: 110, copper: 90, crystal: 70 });
+    expect(Object.values(cost).every((amount) => amount >= 70)).toBe(true);
+  });
+
   it('récolte quatre ressources sans produire de valeur négative', () => {
     const economy = new Economy();
     economy.add('wood', 3);

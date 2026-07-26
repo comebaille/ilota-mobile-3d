@@ -143,6 +143,16 @@ qu’une seule fois, à la fin de l’animation.
   ressources dépensées ne peuvent pas rouvrir un objectif historique.
 - Garder le nombre de Savoirs visible dans le HUD avant même l’ouverture de
   l’Autel.
+- Placer l’Autel du Savoir sur l’île principale et n’afficher son chantier qu’après
+  l’accès au cristal. Sa construction exige simultanément 120 bois, 110 pierre,
+  90 cuivre et 70 cristal afin de créer un retour logistique majeur vers le foyer.
+- Garantir au moins deux unités libres entre les volumes de tous les bâtiments
+  d’une même île et une marge de 0,9 unité avec son rivage.
+- Réduire le HUD permanent à l’essentiel : une seule ligne de ressources, une
+  étape suivante compacte et le détail des objectifs dépliable à la demande.
+- Ouvrir la Maison des Travaux dans une vue presque plein écran où ses trois cartes
+  sont visibles ensemble, avec leurs effets, coûts, manques et action de
+  financement lisibles.
 - Permettre de couper séparément les notifications automatiques de pouvoirs et
   leurs effets plein écran.
 - Autoriser les textes utiles à revenir sur deux lignes au lieu de les tronquer.
@@ -167,5 +177,11 @@ qu’une seule fois, à la fin de l’animation.
   ressources.
 - Les objectifs, tutoriels, fiches de pouvoir et labels principaux restent lisibles
   dans un viewport iPhone SE paysage de 667 × 375 pixels CSS.
+- Aucun bâtiment ne se chevauche et la Maison des Travaux affiche trois cartes
+  complètes dans un viewport compact de 568 × 320 pixels CSS.
+- Le relâchement du toucher ayant ouvert la Maison ne peut jamais financer
+  accidentellement un de ses trois travaux.
+- L’Autel du Savoir se construit uniquement sur l’île principale et débite
+  exactement les quatre grandes réserves prévues.
 - La campagne complète, la sauvegarde, la Nouvelle Marée et la migration depuis la
   version 0.7 restent jouables.

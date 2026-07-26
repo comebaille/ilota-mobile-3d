@@ -50,6 +50,14 @@ export interface WarehouseDefinition extends Point2 {
   rotation: number;
 }
 
+export interface BuildingPlacement extends Point2 {
+  id: string;
+  name: string;
+  islandIndex: number;
+  radius: number;
+  category: 'structure' | 'warehouse' | 'project-hall';
+}
+
 export interface ResourceSpawn extends Point2 {
   kind: ResourceKind;
   capacity: number;
@@ -148,13 +156,15 @@ export const STRUCTURES: readonly StructureDefinition[] = [
   { kind: 'camp', name: 'Camp des Marées', x: 0, z: 0, radius: 1.65, color: 0xf2b958 },
   { kind: 'workshop', name: 'Atelier des Pins', x: -1, z: -27, radius: 1.65, color: 0xe29449 },
   { kind: 'foundry', name: 'Fonderie Cuivrée', x: 16, z: -47, radius: 1.75, color: 0xd47743 },
-  { kind: 'observatory', name: 'Autel du Savoir', x: -1, z: -69, radius: 1.75, color: 0xb9afe9 },
+  // Le Savoir est ramené au foyer : après avoir découvert le cristal, le
+  // joueur doit revenir sur l'îlot principal pour financer son grand Autel.
+  { kind: 'observatory', name: 'Autel du Savoir', x: 5.2, z: -4.6, radius: 1.75, color: 0xb9afe9 },
 ];
 
 export const WAREHOUSES: readonly WarehouseDefinition[] = [
-  { islandIndex: 0, name: 'Dépôt des Marées', x: -4.8, z: 0.8, radius: 1.45, rotation: 0.22 },
+  { islandIndex: 0, name: 'Dépôt des Marées', x: -5.2, z: 1.2, radius: 1.45, rotation: 0.22 },
   { islandIndex: 1, name: 'Dépôt des Pins', x: 4.5, z: -27.4, radius: 1.45, rotation: -0.28 },
-  { islandIndex: 2, name: 'Dépôt Cuivré', x: 20.8, z: -47.5, radius: 1.45, rotation: 0.34 },
+  { islandIndex: 2, name: 'Dépôt Cuivré', x: 20.8, z: -51.5, radius: 1.45, rotation: 0.34 },
   { islandIndex: 3, name: 'Dépôt de Cristal', x: 3.8, z: -69.3, radius: 1.45, rotation: -0.18 },
   { islandIndex: 4, name: 'Dépôt de la Couronne', x: 10.4, z: -91.2, radius: 1.45, rotation: 0.3 },
 ];
@@ -164,10 +174,46 @@ export const WAREHOUSES: readonly WarehouseDefinition[] = [
  * trois sceaux indiquent physiquement l'avancement des trois projets locaux.
  */
 export const PROJECT_HALLS: readonly ProjectHallDefinition[] = [
-  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: -4.5, z: -27, radius: 1.35, color: 0xd89a4c, rotation: -0.35 },
-  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 12.2, z: -40.8, radius: 1.35, color: 0xc97a4a, rotation: -0.2 },
-  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: -4.2, z: -75.5, radius: 1.35, color: 0x9a8fc4, rotation: 0.3 },
-  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 15, z: -83.5, radius: 1.35, color: 0xf2b958, rotation: 0.1 },
+  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: -5.2, z: -30.1, radius: 1.35, color: 0xd89a4c, rotation: -0.35 },
+  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 12.7, z: -41.7, radius: 1.35, color: 0xc97a4a, rotation: -0.2 },
+  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: -4, z: -74.5, radius: 1.35, color: 0x9a8fc4, rotation: 0.3 },
+  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 15, z: -84.5, radius: 1.35, color: 0xf2b958, rotation: 0.1 },
+];
+
+/**
+ * Marge de respiration visuelle entre les emprises déclarées. Cette liste est
+ * la source du test anti-collision : tout nouveau bâtiment doit y participer.
+ */
+export const BUILDING_MIN_GAP = 2;
+export const BUILDING_EDGE_MARGIN = 0.9;
+export const BUILDING_PLACEMENTS: readonly BuildingPlacement[] = [
+  ...STRUCTURES.map((definition) => ({
+    id: `structure:${definition.kind}`,
+    name: definition.name,
+    islandIndex: findIslandIndexForPoint(definition.x, definition.z),
+    x: definition.x,
+    z: definition.z,
+    radius: definition.radius,
+    category: 'structure' as const,
+  })),
+  ...WAREHOUSES.map((definition) => ({
+    id: `warehouse:${definition.islandIndex}`,
+    name: definition.name,
+    islandIndex: definition.islandIndex,
+    x: definition.x,
+    z: definition.z,
+    radius: definition.radius,
+    category: 'warehouse' as const,
+  })),
+  ...PROJECT_HALLS.map((definition) => ({
+    id: `project-hall:${definition.islandIndex}`,
+    name: definition.name,
+    islandIndex: definition.islandIndex,
+    x: definition.x,
+    z: definition.z,
+    radius: definition.radius,
+    category: 'project-hall' as const,
+  })),
 ];
 
 export const CACHES: readonly CacheDefinition[] = [

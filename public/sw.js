@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v9-project-halls';
+const CACHE = 'ilota-v10-central-knowledge';
 const CORE = [
   './',
   './index.html',

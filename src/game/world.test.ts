@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUILDING_EDGE_MARGIN,
+  BUILDING_MIN_GAP,
+  BUILDING_PLACEMENTS,
+  ISLANDS,
   RESOURCE_SPAWN_PROFILES,
   findIslandIndexForPoint,
   pickResourceKindForIsland,
@@ -31,5 +35,39 @@ describe('profils de repousse par île', () => {
     expect(findIslandIndexForPoint(0, 0)).toBe(0);
     expect(findIslandIndexForPoint(16, -47)).toBe(2);
     expect(findIslandIndexForPoint(15, -91)).toBe(4);
+  });
+});
+
+describe('implantation des bâtiments', () => {
+  it('garde chaque bâtiment dans son île avec une marge visible', () => {
+    BUILDING_PLACEMENTS.forEach((building) => {
+      const island = ISLANDS[building.islandIndex];
+      expect(island, `${building.name} doit appartenir à une île`).toBeDefined();
+      const distanceFromCenter = Math.hypot(building.x - island!.x, building.z - island!.z);
+      expect(
+        island!.radius - distanceFromCenter - building.radius,
+        `${building.name} est trop près de la rive`,
+      ).toBeGreaterThanOrEqual(BUILDING_EDGE_MARGIN);
+    });
+  });
+
+  it('laisse au moins deux unités libres entre toutes les emprises bâties', () => {
+    BUILDING_PLACEMENTS.forEach((building, index) => {
+      BUILDING_PLACEMENTS.slice(index + 1)
+        .filter((other) => other.islandIndex === building.islandIndex)
+        .forEach((other) => {
+          const distance = Math.hypot(building.x - other.x, building.z - other.z);
+          const gap = distance - building.radius - other.radius;
+          expect(
+            gap,
+            `${building.name} et ${other.name} sont trop proches`,
+          ).toBeGreaterThanOrEqual(BUILDING_MIN_GAP);
+        });
+    });
+  });
+
+  it('place bien l’Autel du Savoir sur l’îlot principal', () => {
+    expect(BUILDING_PLACEMENTS.find((building) => building.id === 'structure:observatory'))
+      .toMatchObject({ islandIndex: 0, x: 5.2, z: -4.6 });
   });
 });

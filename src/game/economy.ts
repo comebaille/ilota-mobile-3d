@@ -196,7 +196,9 @@ export const STRUCTURE_COSTS: Record<StructureKind, Cost> = {
   camp: cost(12, 8),
   workshop: cost(28, 22),
   foundry: cost(30, 28, 18),
-  observatory: cost(38, 34, 28, 16),
+  // Investissement de fin d'acte : le retour au foyer doit mobiliser
+  // massivement les quatre chaînes de production.
+  observatory: cost(120, 110, 90, 70),
 };
 
 export const PLAYER_CARGO_CAPACITY = 16;
@@ -766,7 +768,7 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
     case 3:
       destination = 'Île Couronne';
       items = [
-        { id: 'altar', label: 'Construire l’Autel du Savoir', done: progress.observatoryBuilt },
+        { id: 'altar', label: 'Retourner bâtir l’Autel du Savoir au centre', done: progress.observatoryBuilt },
         { id: 'workers', label: 'Réunir 7 renards', done: progress.workers.length >= 7 },
         { id: 'crystal-job', label: 'Assigner 1 cristallier', done: hasTask('crystal') },
         { id: 'levels', label: 'Atteindre 10 niveaux cumulés', done: totalLevels >= 10 },
@@ -910,7 +912,12 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
   if (progress.workers.length < 5) return { chapter, eyebrow, title: 'Dirige au moins 5 travailleurs', detail: 'Diversifie la production avant la prochaine traversée.' };
   if (getCompletedProjectCount(progress) < 6) return { chapter, eyebrow, title: 'Industrialise l’île Cuivrée', detail: `${getCompletedProjectCount(progress)}/6 Grands Travaux avant les Cristaux.` };
   if (!progress.bridgesBuilt[2]) return { chapter, eyebrow, title: 'Ouvre la voie des Cristaux', detail: `Coût : ${formatCost(getBridgeCost(progress, 2) ?? cost())}` };
-  if (!progress.observatoryBuilt) return { chapter, eyebrow, title: 'Bâtis l’Autel du Savoir', detail: `Les quatre matières sont requises : ${formatCost(getStructureCost(progress, 'observatory'))}` };
+  if (!progress.observatoryBuilt) return {
+    chapter,
+    eyebrow,
+    title: 'Retourne bâtir l’Autel du Savoir',
+    detail: `Il t’attend sur l’îlot central · grand coût : ${formatCost(getStructureCost(progress, 'observatory'))}`,
+  };
   if (!progress.workers.some((worker) => worker.task === 'crystal')) return { chapter, eyebrow, title: 'Forme un cristallier', detail: 'Retourne à la nurserie et assigne le métier cristal.' };
   if (progress.workers.length < 7 || getTotalWorkerLevels(progress) < 10) return { chapter, eyebrow, title: 'Prépare l’expédition finale', detail: '7 travailleurs et 10 niveaux cumulés requis.' };
   if (getCompletedProjectCount(progress) < 9) return { chapter, eyebrow, title: 'Équipe l’île de Cristal', detail: `${getCompletedProjectCount(progress)}/9 Grands Travaux avant la Couronne.` };
