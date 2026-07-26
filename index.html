@@ -22,6 +22,9 @@
         <button id="talent-button" class="talent-button" type="button" aria-label="Ouvrir l’arbre de talents">
           <span>✧</span><strong>TALENTS</strong><small><b id="talent-button-count">0</b> SAVOIR</small>
         </button>
+        <button id="projects-button" class="projects-button" type="button" aria-label="Ouvrir les Grands Travaux" hidden>
+          <span>⌂</span><strong>TRAVAUX</strong><small id="projects-button-count">0/12</small>
+        </button>
         <div class="resources" aria-label="Ressources">
           <div class="resource-chip wood"><span class="resource-icon">▰</span><span id="wood-count">0</span><small>bois</small></div>
           <div class="resource-chip stone"><span class="resource-icon">◆</span><span id="stone-count">0</span><small>pierre</small></div>
@@ -63,7 +66,14 @@
             <span id="crew-help" role="status">1. Choisis un renard · 2. Touche son métier.</span>
           </div>
           <div id="job-docks" class="job-docks" role="group" aria-label="Métiers et ressources disponibles"></div>
-          <div id="worker-list" class="worker-list" aria-label="Terrier des renards"></div>
+          <div class="crew-workspace">
+            <div id="worker-list" class="worker-list" aria-label="Terrier des renards"></div>
+            <aside id="worker-detail" class="worker-detail" aria-live="polite">
+              <span aria-hidden="true">🦊</span>
+              <strong>Choisis un renard</strong>
+              <small>Sa fiche et son amélioration apparaîtront ici.</small>
+            </aside>
+          </div>
           <footer class="crew-footer">
             <button id="recruit-button" class="primary-button recruit-button" type="button">
               <span class="recruit-portrait" aria-hidden="true">🦊</span>
@@ -73,11 +83,28 @@
         </div>
       </section>
 
+      <section id="projects-panel" class="projects-panel" role="dialog" aria-modal="true" aria-labelledby="projects-title" hidden>
+        <div class="projects-sheet">
+          <header class="crew-header projects-header">
+            <div>
+              <p class="kicker">12 PROJETS · 4 ÎLES · 4 RESSOURCES</p>
+              <h2 id="projects-title">Grands Travaux</h2>
+            </div>
+            <button id="projects-close-button" class="icon-button" type="button" aria-label="Fermer les Grands Travaux">×</button>
+          </header>
+          <div class="projects-summary">
+            <strong id="projects-progress">0 / 12 achevés</strong>
+            <span id="projects-help" role="status">Développe chaque île sans ajouter de nouveaux minerais.</span>
+          </div>
+          <div id="project-tiers" class="project-tiers" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section id="talent-panel" class="talent-panel" role="dialog" aria-modal="true" aria-labelledby="talent-title" hidden>
         <div class="talent-sheet">
           <header class="crew-header talent-header">
             <div>
-              <p class="kicker">26 HEXAGONES · VOIES CROISÉES</p>
+              <p id="talent-kicker" class="kicker">26 HEXAGONES · BROUILLARD DE SAVOIR</p>
               <h2 id="talent-title">Arbre des savoirs</h2>
             </div>
             <button id="talent-close-button" class="icon-button" type="button" aria-label="Fermer l’arbre des savoirs">×</button>
@@ -87,7 +114,16 @@
             <span id="tide-count">Marée 1 · exigence ×1.00</span>
             <small id="forecast-text">Débloque Prévisions pour lire le prochain manque.</small>
           </div>
-          <div id="skill-branches" class="skill-branches" aria-live="polite"></div>
+          <div class="skill-map-shell">
+            <div id="skill-branches" class="skill-branches" aria-live="polite"></div>
+            <div class="skill-zoom-controls" role="group" aria-label="Zoom de l’arbre des savoirs">
+              <button id="skill-zoom-out" type="button" aria-label="Dézoomer l’arbre">−</button>
+              <input id="skill-zoom-range" type="range" min="10" max="130" step="5" value="70" aria-label="Niveau de zoom de l’arbre" />
+              <button id="skill-zoom-in" type="button" aria-label="Zoomer l’arbre">+</button>
+              <button id="skill-zoom-fit" type="button" aria-label="Afficher une vue d’ensemble de l’arbre">VUE GLOBALE</button>
+              <output id="skill-zoom-value" for="skill-zoom-range">70 %</output>
+            </div>
+          </div>
           <button id="auto-regulation-button" class="auto-regulation-button" type="button" aria-pressed="false" disabled>
             AUTO-RÉGULATION · SOMMET INTELLIGENCE REQUIS
           </button>

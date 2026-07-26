@@ -5,6 +5,19 @@ export type WorkerLevel = 1 | 2 | 3;
 export type StructureKind = 'camp' | 'workshop' | 'foundry' | 'observatory';
 export type SkillBranch = 'intelligence' | 'industry' | 'exploration';
 export type SkillFamily = SkillBranch | 'core' | 'hybrid';
+export type ProjectId =
+  | 'timber_reserve'
+  | 'towing_paths'
+  | 'shared_warehouse'
+  | 'communal_sawmill'
+  | 'shore_walls'
+  | 'orders_office'
+  | 'copper_winches'
+  | 'hauling_rails'
+  | 'maintenance_yard'
+  | 'crystal_beacons'
+  | 'prismatic_reservoir'
+  | 'unity_lighthouse';
 export type SkillId =
   | 'awakening'
   | 'insight_gateway'
@@ -48,7 +61,7 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 4;
+  version: 5;
   wood: number;
   stone: number;
   copper: number;
@@ -69,13 +82,18 @@ export interface IslandProgress {
   rebirths: number;
   cycleMilestones: string[];
   lifetimeDeliveries: number;
+  projectsCompleted: ProjectId[];
 }
 
-interface VersionThreeProgress extends Omit<IslandProgress, 'version' | 'skillRanks'> {
+interface VersionFourProgress extends Omit<IslandProgress, 'version' | 'projectsCompleted'> {
+  version: 4;
+}
+
+interface VersionThreeProgress extends Omit<IslandProgress, 'version' | 'skillRanks' | 'projectsCompleted'> {
   version: 3;
 }
 
-interface VersionTwoProgress extends Omit<IslandProgress, 'version' | 'knowledge' | 'skills' | 'skillRanks' | 'autoRegulation' | 'rebirths' | 'cycleMilestones' | 'lifetimeDeliveries'> {
+interface VersionTwoProgress extends Omit<IslandProgress, 'version' | 'knowledge' | 'skills' | 'skillRanks' | 'autoRegulation' | 'rebirths' | 'cycleMilestones' | 'lifetimeDeliveries' | 'projectsCompleted'> {
   version: 2;
 }
 
@@ -112,6 +130,20 @@ export interface SkillDefinition {
   requires?: readonly SkillId[];
   maxRank?: number;
   rankCosts?: readonly number[];
+}
+
+export interface IslandProjectDefinition {
+  id: ProjectId;
+  tier: 1 | 2 | 3 | 4;
+  islandIndex: 1 | 2 | 3 | 4;
+  name: string;
+  detail: string;
+  effect: string;
+  icon: string;
+  cost: Cost;
+  knowledge: number;
+  requiresStructure: StructureKind;
+  requires?: readonly ProjectId[];
 }
 
 export interface AssignmentMove {
@@ -192,14 +224,86 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
   { id: 'collective_intelligence', branch: 'intelligence', tier: 7, cost: 10, name: 'Esprit collectif', detail: 'Sommet Intelligence : deux réaffectations possibles toutes les 3 secondes.', icon: '♜', x: 300, y: 1040, requires: ['auto_regulation', 'logistics_network'] },
   { id: 'endless_engine', branch: 'industry', tier: 7, cost: 10, name: 'Moteur perpétuel', detail: 'Sommet Technique : toutes les cargaisons sont doublées.', icon: '∞', x: 505, y: 1040, requires: ['master_builders', 'adaptive_harvest'] },
   { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Héritage océanique', detail: 'Sommet Exploration : conserve 35 % des quatre stocks lors d’une Nouvelle Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
-  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 8, cost: 18, name: 'Conscience de l’Archipel', detail: 'Fusion finale : +2 postes et 10 % de réduction sur chaque investissement.', icon: '✺', x: 580, y: 1180, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
+  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 8, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : +4 postes, livraisons +50 %, coûts −20 %, vitesse +20 %, héritage 55 % et auto-régulation totale.', icon: '✺', x: 580, y: 1180, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
 ];
 
 const SKILL_IDS = new Set<SkillId>(SKILL_DEFINITIONS.map((skill) => skill.id));
-const WORKER_NAMES = ['Milo', 'Nila', 'Sève', 'Roc', 'Pollen', 'Lune', 'Braise', 'Azur', 'Orme', 'Mousse', 'Silex', 'Écho', 'Ronce', 'Aube', 'Flint', 'Nacre'];
+const TIER_ONE_PROJECTS = ['timber_reserve', 'towing_paths', 'shared_warehouse'] as const;
+const TIER_TWO_PROJECTS = ['communal_sawmill', 'shore_walls', 'orders_office'] as const;
+const TIER_THREE_PROJECTS = ['copper_winches', 'hauling_rails', 'maintenance_yard'] as const;
+
+export const ISLAND_PROJECTS: readonly IslandProjectDefinition[] = [
+  {
+    id: 'timber_reserve', tier: 1, islandIndex: 1, requiresStructure: 'workshop',
+    name: 'Réserve de charpente', detail: 'Un dépôt durable pour que le bois reste stratégique.', effect: '+1 place dans la nurserie.',
+    icon: '▰', cost: cost(34, 20), knowledge: 1,
+  },
+  {
+    id: 'towing_paths', tier: 1, islandIndex: 1, requiresStructure: 'workshop',
+    name: 'Chemins de halage', detail: 'Les renards cessent de s’enliser entre les arbres.', effect: 'Déplacements ouvriers +8 %.',
+    icon: '⌁', cost: cost(26, 30), knowledge: 1,
+  },
+  {
+    id: 'shared_warehouse', tier: 1, islandIndex: 1, requiresStructure: 'workshop',
+    name: 'Entrepôt partagé', detail: 'Les caisses sont mieux remplies avant le retour.', effect: 'Livraisons +10 %.',
+    icon: '▣', cost: cost(38, 28), knowledge: 1,
+  },
+  {
+    id: 'communal_sawmill', tier: 2, islandIndex: 2, requiresStructure: 'foundry', requires: TIER_ONE_PROJECTS,
+    name: 'Scierie commune', detail: 'Les chutes sont réemployées au lieu d’être perdues.', effect: 'Récolte manuelle +1.',
+    icon: '⚒', cost: cost(48, 34, 18), knowledge: 1,
+  },
+  {
+    id: 'shore_walls', tier: 2, islandIndex: 2, requiresStructure: 'foundry', requires: TIER_ONE_PROJECTS,
+    name: 'Murets de rive', detail: 'La terre fertile retient les repousses et les filons.', effect: 'Repousse 12 % plus rapide.',
+    icon: '♻', cost: cost(36, 54, 22), knowledge: 1,
+  },
+  {
+    id: 'orders_office', tier: 2, islandIndex: 2, requiresStructure: 'foundry', requires: TIER_ONE_PROJECTS,
+    name: 'Bureau des plans', detail: 'Les commandes communes évitent les matériaux gaspillés.', effect: 'Tous les investissements coûtent 6 % de moins.',
+    icon: '⌂', cost: cost(50, 46, 28), knowledge: 1,
+  },
+  {
+    id: 'copper_winches', tier: 3, islandIndex: 3, requiresStructure: 'observatory', requires: TIER_TWO_PROJECTS,
+    name: 'Treuils cuivrés', detail: 'Chaque gisement est travaillé avec un mécanisme dédié.', effect: 'Récolte ouvrière 18 % plus rapide.',
+    icon: '⚙', cost: cost(58, 48, 42, 12), knowledge: 1,
+  },
+  {
+    id: 'hauling_rails', tier: 3, islandIndex: 3, requiresStructure: 'observatory', requires: TIER_TWO_PROJECTS,
+    name: 'Rails de débardage', detail: 'Des voies légères accélèrent les grands trajets.', effect: 'Déplacements ouvriers +12 %.',
+    icon: '⇢', cost: cost(54, 60, 38, 16), knowledge: 1,
+  },
+  {
+    id: 'maintenance_yard', tier: 3, islandIndex: 3, requiresStructure: 'observatory', requires: TIER_TWO_PROJECTS,
+    name: 'Cour de maintenance', detail: 'Outils et terriers sont préparés avant chaque embauche.', effect: 'Recrutements et niveaux coûtent 15 % de moins.',
+    icon: '✚', cost: cost(66, 58, 46, 20), knowledge: 1,
+  },
+  {
+    id: 'crystal_beacons', tier: 4, islandIndex: 4, requiresStructure: 'observatory', requires: TIER_THREE_PROJECTS,
+    name: 'Balises cristallines', detail: 'Le réseau lumineux stimule toutes les repousses.', effect: 'Repousse encore 18 % plus rapide.',
+    icon: '✦', cost: cost(72, 68, 54, 34), knowledge: 1,
+  },
+  {
+    id: 'prismatic_reservoir', tier: 4, islandIndex: 4, requiresStructure: 'observatory', requires: TIER_THREE_PROJECTS,
+    name: 'Réservoir prismatique', detail: 'Chaque cargaison est triée et compactée au retour.', effect: 'Livraisons +15 %.',
+    icon: '◇', cost: cost(78, 72, 62, 42), knowledge: 1,
+  },
+  {
+    id: 'unity_lighthouse', tier: 4, islandIndex: 4, requiresStructure: 'observatory', requires: TIER_THREE_PROJECTS,
+    name: 'Phare de l’unisson', detail: 'Le dernier chantier synchronise l’archipel entier.', effect: 'Livraisons +25 % et +3 Savoir.',
+    icon: '✺', cost: cost(92, 88, 74, 58), knowledge: 3,
+  },
+];
+
+const PROJECT_IDS = new Set<ProjectId>(ISLAND_PROJECTS.map((project) => project.id));
+const WORKER_NAMES = [
+  'Milo', 'Nila', 'Sève', 'Roc', 'Pollen', 'Lune', 'Braise', 'Azur',
+  'Orme', 'Mousse', 'Silex', 'Écho', 'Ronce', 'Aube', 'Flint', 'Nacre',
+  'Brume', 'Miel', 'Cèdre', 'Plume', 'Galet', 'Ambre', 'Lichen', 'Sauge',
+];
 
 const freshProgress = (): IslandProgress => ({
-  version: 4,
+  version: 5,
   wood: 0,
   stone: 0,
   copper: 0,
@@ -220,6 +324,7 @@ const freshProgress = (): IslandProgress => ({
   rebirths: 0,
   cycleMilestones: [],
   lifetimeDeliveries: 0,
+  projectsCompleted: [],
 });
 
 const nonNegativeInteger = (value: unknown): number => {
@@ -231,6 +336,7 @@ const isResourceKind = (value: unknown): value is ResourceKind =>
   typeof value === 'string' && RESOURCE_KINDS.includes(value as ResourceKind);
 
 const isSkillId = (value: unknown): value is SkillId => typeof value === 'string' && SKILL_IDS.has(value as SkillId);
+const isProjectId = (value: unknown): value is ProjectId => typeof value === 'string' && PROJECT_IDS.has(value as ProjectId);
 
 const sanitizeWorkers = (value: unknown): WorkerState[] => {
   if (!Array.isArray(value)) return [];
@@ -285,6 +391,21 @@ const sanitizeSkillRanks = (value: unknown, skills: readonly SkillId[]): Partial
   return ranks;
 };
 
+const sanitizeProjects = (value: unknown): ProjectId[] => {
+  if (!Array.isArray(value)) return [];
+  const requested = new Set(value.filter(isProjectId));
+  const definitions = new Map(ISLAND_PROJECTS.map((definition) => [definition.id, definition]));
+  const includeWithPrerequisites = (id: ProjectId): void => {
+    definitions.get(id)?.requires?.forEach((required) => {
+      if (requested.has(required)) return;
+      requested.add(required);
+      includeWithPrerequisites(required);
+    });
+  };
+  [...requested].forEach(includeWithPrerequisites);
+  return ISLAND_PROJECTS.filter((definition) => requested.has(definition.id)).map((definition) => definition.id);
+};
+
 export const getSkillDefinition = (id: SkillId): SkillDefinition | undefined =>
   SKILL_DEFINITIONS.find((definition) => definition.id === id);
 
@@ -302,14 +423,42 @@ export const skillPrerequisitesMet = (progress: IslandProgress, definition: Skil
   (definition.requires ?? []).every((required) => hasSkill(progress, required));
 
 export const isSkillVisible = (progress: IslandProgress, definition: SkillDefinition): boolean =>
-  definition.id === 'awakening' || hasSkill(progress, definition.id) || skillPrerequisitesMet(progress, definition);
+  definition.id === 'awakening'
+  || hasSkill(progress, definition.id)
+  || Boolean(definition.requires?.length && definition.requires.every((required) => hasSkill(progress, required)));
+
+export const getProjectDefinition = (id: ProjectId): IslandProjectDefinition | undefined =>
+  ISLAND_PROJECTS.find((definition) => definition.id === id);
+
+export const hasProject = (progress: IslandProgress, id: ProjectId): boolean =>
+  progress.projectsCompleted.includes(id);
+
+const projectStructureBuilt = (progress: IslandProgress, kind: StructureKind): boolean => {
+  switch (kind) {
+    case 'camp': return progress.campBuilt;
+    case 'workshop': return progress.workshopBuilt;
+    case 'foundry': return progress.foundryBuilt;
+    case 'observatory': return progress.observatoryBuilt;
+  }
+};
+
+export const projectPrerequisitesMet = (progress: IslandProgress, definition: IslandProjectDefinition): boolean =>
+  projectStructureBuilt(progress, definition.requiresStructure)
+  && Boolean(progress.bridgesBuilt[definition.islandIndex - 1])
+  && (definition.requires ?? []).every((required) => hasProject(progress, required));
+
+export const isProjectVisible = (progress: IslandProgress, definition: IslandProjectDefinition): boolean =>
+  hasProject(progress, definition.id) || projectPrerequisitesMet(progress, definition);
+
+export const getCompletedProjectCount = (progress: IslandProgress): number => progress.projectsCompleted.length;
 
 export const getCycleMultiplier = (progress: IslandProgress): number => 1 + Math.min(8, progress.rebirths) * 0.22;
 
 const scaleCost = (progress: IslandProgress, value: Cost): Cost => {
   const multiplier = getCycleMultiplier(progress)
     * (hasSkill(progress, 'frugal_plans') ? 0.88 : 1)
-    * (hasSkill(progress, 'archipelago_consciousness') ? 0.9 : 1);
+    * (hasProject(progress, 'orders_office') ? 0.94 : 1)
+    * (hasSkill(progress, 'archipelago_consciousness') ? 0.8 : 1);
   return {
     wood: value.wood ? Math.max(1, Math.ceil(value.wood * multiplier)) : 0,
     stone: value.stone ? Math.max(1, Math.ceil(value.stone * multiplier)) : 0,
@@ -318,12 +467,21 @@ const scaleCost = (progress: IslandProgress, value: Cost): Cost => {
   };
 };
 
+const discountCost = (value: Cost, multiplier: number): Cost => ({
+  wood: value.wood ? Math.max(1, Math.ceil(value.wood * multiplier)) : 0,
+  stone: value.stone ? Math.max(1, Math.ceil(value.stone * multiplier)) : 0,
+  copper: value.copper ? Math.max(1, Math.ceil(value.copper * multiplier)) : 0,
+  crystal: value.crystal ? Math.max(1, Math.ceil(value.crystal * multiplier)) : 0,
+});
+
 export const getStructureCost = (progress: IslandProgress, kind: StructureKind): Cost => scaleCost(progress, STRUCTURE_COSTS[kind]);
 export const getBridgeCost = (progress: IslandProgress, index: number): Cost | null => {
   const value = BRIDGE_COSTS[index];
   return value ? scaleCost(progress, value) : null;
 };
 export const getFinalCost = (progress: IslandProgress): Cost => scaleCost(progress, FINAL_COST);
+export const getProjectCost = (progress: IslandProgress, definition: IslandProjectDefinition): Cost =>
+  scaleCost(progress, definition.cost);
 
 export const getWorkerCapacity = (progress: IslandProgress): number => {
   if (!progress.campBuilt) return 0;
@@ -333,7 +491,8 @@ export const getWorkerCapacity = (progress: IslandProgress): number => {
         : 3;
   return buildingCapacity
     + getSkillRank(progress, 'expanded_roster')
-    + (hasSkill(progress, 'archipelago_consciousness') ? 2 : 0);
+    + (hasProject(progress, 'timber_reserve') ? 1 : 0)
+    + (hasSkill(progress, 'archipelago_consciousness') ? 4 : 0);
 };
 
 export const getWorkerLevelCap = (progress: IslandProgress): WorkerLevel => {
@@ -352,17 +511,20 @@ export const getUnlockedWorkerTasks = (progress: IslandProgress): ResourceKind[]
 
 export const getRecruitCost = (progress: IslandProgress): Cost => {
   const count = progress.workers.length;
-  return scaleCost(progress, cost(
+  const value = scaleCost(progress, cost(
     6 + count * 3,
     4 + Math.floor((count + 1) / 2) * 3,
     count >= 5 ? (count - 4) * 3 : 0,
     count >= 8 ? 3 : 0,
   ));
+  return hasProject(progress, 'maintenance_yard') ? discountCost(value, 0.85) : value;
 };
 
 export const getUpgradeCost = (worker: WorkerState, progress?: IslandProgress): Cost => {
   const base = worker.level === 1 ? cost(11, 9) : worker.level === 2 ? cost(20, 17, 9) : cost();
-  return progress ? scaleCost(progress, base) : base;
+  if (!progress) return base;
+  const value = scaleCost(progress, base);
+  return hasProject(progress, 'maintenance_yard') ? discountCost(value, 0.85) : value;
 };
 
 export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): number => {
@@ -371,7 +533,11 @@ export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): n
   const multiplier = (hasSkill(progress, 'reinforced_carts') ? 1.3 : 1)
     * (hasSkill(progress, 'master_builders') ? 1.35 : 1)
     * (hasSkill(progress, 'logistics_network') ? 1.15 : 1)
-    * (hasSkill(progress, 'endless_engine') ? 2 : 1);
+    * (hasSkill(progress, 'endless_engine') ? 2 : 1)
+    * (hasProject(progress, 'shared_warehouse') ? 1.1 : 1)
+    * (hasProject(progress, 'prismatic_reservoir') ? 1.15 : 1)
+    * (hasProject(progress, 'unity_lighthouse') ? 1.25 : 1)
+    * (hasSkill(progress, 'archipelago_consciousness') ? 1.5 : 1);
   return Math.ceil(base * multiplier);
 };
 
@@ -381,14 +547,26 @@ export const getWorkerCycleSeconds = (level: WorkerLevel): number => level === 1
 export const getWorkerTravelSpeed = (level: WorkerLevel, progress: IslandProgress): number =>
   (2.35 + (level - 1) * 0.28)
   * (hasSkill(progress, 'trail_sense') ? 1.18 : 1)
-  * (hasSkill(progress, 'logistics_network') ? 1.18 : 1);
-export const getWorkerGatherSeconds = (level: WorkerLevel): number => level === 1 ? 1.65 : level === 2 ? 1.25 : 0.9;
+  * (hasSkill(progress, 'logistics_network') ? 1.18 : 1)
+  * (hasProject(progress, 'towing_paths') ? 1.08 : 1)
+  * (hasProject(progress, 'hauling_rails') ? 1.12 : 1)
+  * (hasSkill(progress, 'archipelago_consciousness') ? 1.2 : 1);
+export const getWorkerGatherSeconds = (level: WorkerLevel, progress?: IslandProgress): number =>
+  (level === 1 ? 1.65 : level === 2 ? 1.25 : 0.9)
+  * (progress && hasProject(progress, 'copper_winches') ? 0.82 : 1);
 export const getPlayerSpeed = (progress: IslandProgress): number =>
-  5.25 * (hasSkill(progress, 'tide_stride') ? 1.2 : 1) * (hasSkill(progress, 'far_horizons') ? 1.15 : 1);
+  5.25
+  * (hasSkill(progress, 'tide_stride') ? 1.2 : 1)
+  * (hasSkill(progress, 'far_horizons') ? 1.15 : 1)
+  * (hasSkill(progress, 'archipelago_consciousness') ? 1.2 : 1);
 export const getManualYield = (progress: IslandProgress, kind?: ResourceKind): number =>
   (hasSkill(progress, 'sharp_tools') ? 2 : 1)
+  + (hasProject(progress, 'communal_sawmill') ? 1 : 0)
   + (kind && hasSkill(progress, 'adaptive_harvest') && getPriorityShortage(progress) === kind ? 1 : 0);
-export const getRespawnMultiplier = (progress: IslandProgress): number => hasSkill(progress, 'living_quarries') ? 0.65 : 1;
+export const getRespawnMultiplier = (progress: IslandProgress): number =>
+  (hasSkill(progress, 'living_quarries') ? 0.65 : 1)
+  * (hasProject(progress, 'shore_walls') ? 0.88 : 1)
+  * (hasProject(progress, 'crystal_beacons') ? 0.82 : 1);
 
 export const getCacheReward = (progress: IslandProgress, reward: Cost): Cost => {
   const multiplier = (hasSkill(progress, 'cache_instinct') ? 1.5 : 1) * (hasSkill(progress, 'far_horizons') ? 1.25 : 1);
@@ -401,10 +579,12 @@ export const getCacheReward = (progress: IslandProgress, reward: Cost): Cost => 
 };
 
 export const getAutoRegulationInterval = (progress: IslandProgress): number =>
-  hasSkill(progress, 'collective_intelligence') ? 3 : hasSkill(progress, 'coordinated_shifts') ? 5 : 8;
+  hasSkill(progress, 'archipelago_consciousness') ? 1.5
+    : hasSkill(progress, 'collective_intelligence') ? 3
+      : hasSkill(progress, 'coordinated_shifts') ? 5 : 8;
 
 export const getAutoRegulationMoveCount = (progress: IslandProgress): number =>
-  hasSkill(progress, 'collective_intelligence') ? 2 : 1;
+  hasSkill(progress, 'archipelago_consciousness') ? 4 : hasSkill(progress, 'collective_intelligence') ? 2 : 1;
 
 export const getTotalWorkerLevels = (progress: IslandProgress): number =>
   progress.workers.reduce((total, worker) => total + worker.level, 0);
@@ -427,15 +607,25 @@ export const formatBridgeRequirement = (progress: IslandProgress, index: number)
     case 0:
       return progress.workers.length < 2 ? '2 travailleurs requis' : '1 bûcheron et 1 mineur requis';
     case 1:
-      return progress.workers.length < 4 ? '4 travailleurs requis' : 'un travailleur niveau 2 requis';
+      return progress.workers.length < 4 ? '4 travailleurs requis'
+        : !progress.workers.some((worker) => worker.level >= 2) ? 'un travailleur niveau 2 requis'
+          : getCompletedProjectCount(progress) < 3 ? '3 Grands Travaux des Pins requis' : '';
     case 2:
-      return progress.workers.length < 5 ? '5 travailleurs requis' : 'un cuivrier assigné requis';
+      return progress.workers.length < 5 ? '5 travailleurs requis'
+        : !progress.workers.some((worker) => worker.task === 'copper') ? 'un cuivrier assigné requis'
+          : getCompletedProjectCount(progress) < 6 ? '6 Grands Travaux cumulés requis' : '';
     case 3:
-      return progress.workers.length < 7 ? '7 travailleurs requis' : 'un cristallier et 10 niveaux cumulés requis';
+      return progress.workers.length < 7 ? '7 travailleurs requis'
+        : !progress.workers.some((worker) => worker.task === 'crystal') || getTotalWorkerLevels(progress) < 10
+          ? 'un cristallier et 10 niveaux cumulés requis'
+          : getCompletedProjectCount(progress) < 9 ? '9 Grands Travaux cumulés requis' : '';
     default:
       return '';
   }
 };
+
+export const getNextProject = (progress: IslandProgress): IslandProjectDefinition | null =>
+  ISLAND_PROJECTS.find((definition) => !hasProject(progress, definition.id) && projectPrerequisitesMet(progress, definition)) ?? null;
 
 export const getNextStrategicCost = (progress: IslandProgress): Cost => {
   if (!progress.campBuilt) return getStructureCost(progress, 'camp');
@@ -444,14 +634,30 @@ export const getNextStrategicCost = (progress: IslandProgress): Cost => {
   if (!progress.workshopBuilt) return getStructureCost(progress, 'workshop');
   if (progress.workers.length < 4) return getRecruitCost(progress);
   if (!progress.workers.some((worker) => worker.level >= 2)) return getUpgradeCost(progress.workers[0] ?? { id: '', name: '', task: 'wood', level: 1 }, progress);
+  if (getCompletedProjectCount(progress) < 3) {
+    const nextProject = getNextProject(progress);
+    if (nextProject) return getProjectCost(progress, nextProject);
+  }
   if (!progress.bridgesBuilt[1]) return getBridgeCost(progress, 1) ?? cost();
   if (!progress.foundryBuilt) return getStructureCost(progress, 'foundry');
   if (progress.workers.length < 5) return getRecruitCost(progress);
+  if (getCompletedProjectCount(progress) < 6) {
+    const nextProject = getNextProject(progress);
+    if (nextProject) return getProjectCost(progress, nextProject);
+  }
   if (!progress.bridgesBuilt[2]) return getBridgeCost(progress, 2) ?? cost();
   if (!progress.observatoryBuilt) return getStructureCost(progress, 'observatory');
   if (progress.workers.length < 7) return getRecruitCost(progress);
+  if (getCompletedProjectCount(progress) < 9) {
+    const nextProject = getNextProject(progress);
+    if (nextProject) return getProjectCost(progress, nextProject);
+  }
   if (!progress.bridgesBuilt[3]) return getBridgeCost(progress, 3) ?? cost();
   if (progress.workers.length < 8) return getRecruitCost(progress);
+  if (getCompletedProjectCount(progress) < ISLAND_PROJECTS.length) {
+    const nextProject = getNextProject(progress);
+    if (nextProject) return getProjectCost(progress, nextProject);
+  }
   return getFinalCost(progress);
 };
 
@@ -510,16 +716,20 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
   if (!progress.workshopBuilt) return { chapter, eyebrow, title: 'Construis l’atelier des Pins', detail: `Coût : ${formatCost(getStructureCost(progress, 'workshop'))}` };
   if (progress.workers.length < 4) return { chapter, eyebrow, title: 'Agrandis l’équipe à 4', detail: 'L’atelier porte la capacité à 5 travailleurs.' };
   if (!progress.workers.some((worker) => worker.level >= 2)) return { chapter, eyebrow, title: 'Améliore un travailleur', detail: 'Passe un renard au niveau 2 depuis ÉQUIPE.' };
+  if (getCompletedProjectCount(progress) < 3) return { chapter, eyebrow, title: 'Développe l’île des Pins', detail: `${getCompletedProjectCount(progress)}/3 Grands Travaux avant le pont Cuivré.` };
   if (!progress.bridgesBuilt[1]) return { chapter, eyebrow, title: 'Relie l’île Cuivrée', detail: `Coût : ${formatCost(getBridgeCost(progress, 1) ?? cost())}` };
   if (!progress.foundryBuilt) return { chapter, eyebrow, title: 'Récolte le cuivre et bâtis la fonderie', detail: `Coût : ${formatCost(getStructureCost(progress, 'foundry'))}` };
   if (!progress.workers.some((worker) => worker.task === 'copper')) return { chapter, eyebrow, title: 'Assigne un cuivrier', detail: 'La fonderie débloque le cuivre et le niveau 3.' };
   if (progress.workers.length < 5) return { chapter, eyebrow, title: 'Dirige au moins 5 travailleurs', detail: 'Diversifie la production avant la prochaine traversée.' };
+  if (getCompletedProjectCount(progress) < 6) return { chapter, eyebrow, title: 'Industrialise l’île Cuivrée', detail: `${getCompletedProjectCount(progress)}/6 Grands Travaux avant les Cristaux.` };
   if (!progress.bridgesBuilt[2]) return { chapter, eyebrow, title: 'Ouvre la voie des Cristaux', detail: `Coût : ${formatCost(getBridgeCost(progress, 2) ?? cost())}` };
   if (!progress.observatoryBuilt) return { chapter, eyebrow, title: 'Bâtis l’observatoire de Cristal', detail: `Coût : ${formatCost(getStructureCost(progress, 'observatory'))}` };
   if (!progress.workers.some((worker) => worker.task === 'crystal')) return { chapter, eyebrow, title: 'Forme un cristallier', detail: 'Réassigne un renard depuis le panneau ÉQUIPE.' };
   if (progress.workers.length < 7 || getTotalWorkerLevels(progress) < 10) return { chapter, eyebrow, title: 'Prépare l’expédition finale', detail: '7 travailleurs et 10 niveaux cumulés requis.' };
+  if (getCompletedProjectCount(progress) < 9) return { chapter, eyebrow, title: 'Équipe l’île de Cristal', detail: `${getCompletedProjectCount(progress)}/9 Grands Travaux avant la Couronne.` };
   if (!progress.bridgesBuilt[3]) return { chapter, eyebrow, title: 'Bâtis le pont de la Couronne', detail: `Coût : ${formatCost(getBridgeCost(progress, 3) ?? cost())}` };
   if (!Economy.finalRequirementsMet(progress)) return { chapter, eyebrow, title: 'Rassemble les quatre métiers', detail: '8 travailleurs, chaque ressource et 12 niveaux cumulés.' };
+  if (getCompletedProjectCount(progress) < ISLAND_PROJECTS.length) return { chapter, eyebrow, title: 'Achève le réseau de la Couronne', detail: `${getCompletedProjectCount(progress)}/${ISLAND_PROJECTS.length} Grands Travaux avant le Cœur.` };
   if (!progress.completed) return { chapter, eyebrow, title: 'Éveille le Cœur de l’Archipel', detail: `Offrande : ${formatCost(getFinalCost(progress))}` };
   return { chapter, eyebrow, title: 'Une Nouvelle Marée t’attend', detail: 'Garde tes talents et recommence avec de nouveaux choix.' };
 };
@@ -546,7 +756,7 @@ export class Economy {
     this.progress = {
       ...fresh,
       ...initial,
-      version: 4,
+      version: 5,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
@@ -567,6 +777,7 @@ export class Economy {
       rebirths: nonNegativeInteger(initial?.rebirths),
       cycleMilestones: Array.isArray(initial?.cycleMilestones) ? [...new Set(initial.cycleMilestones.filter((id): id is string => typeof id === 'string'))] : [],
       lifetimeDeliveries: nonNegativeInteger(initial?.lifetimeDeliveries),
+      projectsCompleted: sanitizeProjects(initial?.projectsCompleted),
     };
   }
 
@@ -653,13 +864,18 @@ export class Economy {
           && workers.some((worker) => worker.task === 'wood')
           && workers.some((worker) => worker.task === 'stone');
       case 1:
-        return this.progress.workshopBuilt && workers.length >= 4 && workers.some((worker) => worker.level >= 2);
+        return this.progress.workshopBuilt && workers.length >= 4
+          && workers.some((worker) => worker.level >= 2)
+          && getCompletedProjectCount(this.progress) >= 3;
       case 2:
-        return this.progress.foundryBuilt && workers.length >= 5 && workers.some((worker) => worker.task === 'copper');
+        return this.progress.foundryBuilt && workers.length >= 5
+          && workers.some((worker) => worker.task === 'copper')
+          && getCompletedProjectCount(this.progress) >= 6;
       case 3:
         return this.progress.observatoryBuilt && workers.length >= 7
           && workers.some((worker) => worker.task === 'crystal')
-          && getTotalWorkerLevels(this.progress) >= 10;
+          && getTotalWorkerLevels(this.progress) >= 10
+          && getCompletedProjectCount(this.progress) >= 9;
       default:
         return false;
     }
@@ -683,7 +899,10 @@ export class Economy {
 
   complete(): boolean {
     const finalCost = getFinalCost(this.progress);
-    if (this.progress.completed || !Economy.finalRequirementsMet(this.progress) || !this.spend(finalCost)) return false;
+    if (this.progress.completed
+      || !Economy.finalRequirementsMet(this.progress)
+      || getCompletedProjectCount(this.progress) < ISLAND_PROJECTS.length
+      || !this.spend(finalCost)) return false;
     this.progress.completed = true;
     this.awardMilestone('heart', 2);
     return true;
@@ -697,6 +916,17 @@ export class Economy {
     return true;
   }
 
+  buildProject(id: ProjectId): boolean {
+    const definition = getProjectDefinition(id);
+    if (!definition
+      || hasProject(this.progress, id)
+      || !projectPrerequisitesMet(this.progress, definition)
+      || !this.spend(getProjectCost(this.progress, definition))) return false;
+    this.progress.projectsCompleted.push(id);
+    this.awardMilestone(`project:${id}`, definition.knowledge);
+    return true;
+  }
+
   unlockSkill(id: SkillId): boolean {
     const definition = SKILL_DEFINITIONS.find((candidate) => candidate.id === id);
     if (!definition || !skillPrerequisitesMet(this.progress, definition)) return false;
@@ -707,6 +937,7 @@ export class Economy {
     this.progress.knowledge -= skillCost;
     if (!this.progress.skills.includes(id)) this.progress.skills.push(id);
     this.progress.skillRanks[id] = rank + 1;
+    if (id === 'archipelago_consciousness') this.progress.autoRegulation = true;
     return true;
   }
 
@@ -749,8 +980,9 @@ export class Economy {
       next.copper = Math.max(0, rebirths - 1) * 2;
     }
     if (skills.includes('ocean_legacy')) {
+      const retainedRatio = skills.includes('archipelago_consciousness') ? 0.55 : 0.35;
       RESOURCE_KINDS.forEach((kind) => {
-        next[kind] = Math.max(next[kind], Math.floor(previousStocks[kind] * 0.35));
+        next[kind] = Math.max(next[kind], Math.floor(previousStocks[kind] * retainedRatio));
       });
     }
     Object.assign(this.progress, next, { knowledge, skills, skillRanks, autoRegulation, rebirths, lifetimeDeliveries });
@@ -768,8 +1000,13 @@ export class Economy {
   static restore(raw: string | null): Economy {
     if (!raw) return new Economy();
     try {
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 4) return new Economy(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 5) return new Economy(value as Partial<IslandProgress>);
+      if (value.version === 4) {
+        const previous = value as VersionFourProgress;
+        const { version: _previousVersion, ...migrated } = previous;
+        return new Economy({ ...migrated, projectsCompleted: [] });
+      }
       if (value.version === 3) {
         const previous = value as VersionThreeProgress;
         const { version: _previousVersion, ...migrated } = previous;

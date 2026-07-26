@@ -12,9 +12,12 @@ import {
   getBridgeCost,
   getCacheReward,
   getChapter,
+  getCompletedProjectCount,
   getFinalCost,
   getManualYield,
   getPlayerSpeed,
+  getProjectCost,
+  getProjectDefinition,
   getRecruitCost,
   getRespawnMultiplier,
   getSkillRank,
@@ -27,6 +30,7 @@ import {
   getWorkerYield,
   hasSkill,
   type Cost,
+  type ProjectId,
   type ResourceKind,
   type SkillId,
   type StructureKind,
@@ -162,11 +166,13 @@ interface Diagnostics {
   cacheFound: boolean;
   completed: boolean;
   crewOpen: boolean;
+  projectsOpen: boolean;
   talentOpen: boolean;
   knowledge: number;
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
+  projects: number;
   visibleIslands: number;
   emergingIsland: string;
   workersOnWalkable: boolean;
@@ -340,11 +346,13 @@ export class IlotaGame {
       cacheFound: progress.cachesFound.includes('main-cache'),
       completed: progress.completed,
       crewOpen: false,
+      projectsOpen: false,
       talentOpen: false,
       knowledge: progress.knowledge,
       rebirths: progress.rebirths,
       skills: progress.skills.join(','),
       autoRegulation: progress.autoRegulation,
+      projects: getCompletedProjectCount(progress),
       visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
       emergingIsland: '',
       workersOnWalkable: true,
@@ -412,6 +420,10 @@ export class IlotaGame {
       onUnlock: (skill) => this.unlockSkill(skill),
       onAutoToggle: (enabled) => this.toggleAutoRegulation(enabled),
     });
+    this.ui.bindProjectHandlers({
+      onOpenChange,
+      onBuild: (project) => this.buildProject(project),
+    });
   }
 
   private unlockSkill(skill: SkillId): void {
@@ -419,13 +431,20 @@ export class IlotaGame {
       this.ui.toast('Talent verrouillé ou Savoir insuffisant.');
       return;
     }
-    if (skill === 'optimal_routes' || skill === 'trail_sense' || skill === 'logistics_network') {
+    if (
+      skill === 'optimal_routes'
+      || skill === 'trail_sense'
+      || skill === 'logistics_network'
+      || skill === 'archipelago_consciousness'
+    ) {
       this.workers.forEach((entity) => {
         const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
         if (state) this.syncWorker(entity, state, true);
       });
     }
-    const message = skill === 'auto_regulation'
+    const message = skill === 'archipelago_consciousness'
+      ? 'CONSCIENCE ABSOLUE · les trois voies ne font plus qu’une.'
+      : skill === 'auto_regulation'
       ? 'Auto-régulation débloquée · tu peux maintenant l’activer.'
       : skill === 'expanded_roster'
         ? `Cercle des bâtisseurs rang ${getSkillRank(this.economy.progress, skill)} · +1 poste permanent.`
@@ -440,6 +459,23 @@ export class IlotaGame {
     if (!this.economy.setAutoRegulation(enabled)) return;
     this.autoRegulationCooldown = 0.4;
     this.ui.toast(enabled ? 'Auto-régulation active · l’équipe surveille les pénuries.' : 'Auto-régulation désactivée.');
+    this.changed();
+  }
+
+  private buildProject(project: ProjectId): void {
+    const definition = getProjectDefinition(project);
+    if (!definition) return;
+    const projectCost = getProjectCost(this.economy.progress, definition);
+    if (!this.economy.buildProject(project)) {
+      this.showMissing(projectCost);
+      return;
+    }
+    this.spawnParticles(
+      this.player.position.clone().setY(1.1),
+      project === 'unity_lighthouse' ? 'crystal' : project === 'copper_winches' ? 'copper' : 'wood',
+      project === 'unity_lighthouse' ? 26 : 14,
+    );
+    this.ui.toast(`${definition.name} achevé · ${definition.effect}`);
     this.changed();
   }
 
@@ -1344,7 +1380,7 @@ export class IlotaGame {
       if (entity.phase === 'toResource') {
         if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
           entity.phase = 'gathering';
-          entity.phaseTimer = getWorkerGatherSeconds(state.level);
+          entity.phaseTimer = getWorkerGatherSeconds(state.level, this.economy.progress);
         }
       } else if (entity.phase === 'gathering') {
         entity.phaseTimer -= delta;
@@ -1754,11 +1790,13 @@ export class IlotaGame {
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');
     this.diagnostics.completed = progress.completed;
     this.diagnostics.crewOpen = this.ui.isCrewOpen;
+    this.diagnostics.projectsOpen = this.ui.isProjectsOpen;
     this.diagnostics.talentOpen = this.ui.isTalentOpen;
     this.diagnostics.knowledge = progress.knowledge;
     this.diagnostics.rebirths = progress.rebirths;
     this.diagnostics.skills = progress.skills.join(',');
     this.diagnostics.autoRegulation = progress.autoRegulation;
+    this.diagnostics.projects = getCompletedProjectCount(progress);
     this.diagnostics.visibleIslands = this.islands.filter((island) => island.root.position.y > -0.2).length;
     this.diagnostics.emergingIsland = this.islandEmergence?.entity.definition.id ?? '';
     this.diagnostics.workersOnWalkable = this.workers.every((worker) => isPointOnWalkableNetwork(

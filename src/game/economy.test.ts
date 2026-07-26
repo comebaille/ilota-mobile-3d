@@ -1,27 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import {
   Economy,
+  ISLAND_PROJECTS,
+  SKILL_DEFINITIONS,
   chooseAutoRegulationMove,
   getAutoRegulationInterval,
   getAutoRegulationMoveCount,
   getBridgeCost,
   getCycleMultiplier,
+  getPlayerSpeed,
   getSkillRank,
   getTotalWorkerLevels,
   getWorkerCapacity,
   getWorkerYield,
+  isProjectVisible,
+  isSkillVisible,
   type IslandProgress,
 } from './economy';
 
 const richEconomy = (initial?: Partial<IslandProgress>): Economy => new Economy({
-  wood: 999,
-  stone: 999,
-  copper: 999,
-  crystal: 999,
+  wood: 9_999,
+  stone: 9_999,
+  copper: 9_999,
+  crystal: 9_999,
   ...initial,
 });
 
-describe('Economy v4', () => {
+const completeProjectsUntil = (economy: Economy, targetCount: number): void => {
+  ISLAND_PROJECTS.slice(0, targetCount).forEach((project) => {
+    if (economy.progress.projectsCompleted.includes(project.id)) return;
+    expect(economy.buildProject(project.id)).toBe(true);
+  });
+};
+
+describe('Economy v5', () => {
   it('récolte quatre ressources sans produire de valeur négative', () => {
     const economy = new Economy();
     economy.add('wood', 3);
@@ -77,11 +89,15 @@ describe('Economy v4', () => {
     economy.hireWorker();
     economy.hireWorker();
     economy.upgradeWorker('worker-1');
+    expect(economy.buildBridge(1)).toBe(false);
+    completeProjectsUntil(economy, 3);
     expect(economy.buildBridge(1)).toBe(true);
 
     expect(economy.buildStructure('foundry')).toBe(true);
     economy.hireWorker();
     economy.assignWorker('worker-5', 'copper');
+    expect(economy.buildBridge(2)).toBe(false);
+    completeProjectsUntil(economy, 6);
     expect(economy.buildBridge(2)).toBe(true);
 
     expect(economy.buildStructure('observatory')).toBe(true);
@@ -91,15 +107,20 @@ describe('Economy v4', () => {
     economy.upgradeWorker('worker-2');
     economy.upgradeWorker('worker-3');
     expect(getTotalWorkerLevels(economy.progress)).toBeGreaterThanOrEqual(10);
+    expect(economy.buildBridge(3)).toBe(false);
+    completeProjectsUntil(economy, 9);
     expect(economy.buildBridge(3)).toBe(true);
 
     economy.hireWorker();
     economy.upgradeWorker('worker-4');
     expect(getTotalWorkerLevels(economy.progress)).toBeGreaterThanOrEqual(12);
     expect(Economy.finalRequirementsMet(economy.progress)).toBe(true);
+    expect(economy.complete()).toBe(false);
+    completeProjectsUntil(economy, 12);
     expect(economy.complete()).toBe(true);
     expect(economy.progress.completed).toBe(true);
-    expect(economy.progress.knowledge).toBe(10);
+    expect(economy.progress.knowledge).toBe(24);
+    expect(economy.progress.projectsCompleted).toHaveLength(12);
   });
 
   it('persiste les métiers et les niveaux', () => {
@@ -111,7 +132,7 @@ describe('Economy v4', () => {
     expect(restored.progress.workers[0]).toMatchObject({ id: worker.id, task: 'stone', level: 2 });
   });
 
-  it('migre la petite campagne v1 vers le premier pont de la v4', () => {
+  it('migre la petite campagne v1 vers le premier pont de la v5', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 1,
       wood: 17,
@@ -124,7 +145,8 @@ describe('Economy v4', () => {
       completed: true,
       elapsedSeconds: 42,
     }));
-    expect(restored.progress).toMatchObject({ version: 4, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress).toMatchObject({ version: 5, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress.projectsCompleted).toEqual([]);
     expect(restored.progress.bridgesBuilt).toEqual([true, false, false, false]);
     expect(restored.progress.workers.map((worker) => worker.task)).toEqual(['wood', 'stone']);
     expect(restored.progress.cachesFound).toContain('main-cache');
@@ -151,8 +173,31 @@ describe('Economy v4', () => {
       completed: true,
       elapsedSeconds: 600,
     }));
-    expect(restored.progress).toMatchObject({ version: 4, completed: true, knowledge: 10, rebirths: 0 });
+    expect(restored.progress).toMatchObject({ version: 5, completed: true, knowledge: 10, rebirths: 0 });
     expect(restored.progress.cycleMilestones).toHaveLength(9);
+  });
+
+  it('migre une sauvegarde v4 sans inventer de Grands Travaux', () => {
+    const restored = Economy.restore(JSON.stringify({
+      version: 4,
+      wood: 73,
+      stone: 51,
+      campBuilt: true,
+      workshopBuilt: true,
+      bridgesBuilt: [true, false, false, false],
+      workers: [{ id: 'worker-1', name: 'Milo', task: 'wood', level: 2 }],
+      skills: ['trail_sense'],
+      skillRanks: { trail_sense: 1 },
+    }));
+    expect(restored.progress).toMatchObject({
+      version: 5,
+      wood: 73,
+      stone: 51,
+      campBuilt: true,
+      workshopBuilt: true,
+      projectsCompleted: [],
+    });
+    expect(restored.progress.skills).toEqual(expect.arrayContaining(['awakening', 'insight_gateway', 'trail_sense']));
   });
 
   it('fait respecter les prérequis de l’arbre Intelligence', () => {
@@ -167,6 +212,32 @@ describe('Economy v4', () => {
     expect(economy.unlockSkill('auto_regulation')).toBe(true);
     expect(economy.progress.knowledge).toBe(8);
     expect(economy.setAutoRegulation(true)).toBe(true);
+  });
+
+  it('garde chaque futur hexagone invisible jusqu’à tous ses prérequis', () => {
+    const economy = new Economy({ knowledge: 100 });
+    const visible = (id: string): boolean => {
+      const definition = SKILL_DEFINITIONS.find((candidate) => candidate.id === id);
+      return Boolean(definition && isSkillVisible(economy.progress, definition));
+    };
+
+    expect(SKILL_DEFINITIONS.filter((definition) => isSkillVisible(economy.progress, definition)).map((definition) => definition.id))
+      .toEqual(['awakening']);
+    expect(visible('trail_sense')).toBe(false);
+    economy.unlockSkill('awakening');
+    expect(['insight_gateway', 'craft_gateway', 'exploration_gateway'].every(visible)).toBe(true);
+    expect(visible('trail_sense')).toBe(false);
+    economy.unlockSkill('insight_gateway');
+    expect(visible('trail_sense')).toBe(true);
+    expect(visible('optimal_routes')).toBe(false);
+    economy.unlockSkill('trail_sense');
+    expect(visible('optimal_routes')).toBe(true);
+    economy.unlockSkill('optimal_routes');
+    expect(visible('logistics_network')).toBe(false);
+    economy.unlockSkill('craft_gateway');
+    economy.unlockSkill('sharp_tools');
+    economy.unlockSkill('reinforced_carts');
+    expect(visible('logistics_network')).toBe(true);
   });
 
   it('augmente le nombre de postes sur cinq rangs au coût croissant', () => {
@@ -188,6 +259,31 @@ describe('Economy v4', () => {
     expect(economy.unlockSkill('logistics_network')).toBe(true);
   });
 
+  it('révèle quatre paliers de Grands Travaux et garde les ressources historiques utiles', () => {
+    const economy = richEconomy({
+      campBuilt: true,
+      workshopBuilt: true,
+      bridgesBuilt: [true, false, false, false],
+    });
+    const firstTier = ISLAND_PROJECTS.filter((project) => project.tier === 1);
+    const secondTier = ISLAND_PROJECTS.filter((project) => project.tier === 2);
+    expect(firstTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
+    expect(secondTier.some((project) => isProjectVisible(economy.progress, project))).toBe(false);
+
+    const capacityBefore = getWorkerCapacity(economy.progress);
+    completeProjectsUntil(economy, 3);
+    expect(economy.progress.projectsCompleted).toHaveLength(3);
+    expect(economy.progress.knowledge).toBe(3);
+    expect(getWorkerCapacity(economy.progress)).toBe(capacityBefore + 1);
+    expect(economy.bridgeRequirementsMet(1)).toBe(false);
+
+    economy.progress.foundryBuilt = true;
+    economy.progress.bridgesBuilt[1] = true;
+    expect(secondTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
+    expect(ISLAND_PROJECTS.slice(0, 6).every((project) =>
+      project.cost.wood > 0 && project.cost.stone > 0)).toBe(true);
+  });
+
   it('migre les anciens talents v3 dans le nouveau graphe sans les perdre', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 3,
@@ -195,7 +291,7 @@ describe('Economy v4', () => {
       skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
       autoRegulation: true,
     }));
-    expect(restored.progress.version).toBe(4);
+    expect(restored.progress.version).toBe(5);
     expect(restored.progress.skills).toEqual(expect.arrayContaining([
       'awakening',
       'insight_gateway',
@@ -229,6 +325,41 @@ describe('Economy v4', () => {
     expect(legacy.progress).toMatchObject({ wood: 35, stone: 28, copper: 21, crystal: 14 });
   });
 
+  it('fusionne les trois sommets dans un pouvoir final cher et radical', () => {
+    const finalSkill = SKILL_DEFINITIONS.find((definition) => definition.id === 'archipelago_consciousness')!;
+    const twoSummits = new Economy({ skills: ['collective_intelligence', 'endless_engine'] });
+    expect(isSkillVisible(twoSummits.progress, finalSkill)).toBe(false);
+
+    const economy = new Economy({
+      campBuilt: true,
+      knowledge: 30,
+      skills: ['collective_intelligence', 'endless_engine', 'ocean_legacy'],
+      wood: 100,
+      stone: 80,
+      copper: 60,
+      crystal: 40,
+    });
+    expect(isSkillVisible(economy.progress, finalSkill)).toBe(true);
+    const capacityBefore = getWorkerCapacity(economy.progress);
+    const yieldBefore = getWorkerYield(1, economy.progress);
+    const speedBefore = getPlayerSpeed(economy.progress);
+    const bridgeBefore = getBridgeCost(economy.progress, 0)!.wood;
+
+    expect(economy.unlockSkill('archipelago_consciousness')).toBe(true);
+    expect(economy.progress.knowledge).toBe(0);
+    expect(economy.progress.autoRegulation).toBe(true);
+    expect(getWorkerCapacity(economy.progress)).toBe(capacityBefore + 4);
+    expect(getWorkerYield(1, economy.progress)).toBeGreaterThan(yieldBefore);
+    expect(getPlayerSpeed(economy.progress)).toBeCloseTo(speedBefore * 1.2);
+    expect(getBridgeCost(economy.progress, 0)!.wood).toBeLessThan(bridgeBefore);
+    expect(getAutoRegulationInterval(economy.progress)).toBe(1.5);
+    expect(getAutoRegulationMoveCount(economy.progress)).toBe(4);
+
+    economy.progress.completed = true;
+    economy.rebirth();
+    expect(economy.progress).toMatchObject({ wood: 55, stone: 44, copper: 33, crystal: 22 });
+  });
+
   it('conserve les talents et le Savoir lors d’une Nouvelle Marée', () => {
     const economy = new Economy({
       completed: true,
@@ -239,7 +370,7 @@ describe('Economy v4', () => {
     });
     const reward = economy.rebirth();
     expect(reward).toBe(3);
-    expect(economy.progress).toMatchObject({ version: 4, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
+    expect(economy.progress).toMatchObject({ version: 5, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
     expect(economy.progress.skills).toContain('tidal_memory');
     expect(economy.progress.workers).toEqual([]);
     expect(getCycleMultiplier(economy.progress)).toBeCloseTo(1.22);

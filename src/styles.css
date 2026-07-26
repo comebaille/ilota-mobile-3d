@@ -169,12 +169,13 @@ button:focus-visible {
 }
 
 .crew-button,
-.talent-button {
+.talent-button,
+.projects-button {
   position: absolute;
   top: max(56px, calc(env(safe-area-inset-top) + 44px));
   left: max(14px, env(safe-area-inset-left));
   min-width: 98px;
-  min-height: 39px;
+  min-height: 44px;
   display: grid;
   grid-template-columns: 24px 1fr;
   grid-template-rows: 18px 13px;
@@ -191,26 +192,35 @@ button:focus-visible {
 }
 
 .talent-button {
-  top: max(101px, calc(env(safe-area-inset-top) + 89px));
+  top: max(102px, calc(env(safe-area-inset-top) + 90px));
   border-color: rgba(198, 191, 241, 0.42);
   background: linear-gradient(145deg, rgba(43, 55, 73, 0.9), rgba(20, 51, 43, 0.9));
 }
 
+.projects-button {
+  top: max(148px, calc(env(safe-area-inset-top) + 136px));
+  border-color: rgba(243, 186, 88, 0.46);
+  background: linear-gradient(145deg, rgba(83, 63, 36, 0.92), rgba(21, 64, 49, 0.92));
+}
+
 .crew-button > span,
-.talent-button > span {
+.talent-button > span,
+.projects-button > span {
   grid-row: 1 / 3;
   font-size: 19px;
 }
 
 .crew-button strong,
-.talent-button strong {
+.talent-button strong,
+.projects-button strong {
   align-self: end;
   font-size: 9px;
   letter-spacing: 0.12em;
 }
 
 .crew-button small,
-.talent-button small {
+.talent-button small,
+.projects-button small {
   align-self: start;
   color: var(--sun-bright);
   font-size: 9px;
@@ -406,7 +416,8 @@ button:focus-visible {
 }
 
 .crew-panel,
-.talent-panel {
+.talent-panel,
+.projects-panel {
   position: absolute;
   inset: 0;
   z-index: 18;
@@ -420,6 +431,7 @@ button:focus-visible {
 }
 
 .talent-panel { z-index: 19; }
+.projects-panel { z-index: 19; }
 
 .crew-sheet {
   width: min(760px, 96vw);
@@ -455,6 +467,165 @@ button:focus-visible {
   box-shadow: 0 24px 70px rgba(5, 24, 23, 0.62);
 }
 
+.projects-sheet {
+  width: min(920px, 97vw);
+  height: min(380px, 95vh);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(243, 186, 88, 0.55);
+  border-radius: 24px;
+  color: var(--cream);
+  background:
+    radial-gradient(circle at 90% 8%, rgba(243, 186, 88, 0.13), transparent 28%),
+    linear-gradient(145deg, rgba(24, 66, 55, 0.99), rgba(14, 42, 40, 0.99));
+  box-shadow: 0 24px 70px rgba(5, 24, 23, 0.62);
+}
+
+.projects-header h2 { margin: 0; font-size: 23px; line-height: 1; }
+.projects-header .kicker { margin: 0 0 2px; }
+
+.projects-summary {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 11px;
+  color: rgba(255, 247, 219, 0.76);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 9px;
+}
+.projects-summary strong { color: var(--sun-bright); font-size: 11px; }
+
+.project-tiers {
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scroll-snap-type: x proximity;
+  scrollbar-color: rgba(255, 212, 119, 0.48) transparent;
+}
+
+.project-tier {
+  width: min(430px, 78vw);
+  min-width: min(430px, 78vw);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 247, 219, 0.13);
+  border-radius: 16px;
+  background: rgba(5, 31, 29, 0.42);
+  scroll-snap-align: start;
+}
+
+.project-tier-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--sun-bright);
+  font-size: 11px;
+}
+.project-tier-heading small {
+  min-width: 28px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--cream);
+  background: rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.project-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.project-card {
+  min-width: 0;
+  min-height: 116px;
+  display: grid;
+  grid-template-rows: 26px minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid rgba(255, 247, 219, 0.18);
+  border-radius: 13px;
+  color: var(--cream);
+  background: rgba(255, 255, 255, 0.055);
+  text-align: center;
+}
+.project-card.affordable {
+  border-color: rgba(255, 212, 119, 0.62);
+  background: rgba(243, 186, 88, 0.12);
+  box-shadow: 0 0 0 2px rgba(243, 186, 88, 0.08);
+}
+.project-card.completed {
+  opacity: 0.78;
+  border-color: rgba(126, 177, 114, 0.48);
+  background: rgba(80, 134, 87, 0.15);
+}
+.project-card:disabled:not(.completed) { opacity: 0.48; }
+.project-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #234a3d;
+  background: var(--sun);
+  font-size: 16px;
+  font-weight: 1000;
+}
+.project-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.project-copy strong { font-size: 9px; line-height: 1.05; }
+.project-copy small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(255, 247, 219, 0.6);
+  font-size: 7px;
+  line-height: 1.15;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.project-copy b { color: #c9e7ad; font-size: 7px; line-height: 1.1; }
+.project-card-footer {
+  width: 100%;
+  overflow: hidden;
+  color: var(--sun-bright);
+  font-size: 6.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projects-empty {
+  width: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  color: rgba(255, 247, 219, 0.68);
+  text-align: center;
+}
+.projects-empty > span { color: var(--sun); font-size: 28px; }
+.projects-empty small { font-size: 9px; }
+
 .talent-header h2 { margin: 0; font-size: 23px; line-height: 1; }
 .talent-header .kicker { margin: 0 0 2px; }
 
@@ -474,9 +645,16 @@ button:focus-visible {
 .talent-summary span { color: #c6bff1; font-weight: 850; }
 .talent-summary small { overflow: hidden; color: rgba(255, 247, 219, 0.68); text-overflow: ellipsis; white-space: nowrap; }
 
-.skill-branches {
+.skill-map-shell {
   position: relative;
   min-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.skill-branches {
+  width: 100%;
+  height: 100%;
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
@@ -490,16 +668,67 @@ button:focus-visible {
   scrollbar-color: rgba(255, 212, 119, 0.46) transparent;
 }
 
+.skill-map-stage {
+  position: relative;
+  min-width: 1px;
+  min-height: 1px;
+  margin-inline: auto;
+}
+
 .skill-map-canvas {
   position: relative;
   width: 1160px;
   height: 1250px;
   min-width: 1160px;
   min-height: 1250px;
+  transform-origin: top left;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 42px 42px;
+}
+
+.skill-zoom-controls {
+  position: absolute;
+  z-index: 5;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  grid-template-columns: 44px minmax(90px, 130px) 44px auto auto;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(255, 247, 219, 0.2);
+  border-radius: 14px;
+  background: rgba(5, 26, 28, 0.9);
+  box-shadow: 0 8px 24px rgba(2, 14, 15, 0.4);
+}
+.skill-zoom-controls button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(255, 247, 219, 0.2);
+  border-radius: 10px;
+  color: var(--cream);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 18px;
+  font-weight: 950;
+}
+.skill-zoom-controls #skill-zoom-fit {
+  padding-inline: 9px;
+  font-size: 7px;
+  letter-spacing: 0.05em;
+}
+.skill-zoom-controls input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--sun);
+}
+.skill-zoom-controls output {
+  min-width: 39px;
+  color: var(--sun-bright);
+  font-size: 8px;
+  font-weight: 900;
+  text-align: center;
 }
 
 .skill-links {
@@ -601,6 +830,12 @@ button:focus-visible {
   cursor: pointer;
 }
 .skill-hex.repeatable { width: 116px; height: 100px; }
+.skill-hex.final-skill {
+  width: 142px;
+  height: 122px;
+  --skill-color: #ffd477;
+  filter: drop-shadow(0 0 18px rgba(255, 212, 119, 0.62));
+}
 .skill-hex-icon { color: var(--skill-color); font-size: 22px; font-weight: 1000; line-height: 1; }
 .skill-hex.unlocked .skill-hex-icon { color: #ffe09a; }
 .skill-hex-name { max-width: 88px; font-size: 9px; line-height: 1.08; }
@@ -760,12 +995,20 @@ button:focus-visible {
   font-weight: 950;
 }
 
+.crew-workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 225px;
+  gap: 8px;
+}
+
 .worker-list {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  grid-auto-rows: 64px;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   padding-right: 3px;
   overflow: auto;
   overscroll-behavior: contain;
@@ -777,8 +1020,8 @@ button:focus-visible {
   position: relative;
   min-width: 0;
   display: grid;
-  gap: 6px;
-  padding: 7px;
+  gap: 4px;
+  padding: 5px;
   overflow: hidden;
   border: 2px solid rgba(45, 91, 72, 0.15);
   border-radius: 16px;
@@ -794,12 +1037,12 @@ button:focus-visible {
 
 .worker-select {
   width: 100%;
-  min-height: 48px;
+  min-height: 50px;
   min-width: 0;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   padding: 0;
   border: 0;
   color: inherit;
@@ -808,7 +1051,7 @@ button:focus-visible {
 }
 
 .worker-avatar {
-  width: 38px;
+  width: 32px;
   height: 38px;
   flex: 0 0 auto;
   display: grid;
@@ -816,7 +1059,7 @@ button:focus-visible {
   border: 2px solid rgba(76, 68, 42, 0.16);
   border-radius: 13px;
   background: #f5c66d;
-  font-size: 21px;
+  font-size: 18px;
 }
 
 .task-stone .worker-avatar { background: #d6ddd6; }
@@ -831,14 +1074,14 @@ button:focus-visible {
 
 .worker-identity strong {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .worker-identity small {
   color: #5b7167;
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .level-pips {
@@ -847,7 +1090,7 @@ button:focus-visible {
   margin-top: 3px;
 }
 .level-pips i {
-  width: 13px;
+  width: 10px;
   height: 4px;
   border-radius: 99px;
   background: #d7d4bd;
@@ -855,7 +1098,7 @@ button:focus-visible {
 .level-pips i.filled { background: #e69b43; }
 
 .current-job {
-  min-width: 40px;
+  min-width: 32px;
   display: grid;
   justify-items: center;
   gap: 0;
@@ -866,8 +1109,106 @@ button:focus-visible {
 }
 .current-job > span { font-size: 15px; line-height: 1; }
 .current-job small {
-  font-size: 7px;
+  font-size: 6px;
   text-transform: uppercase;
+}
+
+.worker-detail {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 44px 44px;
+  align-content: center;
+  gap: 5px;
+  padding: 5px;
+  overflow: hidden;
+  border: 2px solid rgba(44, 128, 108, 0.3);
+  border-radius: 16px;
+  color: #173d35;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 4px 0 rgba(108, 76, 38, 0.12);
+}
+.worker-detail-empty {
+  grid-template-rows: auto auto auto;
+}
+.worker-detail > span:first-child {
+  justify-self: center;
+  font-size: 24px;
+}
+.worker-detail > strong,
+.worker-detail > small { justify-self: center; text-align: center; }
+.worker-detail > small { color: #5b7167; font-size: 8px; }
+.worker-detail-hero {
+  min-width: 0;
+  height: 44px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+.worker-detail-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(45, 91, 72, 0.2);
+  border-radius: 14px;
+  background: #f5c66d;
+  font-size: 23px;
+}
+.worker-detail-hero > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.worker-detail-hero strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.worker-detail-hero small { color: #5b7167; font-size: 8px; }
+.worker-detail-level {
+  padding: 5px 7px;
+  border-radius: 10px;
+  color: #fff9df;
+  background: #a65729;
+  font-size: 7px;
+  white-space: nowrap;
+}
+.worker-detail-stats {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  background: rgba(38, 103, 86, 0.08);
+}
+.worker-detail-stats small { color: #48675c; font-size: 7px; text-align: right; }
+.detail-level-pips { display: flex; gap: 2px; }
+.detail-level-pips i { color: #b9b59d; font-size: 12px; font-style: normal; }
+.detail-level-pips i.filled { color: #e69b43; }
+.worker-detail-upgrade {
+  width: 100%;
+  height: 44px;
+  overflow: hidden;
+}
+.worker-detail-burst {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  padding: 4px 7px;
+  border: 2px solid #fff7d8;
+  border-radius: 999px;
+  color: #fff;
+  background: #b96a21;
+  box-shadow: 0 3px 0 rgba(91, 43, 25, 0.34);
+  font-size: 7px;
+  font-weight: 1000;
+  animation: level-up-burst 720ms cubic-bezier(.18,.78,.22,1.2) both;
 }
 
 .upgrade-button {
@@ -1326,7 +1667,12 @@ button:focus-visible {
   }
 
   .talent-button {
-    top: 94px;
+    top: 98px;
+    min-width: 89px;
+  }
+
+  .projects-button {
+    top: 144px;
     min-width: 89px;
   }
 
@@ -1366,15 +1712,43 @@ button:focus-visible {
     padding: 7px;
   }
 
+  .projects-sheet {
+    height: calc(100vh - 10px);
+    gap: 5px;
+    padding: 7px;
+  }
+
   .talent-header h2 { font-size: 19px; }
   .talent-summary { min-height: 25px; padding-block: 3px; }
   .skill-hex { width: 104px; height: 90px; }
   .auto-regulation-button { min-height: 36px; }
 
   .crew-header h2 { font-size: 19px; }
+  .projects-header h2 { font-size: 19px; }
+  .projects-summary { min-height: 25px; padding-block: 3px; }
   .crew-summary { min-height: 25px; padding-block: 3px; }
-  .worker-card { padding: 7px; }
-  .recruit-button { min-height: 40px; }
+  .worker-card { padding: 5px; }
+  .job-dock {
+    min-height: 44px;
+    padding-block: 3px;
+  }
+  .job-icon {
+    width: 29px;
+    height: 32px;
+  }
+  .worker-detail {
+    gap: 3px;
+    padding: 3px;
+  }
+  .recruit-button {
+    height: 44px;
+    min-height: 44px;
+    padding-block: 2px;
+  }
+  .recruit-portrait {
+    width: 30px;
+    height: 30px;
+  }
 }
 
 @media (max-width: 600px) and (orientation: landscape) {
@@ -1392,7 +1766,8 @@ button:focus-visible {
   }
 
   .crew-button,
-  .talent-button { left: 8px; }
+  .talent-button,
+  .projects-button { left: 8px; }
 
   .objective {
     width: 43vw;
@@ -1417,10 +1792,36 @@ button:focus-visible {
   }
 
   .crew-sheet { width: calc(100vw - 12px); }
+  .crew-workspace { grid-template-columns: minmax(0, 1fr) 190px; }
   .crew-summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .talent-sheet { width: calc(100vw - 10px); }
+  .projects-sheet { width: calc(100vw - 10px); }
   .talent-summary { grid-template-columns: auto auto; }
   .talent-summary small { grid-column: 1 / -1; }
+  .skill-zoom-controls {
+    right: 5px;
+    bottom: 5px;
+    grid-template-columns: 44px minmax(72px, 100px) 44px auto;
+  }
+  .skill-zoom-controls output { display: none; }
+  .project-tier {
+    width: min(430px, 88vw);
+    min-width: min(430px, 88vw);
+  }
+}
+
+@media (max-width: 700px) and (orientation: landscape) {
+  .skill-zoom-controls {
+    grid-template-columns: 44px 44px auto 39px;
+  }
+
+  .skill-zoom-controls input {
+    display: none;
+  }
+
+  .skill-zoom-controls output {
+    display: block;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

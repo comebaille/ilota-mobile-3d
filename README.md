@@ -1,6 +1,8 @@
 # Ilota — L’Archipel éveillé
 
-Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolte du bois, de la pierre, du cuivre et du cristal, fait émerger cinq îles et dirige jusqu’à seize travailleurs persistants.
+Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolte du bois, de la pierre, du cuivre et du cristal, fait émerger cinq îles et dirige jusqu’à dix-neuf travailleurs persistants.
+
+[Jouer à Ilota dans le navigateur](https://comebaille.github.io/ilota-mobile-3d/)
 
 ## Contenu jouable
 
@@ -8,10 +10,12 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - arbres et minerais de tailles variées qui rétrécissent à chaque coup, disparaissent au dernier et réapparaissent ensuite ;
 - filons réellement consommés par les livraisons des ouvriers, avec repousse pondérée et ressources interdites selon l’île ;
 - quatre métiers réassignables : bois, pierre, cuivre et cristal ;
-- terrier lumineux en deux gestes (choisir un renard, toucher un métier), taux d’apparition visibles et célébrations de recrutement/niveau ;
-- neuf postes par les bâtiments, jusqu’à sept postes supplémentaires par les savoirs, et trois niveaux de rendement ;
+- nurserie lumineuse et scrollable : le niveau reste écrit sur chaque renard, un toucher ouvre sa fiche fixe, son métier et son bouton `LEVEL UP` ;
+- neuf postes par les bâtiments, dix postes supplémentaires via projets et savoirs, et trois niveaux de rendement ;
 - camp, atelier, fonderie et observatoire fondés sur de vrais modèles 3D CC0 ;
-- arbre de savoir hexagonal à 26 nœuds, chemins croisés, cinq rangs d’effectif et trois sommets de méta distincts ;
+- douze Grands Travaux répartis sur quatre îles, qui réemploient les mêmes ressources et conditionnent les ponts puis le Cœur ;
+- arbre hexagonal à 26 nœuds : futur invisible, doubles prérequis stricts, zoom 10–130 %, trois sommets et convergence finale très coûteuse ;
+- pouvoir final **Conscience absolue** : +4 postes, +50 % par livraison, −20 % sur les coûts, vitesse accrue, héritage à 55 % et auto-régulation totale ;
 - caches optionnelles, sauvegarde locale et migration de la première version ;
 - commandes tactiles, interface paysage et installation PWA hors ligne.
 

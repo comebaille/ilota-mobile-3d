@@ -22,11 +22,13 @@ interface IlotaWindow extends Window {
     cacheFound: boolean;
     completed: boolean;
     crewOpen: boolean;
+    projectsOpen: boolean;
     talentOpen: boolean;
     knowledge: number;
     rebirths: number;
     skills: string;
     autoRegulation: boolean;
+    projects: number;
     visibleIslands: number;
     emergingIsland: string;
     workersOnWalkable: boolean;
