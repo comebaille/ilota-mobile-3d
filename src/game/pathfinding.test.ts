@@ -8,12 +8,12 @@ import {
 
 describe('navigation des travailleurs', () => {
   it('refuse de traverser l’eau lorsque le pont manque', () => {
-    const route = planRoute({ x: 0, z: 2 }, { x: 0, z: -21 }, [false, false, false, false]);
+    const route = planRoute({ x: 0, z: 2 }, { x: 0, z: -27 }, [false, false, false, false]);
     expect(route).toBeNull();
   });
 
   it('passe par les deux extrémités de chaque pont construit', () => {
-    const route = planRoute({ x: 0, z: 2 }, { x: -1, z: -52 }, [true, true, true, false]);
+    const route = planRoute({ x: 0, z: 2 }, { x: -1, z: -69 }, [true, true, true, false]);
     expect(route).not.toBeNull();
     expect(route!.bridgeIndices).toEqual([0, 1, 2]);
     BRIDGE_GEOMETRIES.slice(0, 3).forEach((bridge) => {

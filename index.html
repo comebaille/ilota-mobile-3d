@@ -33,6 +33,9 @@
           <div class="resource-chip copper"><span class="resource-icon">⬟</span><span id="copper-count">0</span><small>cuivre</small></div>
           <div class="resource-chip crystal"><span class="resource-icon">✦</span><span id="crystal-count">0</span><small>cristal</small></div>
         </div>
+        <div id="cargo-meter" class="cargo-meter" aria-label="Cargaison portée">
+          <span aria-hidden="true">⌂</span><small>SUR TON DOS</small><strong id="cargo-count">0 / 16</strong>
+        </div>
         <div id="objective" class="objective">
           <span id="objective-eyebrow" class="eyebrow">CHAPITRE 1/5</span>
           <strong id="objective-title">Explore la clairière</strong>
@@ -144,9 +147,17 @@
                 <b id="skill-inspector-status">AUCUN ACHAT AUTOMATIQUE</b>
               </div>
               <button id="skill-buy-button" class="primary-button skill-buy-button" type="button" disabled>SÉLECTIONNE UN SAVOIR</button>
-              <button id="auto-regulation-button" class="auto-regulation-button" type="button" aria-pressed="false" disabled>
-                AUTO-RÉGULATION · TALENT REQUIS
-              </button>
+              <div class="power-toggles" aria-label="Pouvoirs de sommet">
+                <button id="auto-regulation-button" class="auto-regulation-button" type="button" aria-pressed="false" disabled>
+                  INTELLIGENCE · TALENT REQUIS
+                </button>
+                <button id="industry-surge-button" class="auto-regulation-button industry-power-button" type="button" aria-pressed="false" disabled>
+                  TECHNIQUE · TALENT REQUIS
+                </button>
+                <button id="exploration-flow-button" class="auto-regulation-button exploration-power-button" type="button" aria-pressed="false" disabled>
+                  EXPLORATION · TALENT REQUIS
+                </button>
+              </div>
             </aside>
           </div>
         </div>
@@ -170,6 +181,33 @@
           <button id="menu-reset-button" class="menu-danger" type="button">RÉINITIALISER LA PROGRESSION</button>
         </div>
       </section>
+
+      <section id="tutorial-panel" class="tutorial-panel" role="dialog" aria-modal="true" aria-labelledby="tutorial-title" hidden>
+        <div class="tutorial-card">
+          <span id="tutorial-icon" class="tutorial-icon" aria-hidden="true">▣</span>
+          <div>
+            <p class="kicker">GUIDE DE LA PREMIÈRE MARÉE</p>
+            <h2 id="tutorial-title">Ton premier dépôt</h2>
+            <p id="tutorial-detail">Les ressources ne sont stockées qu’après leur déchargement.</p>
+          </div>
+          <button id="tutorial-continue-button" class="primary-button" type="button">J’AI COMPRIS</button>
+        </div>
+      </section>
+
+      <section id="tide-transition" class="tide-transition" aria-live="assertive" hidden>
+        <div class="tide-transition-copy">
+          <small id="tide-transition-kicker">NOUVELLE MARÉE</small>
+          <strong id="tide-transition-stage">La Couronne disparaît…</strong>
+          <div class="tide-transition-track"><span id="tide-transition-progress"></span></div>
+          <b id="tide-transition-reward">+3 SAVOIR</b>
+        </div>
+      </section>
+
+      <div id="power-vfx" class="power-vfx" aria-live="polite">
+        <i class="power-edge left" aria-hidden="true"></i>
+        <i class="power-edge right" aria-hidden="true"></i>
+        <strong id="power-vfx-label" class="power-vfx-label"></strong>
+      </div>
 
       <section id="start-screen" class="overlay start-screen">
         <div class="title-card">

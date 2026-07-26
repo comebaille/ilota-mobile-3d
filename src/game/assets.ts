@@ -3,7 +3,24 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export type NatureKind = 'treeA' | 'treeB' | 'rock' | 'bush' | 'grass';
-export type BuildingKind = 'camp' | 'workshop' | 'foundry' | 'observatory';
+export type BuildingKind =
+  | 'camp'
+  | 'workshop'
+  | 'foundry'
+  | 'observatory'
+  | 'storage'
+  | 'timberReserve'
+  | 'towingPaths'
+  | 'sharedWarehouse'
+  | 'communalSawmill'
+  | 'shoreWalls'
+  | 'ordersOffice'
+  | 'copperWinches'
+  | 'haulingRails'
+  | 'maintenanceYard'
+  | 'crystalBeacons'
+  | 'prismaticReservoir'
+  | 'unityLighthouse';
 
 const NATURE_PATHS: Record<NatureKind, string> = {
   treeA: 'assets/third-party/nature/Tree1.glb',
@@ -14,10 +31,23 @@ const NATURE_PATHS: Record<NatureKind, string> = {
 };
 
 const BUILDING_PATHS: Record<BuildingKind, string> = {
-  camp: 'assets/third-party/kaykit-buildings/tent.gltf',
+  camp: 'assets/third-party/kaykit-buildings/building_home_B_green.gltf',
   workshop: 'assets/third-party/kaykit-buildings/building_lumbermill_green.gltf',
   foundry: 'assets/third-party/kaykit-buildings/building_blacksmith_red.gltf',
   observatory: 'assets/third-party/kaykit-buildings/building_tower_B_blue.gltf',
+  storage: 'assets/third-party/kaykit-buildings/building_grain.gltf',
+  timberReserve: 'assets/third-party/kaykit-buildings/building_market_yellow.gltf',
+  towingPaths: 'assets/third-party/kaykit-buildings/building_tower_base_green.gltf',
+  sharedWarehouse: 'assets/third-party/kaykit-buildings/building_home_A_yellow.gltf',
+  communalSawmill: 'assets/third-party/kaykit-buildings/building_lumbermill_yellow.gltf',
+  shoreWalls: 'assets/third-party/kaykit-buildings/building_tower_A_green.gltf',
+  ordersOffice: 'assets/third-party/kaykit-buildings/building_home_A_blue.gltf',
+  copperWinches: 'assets/third-party/kaykit-buildings/building_mine_red.gltf',
+  haulingRails: 'assets/third-party/kaykit-buildings/building_archeryrange_red.gltf',
+  maintenanceYard: 'assets/third-party/kaykit-buildings/building_barracks_red.gltf',
+  crystalBeacons: 'assets/third-party/kaykit-buildings/building_tower_A_blue.gltf',
+  prismaticReservoir: 'assets/third-party/kaykit-buildings/building_well_blue.gltf',
+  unityLighthouse: 'assets/third-party/kaykit-buildings/building_tower_B_yellow.gltf',
 };
 
 const prepareMeshes = (root: THREE.Object3D, receiveShadow = true): void => {
@@ -34,6 +64,10 @@ export class AssetLibrary {
   private readonly nature = new Map<NatureKind, THREE.Object3D>();
   private readonly buildings = new Map<BuildingKind, THREE.Object3D>();
   private fox: GLTF | null = null;
+
+  get loadedCount(): number {
+    return (this.fox ? 1 : 0) + this.nature.size + this.buildings.size;
+  }
 
   async load(onProgress?: (progress: number, label: string) => void): Promise<void> {
     const entries: Array<[string, string]> = [

@@ -5,6 +5,7 @@ export type WorkerLevel = 1 | 2 | 3;
 export type StructureKind = 'camp' | 'workshop' | 'foundry' | 'observatory';
 export type SkillBranch = 'intelligence' | 'industry' | 'exploration';
 export type SkillFamily = SkillBranch | 'core' | 'hybrid';
+export type WarehouseState = [boolean, boolean, boolean, boolean, boolean];
 export type ProjectId =
   | 'timber_reserve'
   | 'towing_paths'
@@ -61,11 +62,13 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 5;
+  version: 6;
   wood: number;
   stone: number;
   copper: number;
   crystal: number;
+  playerCargo: Cost;
+  warehousesBuilt: WarehouseState;
   campBuilt: boolean;
   workshopBuilt: boolean;
   foundryBuilt: boolean;
@@ -79,21 +82,31 @@ export interface IslandProgress {
   skills: SkillId[];
   skillRanks: Partial<Record<SkillId, number>>;
   autoRegulation: boolean;
+  industrySurge: boolean;
+  explorationFlow: boolean;
   rebirths: number;
   cycleMilestones: string[];
   lifetimeDeliveries: number;
   projectsCompleted: ProjectId[];
+  tutorialSeen: string[];
 }
 
-interface VersionFourProgress extends Omit<IslandProgress, 'version' | 'projectsCompleted'> {
+interface VersionFiveProgress extends Omit<
+  IslandProgress,
+  'version' | 'playerCargo' | 'warehousesBuilt' | 'industrySurge' | 'explorationFlow' | 'tutorialSeen'
+> {
+  version: 5;
+}
+
+interface VersionFourProgress extends Omit<VersionFiveProgress, 'version' | 'projectsCompleted'> {
   version: 4;
 }
 
-interface VersionThreeProgress extends Omit<IslandProgress, 'version' | 'skillRanks' | 'projectsCompleted'> {
+interface VersionThreeProgress extends Omit<VersionFiveProgress, 'version' | 'skillRanks' | 'projectsCompleted'> {
   version: 3;
 }
 
-interface VersionTwoProgress extends Omit<IslandProgress, 'version' | 'knowledge' | 'skills' | 'skillRanks' | 'autoRegulation' | 'rebirths' | 'cycleMilestones' | 'lifetimeDeliveries' | 'projectsCompleted'> {
+interface VersionTwoProgress extends Omit<VersionFiveProgress, 'version' | 'knowledge' | 'skills' | 'skillRanks' | 'autoRegulation' | 'rebirths' | 'cycleMilestones' | 'lifetimeDeliveries' | 'projectsCompleted'> {
   version: 2;
 }
 
@@ -177,6 +190,16 @@ export const STRUCTURE_COSTS: Record<StructureKind, Cost> = {
   observatory: cost(38, 34, 28, 16),
 };
 
+export const PLAYER_CARGO_CAPACITY = 16;
+
+const WAREHOUSE_COSTS: readonly Cost[] = [
+  cost(),
+  cost(20, 14),
+  cost(28, 22, 10),
+  cost(36, 30, 18, 8),
+  cost(46, 38, 26, 18),
+];
+
 export const BRIDGE_COSTS: readonly Cost[] = [
   cost(22, 18),
   cost(42, 34),
@@ -236,9 +259,9 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
   { id: 'far_horizons', branch: 'exploration', tier: 6, cost: 7, name: 'Horizon lointain', detail: 'Le renard accélère encore et les caches sont plus riches.', icon: '◒', x: 855, y: 900, requires: ['tidal_memory'] },
 
   { id: 'collective_intelligence', branch: 'intelligence', tier: 7, cost: 10, name: 'Esprit collectif', detail: 'Sommet Intelligence : deux réaffectations possibles toutes les 3 secondes.', icon: '♜', x: 300, y: 1040, requires: ['auto_regulation', 'logistics_network'] },
-  { id: 'endless_engine', branch: 'industry', tier: 7, cost: 10, name: 'Moteur perpétuel', detail: 'Sommet Technique : toutes les cargaisons sont doublées.', icon: '∞', x: 505, y: 1040, requires: ['master_builders', 'adaptive_harvest'] },
-  { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Héritage océanique', detail: 'Sommet Exploration : conserve 35 % des quatre stocks lors d’une Nouvelle Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
-  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 8, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : +4 postes, livraisons +50 %, coûts −20 %, vitesse +20 %, héritage 55 % et auto-régulation totale.', icon: '✺', x: 580, y: 1180, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
+  { id: 'endless_engine', branch: 'industry', tier: 7, cost: 10, name: 'Surcharge tellurique', detail: 'Sommet Technique : active des phases électriques qui accélèrent de 100 % la repousse de la ressource prioritaire.', icon: 'ϟ', x: 505, y: 1040, requires: ['master_builders', 'adaptive_harvest'] },
+  { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Courant de Marée', detail: 'Sommet Exploration : active des élans qui doublent la vitesse des cargaisons et conserve 35 % des stocks à la prochaine Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
+  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 8, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : réserve intelligemment chaque filon, évite les trajets excédentaires, ajoute 4 postes et synchronise les trois pouvoirs.', icon: '✺', x: 580, y: 1180, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
 ];
 
 const SKILL_IDS = new Set<SkillId>(SKILL_DEFINITIONS.map((skill) => skill.id));
@@ -317,11 +340,13 @@ const WORKER_NAMES = [
 ];
 
 const freshProgress = (): IslandProgress => ({
-  version: 5,
+  version: 6,
   wood: 0,
   stone: 0,
   copper: 0,
   crystal: 0,
+  playerCargo: cost(),
+  warehousesBuilt: [false, false, false, false, false],
   campBuilt: false,
   workshopBuilt: false,
   foundryBuilt: false,
@@ -335,16 +360,45 @@ const freshProgress = (): IslandProgress => ({
   skills: [],
   skillRanks: {},
   autoRegulation: false,
+  industrySurge: false,
+  explorationFlow: false,
   rebirths: 0,
   cycleMilestones: [],
   lifetimeDeliveries: 0,
   projectsCompleted: [],
+  tutorialSeen: [],
 });
 
 const nonNegativeInteger = (value: unknown): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
 };
+
+const sanitizeCost = (value: unknown): Cost => {
+  const source = value && typeof value === 'object' ? value as Partial<Record<ResourceKind, unknown>> : {};
+  return {
+    wood: nonNegativeInteger(source.wood),
+    stone: nonNegativeInteger(source.stone),
+    copper: nonNegativeInteger(source.copper),
+    crystal: nonNegativeInteger(source.crystal),
+  };
+};
+
+const sanitizeWarehouses = (value: unknown): WarehouseState => {
+  const source = Array.isArray(value) ? value : [];
+  return [
+    Boolean(source[0]),
+    Boolean(source[1]),
+    Boolean(source[2]),
+    Boolean(source[3]),
+    Boolean(source[4]),
+  ];
+};
+
+const sanitizeStringList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? [...new Set(value.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim())).map((entry) => entry.trim().slice(0, 64)))]
+    : [];
 
 const isResourceKind = (value: unknown): value is ResourceKind =>
   typeof value === 'string' && RESOURCE_KINDS.includes(value as ResourceKind);
@@ -489,6 +543,14 @@ const discountCost = (value: Cost, multiplier: number): Cost => ({
 });
 
 export const getStructureCost = (progress: IslandProgress, kind: StructureKind): Cost => scaleCost(progress, STRUCTURE_COSTS[kind]);
+export const isWarehouseUnlocked = (progress: IslandProgress, islandIndex: number): boolean =>
+  islandIndex >= 0 && islandIndex < 5 && progress.rebirths >= islandIndex;
+export const getWarehouseCost = (progress: IslandProgress, islandIndex: number): Cost | null => {
+  const value = WAREHOUSE_COSTS[islandIndex];
+  return value ? scaleCost(progress, value) : null;
+};
+export const getPlayerCargoTotal = (progress: IslandProgress): number =>
+  RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0);
 export const getBridgeCost = (progress: IslandProgress, index: number): Cost | null => {
   const value = BRIDGE_COSTS[index];
   return value ? scaleCost(progress, value) : null;
@@ -547,12 +609,11 @@ export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): n
   const multiplier = (hasSkill(progress, 'reinforced_carts') ? 1.3 : 1)
     * (hasSkill(progress, 'master_builders') ? 1.35 : 1)
     * (hasSkill(progress, 'logistics_network') ? 1.15 : 1)
-    * (hasSkill(progress, 'endless_engine') ? 2 : 1)
     * (hasProject(progress, 'shared_warehouse') ? 1.1 : 1)
     * (hasProject(progress, 'prismatic_reservoir') ? 1.15 : 1)
     * (hasProject(progress, 'unity_lighthouse') ? 1.25 : 1)
     * (hasSkill(progress, 'archipelago_consciousness') ? 1.5 : 1);
-  return Math.ceil(base * multiplier);
+  return Math.min(16, Math.ceil(base * multiplier));
 };
 
 // Conservé comme estimation d'interface ; la simulation utilise la vraie
@@ -658,6 +719,7 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
     case 0:
       destination = 'Île des Pins';
       items = [
+        { id: 'warehouse', label: 'Assembler le Dépôt des Marées', done: progress.warehousesBuilt[0] },
         { id: 'camp', label: 'Construire le Camp des Marées', done: progress.campBuilt },
         { id: 'workers', label: 'Réunir 2 renards', done: progress.workers.length >= 2 },
         { id: 'wood-job', label: 'Assigner 1 bûcheron', done: hasTask('wood') },
@@ -720,6 +782,7 @@ export const getNextProject = (progress: IslandProgress): IslandProjectDefinitio
   ISLAND_PROJECTS.find((definition) => !hasProject(progress, definition.id) && projectPrerequisitesMet(progress, definition)) ?? null;
 
 export const getNextStrategicCost = (progress: IslandProgress): Cost => {
+  if (!progress.warehousesBuilt[0]) return getWarehouseCost(progress, 0) ?? cost();
   if (!progress.campBuilt) return getStructureCost(progress, 'camp');
   if (progress.workers.length < 2) return getRecruitCost(progress);
   if (!progress.bridgesBuilt[0]) return getBridgeCost(progress, 0) ?? cost();
@@ -802,6 +865,18 @@ export const getRebirthReward = (progress: IslandProgress): number => 3 + Math.m
 export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
   const chapter = getChapter(progress);
   const eyebrow = `MARÉE ${progress.rebirths + 1} · CHAPITRE ${chapter}/5`;
+  if (!progress.warehousesBuilt[0]) return {
+    chapter,
+    eyebrow,
+    title: 'Assemble le Dépôt des Marées',
+    detail: 'Le kit est gratuit : toutes les cargaisons y seront déchargées.',
+  };
+  if (getPlayerCargoTotal(progress) > 0 && !progress.campBuilt) return {
+    chapter,
+    eyebrow,
+    title: 'Décharge ta cargaison',
+    detail: `${getPlayerCargoTotal(progress)}/${PLAYER_CARGO_CAPACITY} unités sont visibles sur ton dos.`,
+  };
   if (!progress.campBuilt) return { chapter, eyebrow, title: 'Bâtis le camp des Marées', detail: `Coût : ${formatCost(getStructureCost(progress, 'camp'))}` };
   if (progress.workers.length < 2) return { chapter, eyebrow, title: 'Forme ta première équipe', detail: 'Entre dans la nurserie centrale : recrute 2 renards et assigne bois + pierre.' };
   if (!progress.bridgesBuilt[0]) return { chapter, eyebrow, title: 'Ouvre le pont des Pins', detail: `Coût : ${formatCost(getBridgeCost(progress, 0) ?? cost())}` };
@@ -836,23 +911,62 @@ const inferMilestones = (value: Partial<VersionTwoProgress>): string[] => {
   return milestones;
 };
 
+const LEGACY_TUTORIALS = [
+  'welcome',
+  'warehouse-central',
+  'nursery',
+  'island-goals',
+  'bridge-guidance',
+  'pins-logistics',
+  'workshop',
+  'foundry',
+  'observatory',
+] as const;
+
+const legacyWarehouses = (value: {
+  wood?: number;
+  stone?: number;
+  copper?: number;
+  crystal?: number;
+  campBuilt?: boolean;
+  workers?: WorkerState[];
+  bridgesBuilt?: readonly boolean[];
+}): WarehouseState => [
+  Boolean(
+    value.campBuilt
+    || value.workers?.length
+    || value.bridgesBuilt?.some(Boolean)
+    || nonNegativeInteger(value.wood)
+    || nonNegativeInteger(value.stone)
+    || nonNegativeInteger(value.copper)
+    || nonNegativeInteger(value.crystal)
+  ),
+  false,
+  false,
+  false,
+  false,
+];
+
 export class Economy {
   readonly progress: IslandProgress;
 
   constructor(initial?: Partial<IslandProgress>) {
     const fresh = freshProgress();
     const sourceBridges = Array.isArray(initial?.bridgesBuilt) ? initial.bridgesBuilt : fresh.bridgesBuilt;
+    const sourceWarehouses = sanitizeWarehouses(initial?.warehousesBuilt);
     const rankIds = initial?.skillRanks && typeof initial.skillRanks === 'object' ? Object.keys(initial.skillRanks) : [];
     const skills = sanitizeSkills([...(initial?.skills ?? []), ...rankIds]);
     const skillRanks = sanitizeSkillRanks(initial?.skillRanks, skills);
     this.progress = {
       ...fresh,
       ...initial,
-      version: 5,
+      version: 6,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
       crystal: nonNegativeInteger(initial?.crystal),
+      playerCargo: sanitizeCost(initial?.playerCargo),
+      warehousesBuilt: sourceWarehouses,
       campBuilt: Boolean(initial?.campBuilt),
       workshopBuilt: Boolean(initial?.workshopBuilt),
       foundryBuilt: Boolean(initial?.foundryBuilt),
@@ -866,15 +980,47 @@ export class Economy {
       skills,
       skillRanks,
       autoRegulation: skills.includes('auto_regulation') && Boolean(initial?.autoRegulation),
+      industrySurge: skills.includes('endless_engine') && Boolean(initial?.industrySurge),
+      explorationFlow: skills.includes('ocean_legacy') && Boolean(initial?.explorationFlow),
       rebirths: nonNegativeInteger(initial?.rebirths),
       cycleMilestones: Array.isArray(initial?.cycleMilestones) ? [...new Set(initial.cycleMilestones.filter((id): id is string => typeof id === 'string'))] : [],
       lifetimeDeliveries: nonNegativeInteger(initial?.lifetimeDeliveries),
       projectsCompleted: sanitizeProjects(initial?.projectsCompleted),
+      tutorialSeen: sanitizeStringList(initial?.tutorialSeen),
     };
   }
 
   add(kind: ResourceKind, amount = 1): void {
     this.progress[kind] += nonNegativeInteger(amount);
+  }
+
+  carryForPlayer(kind: ResourceKind, amount = 1): number {
+    const free = Math.max(0, PLAYER_CARGO_CAPACITY - getPlayerCargoTotal(this.progress));
+    const carried = Math.min(free, nonNegativeInteger(amount));
+    this.progress.playerCargo[kind] += carried;
+    return carried;
+  }
+
+  depositPlayerCargo(kind: ResourceKind, amount = 1): number {
+    const delivered = Math.min(this.progress.playerCargo[kind], Math.max(1, nonNegativeInteger(amount)));
+    if (delivered <= 0) return 0;
+    this.progress.playerCargo[kind] -= delivered;
+    this.add(kind, delivered);
+    return delivered;
+  }
+
+  unloadPlayerCargo(kind: ResourceKind, amount = 1): number {
+    const unloaded = Math.min(this.progress.playerCargo[kind], Math.max(1, nonNegativeInteger(amount)));
+    if (unloaded <= 0) return 0;
+    this.progress.playerCargo[kind] -= unloaded;
+    return unloaded;
+  }
+
+  markTutorial(id: string): boolean {
+    const normalized = id.trim().slice(0, 64);
+    if (!normalized || this.progress.tutorialSeen.includes(normalized)) return false;
+    this.progress.tutorialSeen.push(normalized);
+    return true;
   }
 
   canAfford(value: Cost): boolean {
@@ -902,13 +1048,31 @@ export class Economy {
     this.progress.knowledge += amount;
   }
 
+  buildWarehouse(islandIndex: number): boolean {
+    const warehouseCost = getWarehouseCost(this.progress, islandIndex);
+    const accessible = islandIndex === 0 || Boolean(this.progress.bridgesBuilt[islandIndex - 1]);
+    if (
+      !warehouseCost
+      || this.progress.warehousesBuilt[islandIndex]
+      || !accessible
+      || !isWarehouseUnlocked(this.progress, islandIndex)
+      || !this.spend(warehouseCost)
+    ) return false;
+    this.progress.warehousesBuilt[islandIndex] = true;
+    this.awardMilestone(`warehouse:${islandIndex}`, islandIndex === 0 ? 0 : 1);
+    return true;
+  }
+
   buildStructure(kind: StructureKind): boolean {
     const flag = `${kind}Built` as const;
     if (this.progress[flag]) return false;
     const accessible = kind === 'camp'
-      || (kind === 'workshop' && this.progress.bridgesBuilt[0])
-      || (kind === 'foundry' && this.progress.bridgesBuilt[1])
-      || (kind === 'observatory' && this.progress.bridgesBuilt[2]);
+      ? this.progress.warehousesBuilt[0]
+      : kind === 'workshop'
+        ? this.progress.bridgesBuilt[0]
+        : kind === 'foundry'
+          ? this.progress.bridgesBuilt[1]
+          : this.progress.bridgesBuilt[2];
     if (!accessible || !this.spend(getStructureCost(this.progress, kind))) return false;
     this.progress[flag] = true;
     this.awardMilestone(`structure:${kind}`);
@@ -1039,6 +1203,18 @@ export class Economy {
     return true;
   }
 
+  setIndustrySurge(enabled: boolean): boolean {
+    if (!hasSkill(this.progress, 'endless_engine')) return false;
+    this.progress.industrySurge = enabled;
+    return true;
+  }
+
+  setExplorationFlow(enabled: boolean): boolean {
+    if (!hasSkill(this.progress, 'ocean_legacy')) return false;
+    this.progress.explorationFlow = enabled;
+    return true;
+  }
+
   autoRegulate(): AssignmentMove | null {
     if (!this.progress.autoRegulation || !hasSkill(this.progress, 'auto_regulation')) return null;
     const move = chooseAutoRegulationMove(this.progress);
@@ -1057,8 +1233,11 @@ export class Economy {
     const skills = [...this.progress.skills];
     const skillRanks = { ...this.progress.skillRanks };
     const autoRegulation = this.progress.autoRegulation && skills.includes('auto_regulation');
+    const industrySurge = this.progress.industrySurge && skills.includes('endless_engine');
+    const explorationFlow = this.progress.explorationFlow && skills.includes('ocean_legacy');
     const rebirths = this.progress.rebirths + 1;
     const lifetimeDeliveries = this.progress.lifetimeDeliveries;
+    const tutorialSeen = [...this.progress.tutorialSeen];
     const previousStocks = {
       wood: this.progress.wood,
       stone: this.progress.stone,
@@ -1077,7 +1256,17 @@ export class Economy {
         next[kind] = Math.max(next[kind], Math.floor(previousStocks[kind] * retainedRatio));
       });
     }
-    Object.assign(this.progress, next, { knowledge, skills, skillRanks, autoRegulation, rebirths, lifetimeDeliveries });
+    Object.assign(this.progress, next, {
+      knowledge,
+      skills,
+      skillRanks,
+      autoRegulation,
+      industrySurge,
+      explorationFlow,
+      rebirths,
+      lifetimeDeliveries,
+      tutorialSeen,
+    });
     return reward;
   }
 
@@ -1092,24 +1281,52 @@ export class Economy {
   static restore(raw: string | null): Economy {
     if (!raw) return new Economy();
     try {
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 5) return new Economy(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 6) return new Economy(value as Partial<IslandProgress>);
+      if (value.version === 5) {
+        const previous = value as VersionFiveProgress;
+        const { version: _previousVersion, ...migrated } = previous;
+        return new Economy({
+          ...migrated,
+          warehousesBuilt: legacyWarehouses(previous),
+          playerCargo: cost(),
+          industrySurge: false,
+          explorationFlow: false,
+          tutorialSeen: [...LEGACY_TUTORIALS],
+        });
+      }
       if (value.version === 4) {
         const previous = value as VersionFourProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({ ...migrated, projectsCompleted: [] });
+        return new Economy({
+          ...migrated,
+          projectsCompleted: [],
+          warehousesBuilt: legacyWarehouses(previous),
+          tutorialSeen: [...LEGACY_TUTORIALS],
+        });
       }
       if (value.version === 3) {
         const previous = value as VersionThreeProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({ ...migrated, skillRanks: {} });
+        return new Economy({
+          ...migrated,
+          skillRanks: {},
+          warehousesBuilt: legacyWarehouses(previous),
+          tutorialSeen: [...LEGACY_TUTORIALS],
+        });
       }
       if (value.version === 2) {
         const previous = value as VersionTwoProgress;
         const milestones = inferMilestones(previous);
         const knowledge = milestones.reduce((sum, id) => sum + (id === 'heart' ? 2 : 1), 0);
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({ ...migrated, knowledge, cycleMilestones: milestones });
+        return new Economy({
+          ...migrated,
+          knowledge,
+          cycleMilestones: milestones,
+          warehousesBuilt: legacyWarehouses(previous),
+          tutorialSeen: [...LEGACY_TUTORIALS],
+        });
       }
       if (value.version === 1) {
         const legacy = value as LegacyProgress;
@@ -1128,6 +1345,8 @@ export class Economy {
           elapsedSeconds: Math.max(0, Number(legacy.elapsedSeconds) || 0),
           knowledge: milestones.length,
           cycleMilestones: milestones,
+          warehousesBuilt: [true, false, false, false, false],
+          tutorialSeen: [...LEGACY_TUTORIALS],
         });
       }
       return new Economy();

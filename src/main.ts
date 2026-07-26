@@ -18,6 +18,7 @@ interface IlotaWindow extends Window {
     workerTasks: string;
     bridgeBuilt: boolean;
     bridges: number;
+    bridgeGuides: number;
     chapter: number;
     cacheFound: boolean;
     completed: boolean;
@@ -29,6 +30,8 @@ interface IlotaWindow extends Window {
     skills: string;
     autoRegulation: boolean;
     projects: number;
+    warehouses: number;
+    playerCargo: number;
     visibleIslands: number;
     emergingIsland: string;
     workersOnWalkable: boolean;
@@ -44,6 +47,8 @@ interface IlotaWindow extends Window {
       targetNode: string;
       targetIsland: number;
       cargo: number;
+      cargoVisuals: number;
+      animation: string;
     }>;
     resourceNodes: Array<{
       id: string;
@@ -63,6 +68,10 @@ interface IlotaWindow extends Window {
       remaining: number;
       island: number;
     } | null;
+    industrySurge: boolean;
+    industrySurgeKind: string;
+    explorationFlow: boolean;
+    rebirthAnimation: boolean;
     fps: number;
   };
 }
@@ -80,7 +89,12 @@ const launch = async (): Promise<void> => {
     const game = new IlotaGame(canvas, assets, economy, ui);
     (window as IlotaWindow).__ILOTA__ = game.diagnostics;
 
-    if (economy.progress.campBuilt || economy.progress.wood > 0 || economy.progress.stone > 0) {
+    if (
+      economy.progress.warehousesBuilt.some(Boolean)
+      || economy.progress.campBuilt
+      || economy.progress.wood > 0
+      || economy.progress.stone > 0
+    ) {
       ui.startButton.textContent = 'REPRENDRE LA PARTIE';
     }
 

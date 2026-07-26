@@ -27,8 +27,10 @@ La direction artistique associe un archipel low-poly vert mousse et ocre à des 
 - Source officielle : https://www.kaylousberg.com/game-assets/medieval-hexagon
 - Dépôt officiel : https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
 - Licence : **CC0 1.0 Universal**
-- Modèles : tente, scierie, forge et tour.
-- Usage : camp, atelier, fonderie et observatoire.
+- Modèles : maisons, dépôt à grain, scieries, forge, mine, marché, caserne,
+  puits et plusieurs tours.
+- Usage : nurserie, cinq dépôts cohérents, atelier, fonderie, observatoire et
+  douze Grands Travaux visuellement distincts.
 
 Les notices et liens de provenance détaillés sont conservés à côté des fichiers dans `public/assets/third-party/`.
 

@@ -7,7 +7,7 @@
 - Durée cible de la première Marée : 45 à 75 minutes selon la part de récolte manuelle, l’ordre des Grands Travaux et la qualité des affectations.
 - Durée cible des Marées suivantes : 35 à 60 minutes chacune, avec davantage de coûts mais des talents permanents et un départ accélérable.
 - Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 26 nœuds (185 Savoir pour tout maximiser).
-- État initial : un renard, deux ressources, aucun bâtiment et aucun talent.
+- État initial : un renard, deux ressources, un kit de dépôt gratuit à assembler et aucun talent.
 - Conclusion d’une Marée : achever douze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
 - Conclusion méta : aucune fin forcée ; chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée.
 - Nombre de chapitres jouables par Marée : 5.
@@ -16,7 +16,7 @@
 
 | Chapitre | État | Durée cible | Objectif | Nouveauté | Mécaniques réutilisées | Déblocage | Climax | Transition |
 |---|---|---:|---|---|---|---|---|---|
-| 1. Camp des Marées | jouable | 6–10 min | Camp, 2 travailleurs, pont des Pins | Recrutement, affectation bois/pierre, premier Savoir | Récolte manuelle | Capacité 3 | Premier pont puis émergence | Accès aux Pins |
+| 1. Camp des Marées | jouable | 8–12 min | Dépôt, nurserie, 2 travailleurs, pont des Pins | Cargaison visible, déchargement, recrutement et affectation bois/pierre | Récolte manuelle | Capacité 3 | Premier pont puis émergence | Accès aux Pins |
 | 2. Atelier des Pins | jouable | 10–15 min | Atelier, équipe de 4, niveau 2 et 3 travaux | Première infrastructure durable | Affectations et vrais trajets | Capacité 5 puis +1 | Pont cuivré | Accès au cuivre |
 | 3. Île Cuivrée | jouable | 10–16 min | Fonderie, cuivrier, équipe de 5 et 6 travaux cumulés | Troisième ressource et industrie | Arbitrage stocks / coûts | Capacité 7, niveau 3 | Pont des Cristaux | Accès au cristal |
 | 4. Autel du Savoir | jouable | 12–18 min | Autel, cristallier, 10 niveaux et 9 travaux | Quatrième ressource et arbre physique | Tous les systèmes précédents | Capacité 9, métier cristal | Pont de la Couronne | Accès au Cœur |
@@ -31,9 +31,9 @@ L’arbre commence par l’hexagone gratuit **Démarrer**. Il révèle trois por
 | Voie | Début | Milieu | Pouvoir profond | Sommet |
 |---|---|---|---|---|
 | Intelligence | Vitesse et vrais plus courts chemins | Prévisions et relèves coordonnées | Auto-régulation des métiers | Esprit collectif : deux changements toutes les 3 s |
-| Technique | Récolte manuelle et cargaisons | Régénération et effectif répétable | Maîtres bâtisseurs | Moteur perpétuel : cargaisons doublées |
-| Exploration | Vitesse joueur et caches | Coûts et mémoire de départ | Horizon lointain | Héritage océanique : 35 % des stocks conservés |
-| Hybrides | Réseau logistique | Récolte adaptative et éclaireurs | Connexions entre voies | Conscience absolue : +4 postes, +50 % de livraison, −20 % de coûts, +20 % de vitesse, héritage 55 % et auto-régulation totale |
+| Technique | Récolte manuelle et cargaisons | Régénération et effectif répétable | Maîtres bâtisseurs | Surcharge tellurique activable : repousse prioritaire +100 % pendant 10 s |
+| Exploration | Vitesse joueur et caches | Coûts et mémoire de départ | Horizon lointain | Courant de Marée activable : cargaisons deux fois plus rapides pendant 10 s et 35 % des stocks conservés |
+| Hybrides | Réseau logistique | Récolte adaptative et éclaireurs | Connexions entre voies | Conscience absolue : réservation des filons, +4 postes, bonus généraux, héritage 55 % et synchronisation des trois voies |
 
 **Cercle des bâtisseurs** possède cinq rangs : chaque rang ajoute un poste permanent, mais coûte successivement 3, 5, 8, 12 puis 17 Savoir. La Réserve de charpente ajoute un poste et Conscience absolue en ajoute quatre : la capacité maximale passe de 9 à 19 travailleurs.
 
@@ -44,8 +44,10 @@ La Nouvelle Marée :
 - accorde 3 à 6 Savoir supplémentaires selon le nombre de Marées déjà franchies ;
 - augmente les exigences de 22 % par Marée, jusqu’à un plafond ;
 - donne une réserve initiale croissante si Mémoire des marées est acquise.
-- conserve 35 % des quatre stocks si Héritage océanique est acquis.
+- conserve 35 % des quatre stocks si Courant de Marée est acquis.
 - porte cette conservation à 55 % si Conscience absolue est acquise.
+- débloque un nouveau dépôt local par cycle terminé : Pins à la Marée 2, Cuivrée à la 3, Cristal à la 4 et Couronne à la 5.
+- se joue dans une cinématique où les îles s’enfoncent de la dernière à la première, les ponts cèdent et le héros ressort de la nurserie centrale.
 
 ## Grands Travaux et longévité des quatre ressources
 
@@ -62,7 +64,10 @@ Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants
 
 ## Navigation et intelligence des ouvriers
 
-- Une livraison est créditée uniquement lorsque le travailleur revient physiquement à un dépôt.
+- Le héros et chaque travailleur portent physiquement jusqu’à seize bûches, pierres, cuivres ou cristaux visibles sur leur dos.
+- Une unité quitte le dos, tombe dans le hangar, puis seulement à l’impact rejoint le compteur global.
+- Chaque île possède le même hangar reconnaissable. Seuls les dépôts construits peuvent recevoir une livraison.
+- À défaut de dépôt local, le renard retraverse réellement tous les ponts jusqu’au dépôt construit le plus proche.
 - La quantité chargée est retirée immédiatement du filon ; deux renards ne peuvent donc pas récolter deux fois la même réserve.
 - Un filon à zéro rétrécit, disparaît, déclenche sa repousse et force tous les renards qui le visaient encore à choisir une nouvelle cible.
 - Un trajet inter-îles est une route de points : terre, entrée du pont, sortie du pont, puis terre.
@@ -70,6 +75,8 @@ Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants
 - Sans Routes calculées, le renard choisit volontairement un filon au hasard parmi tous ceux de son métier accessibles par les ponts. Il ne compare aucune distance, même si la cible se trouve cinq îles plus loin.
 - Avec Routes calculées, chaque renard compare les couples gisement / dépôt accessibles et choisit la distance totale minimale.
 - Avec Auto-régulation active, le jeu évalue le prochain coût, les stocks, les métiers non couverts et la production présente. La réaction passe de 8 à 5 secondes avec Relèves coordonnées, puis à deux changements toutes les 3 secondes avec Esprit collectif.
+- Avec Conscience absolue, chaque départ réserve la quantité restante du filon. Un deuxième renard ne part pas si le premier emportera déjà toute la réserve.
+- Si un autre renard vide la cible avant l’arrivée, la route est invalidée dans la même frame et l’animation repasse immédiatement à la marche ou à l’attente correcte.
 
 ## Écologie des ressources
 
@@ -120,14 +127,13 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - La durée supplémentaire vient des douze choix d’infrastructure, de la logistique, des spécialisations et du cycle persistant, pas de points de vie artificiels.
 - Les quatre ressources restent utiles dans les coûts jusqu’au Phare ; aucune n’est remplacée par une simple série de nouveaux minerais.
 - Les distances comptent parce que les ouvriers les parcourent réellement ; le talent d’itinéraire change donc une décision mesurable.
-- Un sommet transforme la boucle : équipe autonome, production doublée ou transmission massive entre les cycles.
+- Un sommet transforme la boucle : équipe autonome, pénurie régénérée ou transport accéléré avec transmission entre les cycles.
 - L’inflation des Marées est accompagnée de talents permanents, de récompenses de Savoir et d’un possible stock de départ.
 - Le Cœur reste atteignable à chaque cycle et le mode libre reste disponible.
 
 ## Preuve de complétion
 
 - Un test automatisé parcourt les cinq chapitres jusqu’au Cœur.
-- Les sauvegardes v1 à v4 sont migrées vers la v5, y compris les anciens talents replacés dans le nouveau graphe.
 - Des tests unitaires contrôlent le brouillard strict, les doubles prérequis, la convergence finale, les douze projets, les coûts de rang, le rebirth et l’auto-régulation.
 - Le graphe de navigation refuse une île sans pont et inclut les deux extrémités de chaque pont utilisé.
 - Un test navigateur réaffecte un ouvrier en mouvement, confirme l’absence de téléportation et échantillonne sa présence sur le réseau marchable.
@@ -138,3 +144,9 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur achève les douze Grands Travaux directement sur leurs sites physiques avant d’autoriser le Cœur.
 - Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
+- La sauvegarde courante est en v6 ; les sauvegardes v1 à v5 migrent avec un dépôt central déjà validé afin de préserver leur progression.
+- Un test navigateur confirme que le héros garde sa récolte sur le dos, que le stock reste à zéro, puis que les unités sont créditées une à une à leur arrivée dans le dépôt.
+- Un test navigateur échantillonne une cargaison ouvrière de deux unités et vérifie `2 → 1 → 0` sur le dos comme dans le stock.
+- Un test navigateur active les phases Technique et Exploration et contrôle leurs effets de bord d’écran.
+- Un test navigateur confirme que trois maîtres mineurs dotés de Conscience absolue réservent trois filons distincts.
+- Un test navigateur déclenche la Nouvelle Marée, observe la phase cinématique, puis vérifie la persistance du Savoir et des talents après rechargement.

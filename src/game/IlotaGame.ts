@@ -17,14 +17,18 @@ import {
   getIslandGoal,
   getManualYield,
   getPlayerSpeed,
+  getPlayerCargoTotal,
+  getPriorityShortage,
   getProjectCost,
   getProjectDefinition,
   getRecruitCost,
   getRespawnMultiplier,
+  getRebirthReward,
   getSkillRank,
   getStructureCost,
   getTotalWorkerLevels,
   getUpgradeCost,
+  getWarehouseCost,
   getWorkerCapacity,
   getWorkerGatherSeconds,
   getWorkerTravelSpeed,
@@ -32,6 +36,8 @@ import {
   hasProject,
   hasSkill,
   isProjectVisible,
+  isWarehouseUnlocked,
+  PLAYER_CARGO_CAPACITY,
   type Cost,
   type ProjectId,
   type ResourceKind,
@@ -56,11 +62,13 @@ import {
   PROJECT_SITES,
   RESOURCE_SPAWNS,
   STRUCTURES,
+  WAREHOUSES,
   type BridgeDefinition,
   type CacheDefinition,
   type IslandDefinition,
   type ProjectSiteDefinition,
   type StructureDefinition,
+  type WarehouseDefinition,
 } from './world';
 import { GameUI } from '../ui/GameUI';
 
@@ -84,6 +92,9 @@ interface WorkerEntity {
   root: THREE.Group;
   marker: THREE.Mesh<THREE.TorusGeometry, THREE.MeshStandardMaterial>;
   mixer: THREE.AnimationMixer;
+  actions: Map<string, THREE.AnimationAction>;
+  currentAction: string;
+  cargoRack: THREE.Group;
   task: ResourceKind;
   level: WorkerLevel;
   phase: 'toResource' | 'gathering' | 'toHub' | 'depositing';
@@ -96,6 +107,7 @@ interface WorkerEntity {
   target: ResourceNode | null;
   hub: THREE.Vector3;
   cargo: number;
+  cargoKind: ResourceKind;
   routeChoices: number;
   arrivalTimer: number;
   levelUpTimer: number;
@@ -106,12 +118,20 @@ interface BridgeEntity {
   definition: BridgeDefinition;
   root: THREE.Group;
   pad: THREE.Group;
+  guide: THREE.Group;
   start: THREE.Vector3;
   end: THREE.Vector3;
 }
 
 interface StructureEntity {
   definition: StructureDefinition;
+  pad: THREE.Group;
+  building: THREE.Group;
+  status: THREE.Sprite;
+}
+
+interface WarehouseEntity {
+  definition: WarehouseDefinition;
   pad: THREE.Group;
   building: THREE.Group;
   status: THREE.Sprite;
@@ -154,9 +174,27 @@ interface Particle {
   life: number;
 }
 
+interface CargoDrop {
+  mesh: THREE.Object3D;
+  start: THREE.Vector3;
+  target: THREE.Vector3;
+  elapsed: number;
+  duration: number;
+  onLand?: () => void;
+}
+
+interface TideResetAnimation {
+  elapsed: number;
+  reward: number;
+  rebirthApplied: boolean;
+  playerEmerged: boolean;
+  cameraStart: THREE.Vector3;
+}
+
 type Interaction =
   | { type: 'resource'; node: ResourceNode }
   | { type: 'structure'; entity: StructureEntity }
+  | { type: 'warehouse'; entity: WarehouseEntity }
   | { type: 'project'; entity: ProjectEntity }
   | { type: 'bridge'; entity: BridgeEntity }
   | { type: 'cache'; entity: CacheEntity }
@@ -176,6 +214,7 @@ interface Diagnostics {
   workerTasks: string;
   bridgeBuilt: boolean;
   bridges: number;
+  bridgeGuides: number;
   chapter: number;
   cacheFound: boolean;
   completed: boolean;
@@ -188,6 +227,8 @@ interface Diagnostics {
   skills: string;
   autoRegulation: boolean;
   projects: number;
+  warehouses: number;
+  playerCargo: number;
   currentIsland: number;
   assemblingBuildings: number;
   visibleIslands: number;
@@ -205,6 +246,8 @@ interface Diagnostics {
     targetNode: string;
     targetIsland: number;
     cargo: number;
+    cargoVisuals: number;
+    animation: string;
   }>;
   resourceNodes: Array<{
     id: string;
@@ -224,6 +267,10 @@ interface Diagnostics {
     remaining: number;
     island: number;
   } | null;
+  industrySurge: boolean;
+  industrySurgeKind: ResourceKind | '';
+  explorationFlow: boolean;
+  rebirthAnimation: boolean;
   fps: number;
 }
 
@@ -233,6 +280,7 @@ const WORKER_FEEL = {
   arrivalSeconds: 0.95,
   levelUpSeconds: 1.15,
   depositPauseSeconds: 0.55,
+  depositUnitSeconds: 0.105,
 } as const;
 
 const PALETTE = {
@@ -277,7 +325,7 @@ export class IlotaGame {
   readonly input: InputController;
   readonly diagnostics: Diagnostics;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 180);
+  private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 240);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly sun = new THREE.DirectionalLight(0xffe7b1, 3.4);
   private readonly player = new THREE.Group();
@@ -292,9 +340,11 @@ export class IlotaGame {
   private readonly workers: WorkerEntity[] = [];
   private readonly bridges: BridgeEntity[] = [];
   private readonly structures = new Map<StructureKind, StructureEntity>();
+  private readonly warehouses: WarehouseEntity[] = [];
   private readonly projects: ProjectEntity[] = [];
   private readonly caches: CacheEntity[] = [];
   private readonly particles: Particle[] = [];
+  private readonly cargoDrops: CargoDrop[] = [];
   private readonly emergenceRipples: EmergenceRipple[] = [];
   private readonly heart = new THREE.Group();
   private readonly heartLight = new THREE.PointLight(PALETTE.gold, 0, 15, 2);
@@ -315,6 +365,15 @@ export class IlotaGame {
   private lastFrameTime = performance.now();
   private fpsAverage = 60;
   private victoryShown = false;
+  private readonly playerCargoRack = new THREE.Group();
+  private playerDeposit: { warehouse: WarehouseEntity; timer: number } | null = null;
+  private tideResetAnimation: TideResetAnimation | null = null;
+  private industrySurgeCooldown = 2.5;
+  private industrySurgeRemaining = 0;
+  private industrySurgeKind: ResourceKind = 'wood';
+  private industryVfxCooldown = 0;
+  private explorationFlowCooldown = 4;
+  private explorationFlowRemaining = 0;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -349,7 +408,7 @@ export class IlotaGame {
     this.diagnostics = {
       ready: true,
       active: false,
-      assetsLoaded: 10,
+      assetsLoaded: assets.loadedCount,
       wood: progress.wood,
       stone: progress.stone,
       copper: progress.copper,
@@ -360,6 +419,7 @@ export class IlotaGame {
       workerTasks: progress.workers.map((worker) => worker.task).join(','),
       bridgeBuilt: progress.bridgesBuilt[0],
       bridges: progress.bridgesBuilt.filter(Boolean).length,
+      bridgeGuides: 0,
       chapter: getChapter(progress),
       cacheFound: progress.cachesFound.includes('main-cache'),
       completed: progress.completed,
@@ -372,6 +432,8 @@ export class IlotaGame {
       skills: progress.skills.join(','),
       autoRegulation: progress.autoRegulation,
       projects: getCompletedProjectCount(progress),
+      warehouses: progress.warehousesBuilt.filter(Boolean).length,
+      playerCargo: getPlayerCargoTotal(progress),
       currentIsland: 0,
       assemblingBuildings: 0,
       visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
@@ -383,6 +445,10 @@ export class IlotaGame {
       facingAlignment: 1,
       lastHarvest: null,
       lastWorkerHarvest: null,
+      industrySurge: false,
+      industrySurgeKind: '',
+      explorationFlow: false,
+      rebirthAnimation: false,
       fps: 60,
     };
     this.ui.update(progress);
@@ -400,6 +466,12 @@ export class IlotaGame {
     this.active = true;
     this.input.enabled = !this.managementOpen;
     this.victoryShown = false;
+    this.maybeShowTutorial(
+      'welcome',
+      'Bienvenue dans Ilota',
+      'Commence par assembler le Dépôt des Marées. Les ressources portées sur ton dos ne rejoignent le stock qu’après leur déchargement.',
+      '▣',
+    );
   }
 
   continueAfterVictory(): void {
@@ -414,22 +486,25 @@ export class IlotaGame {
   }
 
   beginNewTide(): void {
-    const reward = this.economy.rebirth();
-    if (!reward) return;
-    this.save();
-    window.location.reload();
+    if (!this.economy.progress.completed || this.tideResetAnimation) return;
+    this.ui.hideVictory();
+    this.ui.hideMenu();
+    this.managementOpen = false;
+    this.active = false;
+    this.input.release();
+    this.input.enabled = false;
+    this.tideResetAnimation = {
+      elapsed: 0,
+      reward: getRebirthReward(this.economy.progress),
+      rebirthApplied: false,
+      playerEmerged: false,
+      cameraStart: this.camera.position.clone(),
+    };
+    this.ui.showTideTransition(this.economy.progress.rebirths + 2, getRebirthReward(this.economy.progress));
   }
 
   private bindManagement(): void {
-    const onOpenChange = (open: boolean): void => {
-      this.managementOpen = open;
-      this.input.release();
-      this.input.enabled = this.active && !open;
-      if (open) {
-        this.interaction = null;
-        this.ui.clearContext();
-      }
-    };
+    const onOpenChange = (open: boolean): void => this.setManagementOpen(open);
     this.ui.bindCrewHandlers({
       onOpenChange,
       onRecruit: () => this.recruitWorker(),
@@ -440,6 +515,8 @@ export class IlotaGame {
       onOpenChange,
       onUnlock: (skill) => this.unlockSkill(skill),
       onAutoToggle: (enabled) => this.toggleAutoRegulation(enabled),
+      onIndustryToggle: (enabled) => this.toggleIndustrySurge(enabled),
+      onExplorationToggle: (enabled) => this.toggleExplorationFlow(enabled),
     });
     this.ui.bindProjectHandlers({
       onOpenChange,
@@ -450,6 +527,38 @@ export class IlotaGame {
       onNewTide: () => this.beginNewTide(),
       onReset: () => this.resetProgress(),
     });
+  }
+
+  private setManagementOpen(open: boolean): void {
+    this.managementOpen = open;
+    this.input.release();
+    this.input.enabled = this.active && !open;
+    if (open) {
+      this.interaction = null;
+      this.ui.clearContext();
+    }
+    if (
+      !open
+      && this.active
+      && this.economy.progress.campBuilt
+      && this.economy.progress.workers.length >= 2
+      && !this.economy.progress.bridgesBuilt[0]
+      && !this.economy.progress.tutorialSeen.includes('island-goals')
+    ) {
+      window.setTimeout(() => this.maybeShowTutorial(
+        'island-goals',
+        'Ton objectif d’île',
+        'Le panneau à droite résume les conditions du prochain pont. Chaque ligne devient verte une fois validée ; quand tout est prêt, des flèches dorées apparaissent jusqu’au chantier.',
+        '⚑',
+      ), 0);
+    }
+  }
+
+  private maybeShowTutorial(id: string, title: string, detail: string, icon: string): void {
+    if (!this.economy.markTutorial(id)) return;
+    this.save();
+    this.setManagementOpen(true);
+    this.ui.showTutorial(title, detail, icon, () => this.setManagementOpen(false));
   }
 
   private unlockSkill(skill: SkillId): void {
@@ -485,6 +594,26 @@ export class IlotaGame {
     if (!this.economy.setAutoRegulation(enabled)) return;
     this.autoRegulationCooldown = 0.4;
     this.ui.toast(enabled ? 'Auto-régulation active · l’équipe surveille les pénuries.' : 'Auto-régulation désactivée.');
+    this.changed();
+  }
+
+  private toggleIndustrySurge(enabled: boolean): void {
+    if (!this.economy.setIndustrySurge(enabled)) return;
+    this.industrySurgeCooldown = enabled ? 0.35 : 2.5;
+    if (!enabled) this.industrySurgeRemaining = 0;
+    this.ui.toast(enabled
+      ? 'Surcharge tellurique armée · elle réagira à la prochaine pénurie.'
+      : 'Surcharge tellurique désactivée.');
+    this.changed();
+  }
+
+  private toggleExplorationFlow(enabled: boolean): void {
+    if (!this.economy.setExplorationFlow(enabled)) return;
+    this.explorationFlowCooldown = enabled ? 0.35 : 4;
+    if (!enabled) this.explorationFlowRemaining = 0;
+    this.ui.toast(enabled
+      ? 'Courant de Marée armé · les cargaisons appelleront le prochain élan.'
+      : 'Courant de Marée désactivé.');
     this.changed();
   }
 
@@ -575,7 +704,7 @@ export class IlotaGame {
 
   private setupScene(): void {
     this.scene.background = new THREE.Color(0x8cc7c6);
-    this.scene.fog = new THREE.Fog(0x8cc7c6, 34, 86);
+    this.scene.fog = new THREE.Fog(0x8cc7c6, 42, 128);
     this.scene.add(new THREE.HemisphereLight(0xd9f3f1, 0x725f42, 2.25));
 
     this.sun.position.set(-15, 23, 15);
@@ -595,6 +724,7 @@ export class IlotaGame {
     this.createWater();
     ISLANDS.forEach((island, index) => this.createIsland(island, index));
     BRIDGES.forEach((bridge, index) => this.createBridge(bridge, index));
+    WAREHOUSES.forEach((definition) => this.createWarehouse(definition));
     STRUCTURES.forEach((definition) => this.createStructure(definition));
     PROJECT_SITES.forEach((definition) => this.createProjectSite(definition));
     this.createHeart();
@@ -605,11 +735,11 @@ export class IlotaGame {
 
   private createWater(): void {
     const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(230, 230),
+      new THREE.PlaneGeometry(280, 280),
       new THREE.MeshStandardMaterial({ color: PALETTE.sea, roughness: 0.34, metalness: 0.08 }),
     );
     water.rotation.x = -Math.PI / 2;
-    water.position.set(0, -2.08, -32);
+    water.position.set(0, -2.08, -46);
     water.receiveShadow = true;
     water.name = 'mer';
     this.scene.add(water);
@@ -717,7 +847,66 @@ export class IlotaGame {
     pad.add(this.createBuildPad(1.15, index === 2 ? PALETTE.copper : index === 3 ? PALETTE.crystal : 0x69a6a1));
     pad.visible = false;
     this.addToIsland(pad, padPosition.x, padPosition.z);
-    this.bridges.push({ index, definition, root, pad, start, end });
+    const guide = new THREE.Group();
+    const guideStart = vec(from.x, from.z).addScaledVector(direction, 2.6);
+    const guideEnd = padPosition.clone().addScaledVector(direction, -0.9);
+    const guideVector = guideEnd.clone().sub(guideStart);
+    for (let arrowIndex = 0; arrowIndex < 5; arrowIndex += 1) {
+      const arrow = new THREE.Mesh(
+        new THREE.ConeGeometry(0.28, 0.72, 3),
+        new THREE.MeshStandardMaterial({
+          color: 0xffd56f,
+          emissive: 0x9a5f16,
+          emissiveIntensity: 1.25,
+          roughness: 0.42,
+        }),
+      );
+      arrow.position.lerpVectors(guideStart, guideEnd, (arrowIndex + 1) / 6).setY(0.48);
+      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), guideVector.clone().normalize());
+      arrow.userData.bridgeGuide = true;
+      arrow.userData.guidePhase = arrowIndex * 0.7;
+      arrow.castShadow = true;
+      guide.add(arrow);
+    }
+    guide.visible = false;
+    this.addToIsland(guide, from.x, from.z);
+    this.bridges.push({ index, definition, root, pad, guide, start, end });
+  }
+
+  private createWarehouse(definition: WarehouseDefinition): void {
+    const pad = new THREE.Group();
+    pad.position.set(definition.x, 0.05, definition.z);
+    pad.add(this.createBuildPad(definition.radius, 0xd4a65f));
+    this.addToIsland(pad, definition.x, definition.z);
+
+    const building = new THREE.Group();
+    building.position.set(definition.x, 0, definition.z);
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.7, 1.82, 0.28, 12),
+      new THREE.MeshStandardMaterial({ color: 0x8f6944, roughness: 0.92, flatShading: true }),
+    );
+    platform.position.y = 0.14;
+    platform.receiveShadow = true;
+    building.add(platform);
+    const model = this.assets.createBuilding('storage', 3.15);
+    model.position.y = 0.28;
+    model.rotation.y = definition.rotation;
+    model.name = 'modèle:dépôt';
+    building.add(model);
+    const chute = new THREE.Mesh(
+      new THREE.BoxGeometry(1.05, 0.2, 0.72),
+      new THREE.MeshStandardMaterial({ color: 0x64442d, roughness: 0.88 }),
+    );
+    chute.position.set(0, 0.48, 1.25);
+    chute.rotation.x = -0.16;
+    building.add(chute);
+    building.visible = false;
+    this.addToIsland(building, definition.x, definition.z);
+
+    const status = this.createWorldLabel('DÉPÔT · KIT DE DÉPART', 0xd4a65f, 4.4);
+    status.position.set(definition.x, 4.15, definition.z);
+    this.addToIsland(status, definition.x, definition.z);
+    this.warehouses.push({ definition, pad, building, status });
   }
 
   private createStructure(definition: StructureDefinition): void {
@@ -739,7 +928,7 @@ export class IlotaGame {
             : 'ARBRE DES SAVOIRS',
       definition.color,
     );
-    status.position.set(0, definition.kind === 'observatory' ? 6.55 : definition.kind === 'camp' ? 3.65 : 4.75, 0);
+    status.position.set(0, definition.kind === 'observatory' ? 7.15 : definition.kind === 'camp' ? 5.15 : 5.35, 0);
     building.add(status);
     this.addToIsland(building, definition.x, definition.z);
     this.structures.set(definition.kind, { definition, pad, building, status });
@@ -755,8 +944,18 @@ export class IlotaGame {
 
     const building = new THREE.Group();
     building.position.set(definition.x, 0, definition.z);
-    const model = this.createStructureBuilding(definition.model);
-    model.scale.setScalar(definition.id === 'unity_lighthouse' ? 0.7 : 0.56);
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.08, 1.18, 0.2, 10),
+      new THREE.MeshStandardMaterial({ color: 0x806548, roughness: 0.94, flatShading: true }),
+    );
+    platform.position.y = 0.1;
+    platform.receiveShadow = true;
+    building.add(platform);
+    const model = this.assets.createBuilding(
+      definition.model,
+      definition.id === 'unity_lighthouse' ? 2.95 : definition.id === 'communal_sawmill' ? 2.4 : 2.15,
+    );
+    model.position.y = 0.2;
     model.rotation.y = definition.rotation;
     building.add(model);
     const emblem = new THREE.Mesh(
@@ -768,7 +967,7 @@ export class IlotaGame {
         roughness: 0.32,
       }),
     );
-    emblem.position.y = 2.55;
+    emblem.position.y = definition.id === 'unity_lighthouse' ? 3.28 : 2.55;
     emblem.userData.structureGlow = true;
     building.add(emblem);
     building.visible = false;
@@ -787,20 +986,20 @@ export class IlotaGame {
 
   private createWorldLabel(text: string, accent: number, width = 4.8): THREE.Sprite {
     const canvas = document.createElement('canvas');
-    canvas.width = 768;
-    canvas.height = 160;
+    canvas.width = 896;
+    canvas.height = 210;
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      depthTest: true,
+      depthTest: false,
       depthWrite: false,
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(width, width / 4.8, 1);
-    sprite.renderOrder = 12;
+    sprite.scale.set(width, width / 4.25, 1);
+    sprite.renderOrder = 40;
     sprite.userData.labelCanvas = canvas;
     sprite.userData.labelAccent = accent;
     this.setWorldLabel(sprite, text, accent);
@@ -821,16 +1020,41 @@ export class IlotaGame {
     context.strokeStyle = `#${accent.toString(16).padStart(6, '0')}`;
     context.lineWidth = 9;
     context.stroke();
-    let fontSize = 47;
+    const words = text.split(/\s+/);
+    let lines = [text];
+    context.font = '900 46px system-ui, sans-serif';
+    if (context.measureText(text).width > canvas.width - 76 && words.length > 2) {
+      let bestSplit = 1;
+      let bestDifference = Infinity;
+      for (let index = 1; index < words.length; index += 1) {
+        const left = words.slice(0, index).join(' ');
+        const right = words.slice(index).join(' ');
+        const difference = Math.abs(context.measureText(left).width - context.measureText(right).width);
+        if (difference < bestDifference) {
+          bestDifference = difference;
+          bestSplit = index;
+        }
+      }
+      lines = [words.slice(0, bestSplit).join(' '), words.slice(bestSplit).join(' ')];
+    }
+    let fontSize = lines.length > 1 ? 40 : 47;
     context.font = `900 ${fontSize}px system-ui, sans-serif`;
-    while (fontSize > 27 && context.measureText(text).width > canvas.width - 70) {
+    while (fontSize > 28 && lines.some((line) => context.measureText(line).width > canvas.width - 76)) {
       fontSize -= 2;
       context.font = `900 ${fontSize}px system-ui, sans-serif`;
     }
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = '#fff7db';
-    context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+    if (lines.length === 1) {
+      context.fillText(lines[0]!, canvas.width / 2, canvas.height / 2 + 2);
+      sprite.scale.y = sprite.scale.x / 4.25;
+    } else {
+      const lineGap = fontSize * 1.08;
+      context.fillText(lines[0]!, canvas.width / 2, canvas.height / 2 - lineGap * 0.45);
+      context.fillText(lines[1]!, canvas.width / 2, canvas.height / 2 + lineGap * 0.55);
+      sprite.scale.y = sprite.scale.x / 3.45;
+    }
     sprite.userData.labelText = text;
     sprite.userData.labelAccent = accent;
     material.map.needsUpdate = true;
@@ -899,7 +1123,7 @@ export class IlotaGame {
     const group = new THREE.Group();
     const platformColor = kind === 'camp' ? 0xb7874f : kind === 'workshop' ? 0x9b7447 : kind === 'foundry' ? 0x765d54 : 0x74758e;
     const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(kind === 'camp' ? 1.8 : 2.05, kind === 'camp' ? 1.95 : 2.2, 0.3, 12),
+      new THREE.CylinderGeometry(kind === 'camp' ? 2.25 : 2.28, kind === 'camp' ? 2.4 : 2.44, 0.34, 12),
       new THREE.MeshStandardMaterial({ color: platformColor, roughness: 0.9, flatShading: true }),
     );
     platform.position.y = 0.15;
@@ -907,10 +1131,10 @@ export class IlotaGame {
     group.add(platform);
 
     const targetHeight: Record<StructureKind, number> = {
-      camp: 2.6,
-      workshop: 3.6,
-      foundry: 3.7,
-      observatory: 4.8,
+      camp: 4.25,
+      workshop: 4.15,
+      foundry: 4.3,
+      observatory: 5.35,
     };
     const model = this.assets.createBuilding(kind, targetHeight[kind]);
     model.position.y = 0.3;
@@ -939,15 +1163,15 @@ export class IlotaGame {
         new THREE.OctahedronGeometry(0.46),
         new THREE.MeshStandardMaterial({ color: PALETTE.crystal, emissive: 0x59558b, emissiveIntensity: 1.5, roughness: 0.25 }),
       );
-      lens.position.set(0, 5.72, 0);
+      lens.position.set(0, 6.25, 0);
       lens.userData.observatoryLens = true;
-      lens.userData.baseY = 5.72;
+      lens.userData.baseY = 6.25;
       group.add(lens);
       const orbit = new THREE.Mesh(
         new THREE.TorusGeometry(0.7, 0.075, 7, 28),
         new THREE.MeshStandardMaterial({ color: 0xf0c56d, metalness: 0.42, roughness: 0.38 }),
       );
-      orbit.position.y = 5.72;
+      orbit.position.y = 6.25;
       orbit.rotation.x = Math.PI / 2;
       orbit.userData.observatoryOrbit = true;
       group.add(orbit);
@@ -1112,7 +1336,11 @@ export class IlotaGame {
         new THREE.MeshStandardMaterial({ color: PALETTE.woodDark, roughness: 1 }),
       );
       const angle = (index / 11) * Math.PI * 2;
-      post.position.set(first.x + Math.cos(angle) * 10.2, 0.38, first.z + Math.sin(angle) * 10.2);
+      post.position.set(
+        first.x + Math.cos(angle) * (first.radius - 0.65),
+        0.38,
+        first.z + Math.sin(angle) * (first.radius - 0.65),
+      );
       post.rotation.z = Math.cos(angle) * 0.08;
       post.castShadow = true;
       this.addToIsland(post, post.position.x, post.position.z);
@@ -1123,6 +1351,9 @@ export class IlotaGame {
     const { root, clips } = this.assets.createFox(1.35);
     this.playerModel = root;
     this.player.add(root);
+    this.playerCargoRack.position.set(0, 0.78, -0.18);
+    this.playerCargoRack.name = 'cargaison:joueur';
+    this.player.add(this.playerCargoRack);
     this.player.position.set(0, 0, 4.25);
     this.scene.add(this.player);
     const mixer = new THREE.AnimationMixer(root);
@@ -1138,6 +1369,7 @@ export class IlotaGame {
       this.playerActions.set(name, action);
     });
     this.playPlayerAction('idle', 0);
+    this.syncPlayerCargoVisuals();
     return mixer;
   }
 
@@ -1155,12 +1387,33 @@ export class IlotaGame {
       entity.root.position.y = accessible ? 0 : HIDDEN_ISLAND_Y;
       entity.root.visible = true;
     });
+    this.warehouses.forEach((entity) => {
+      const { islandIndex } = entity.definition;
+      const built = Boolean(progress.warehousesBuilt[islandIndex]);
+      const accessible = islandIndex === 0 || Boolean(progress.bridgesBuilt[islandIndex - 1]);
+      const unlocked = isWarehouseUnlocked(progress, islandIndex);
+      entity.building.visible = built;
+      entity.pad.visible = accessible && !built;
+      entity.status.visible = accessible;
+      this.setWorldLabel(
+        entity.status,
+        built
+          ? `✓ ${entity.definition.name.toUpperCase()} · ACTIF`
+          : unlocked
+            ? `${entity.definition.name.toUpperCase()} · À ASSEMBLER`
+            : `${entity.definition.name.toUpperCase()} · MARÉE ${islandIndex + 1} REQUISE`,
+        unlocked ? 0xd4a65f : 0x80918b,
+      );
+    });
     this.structures.forEach((entity, kind) => {
       const built = structureBuilt(progress, kind);
       const accessible = kind === 'camp'
-        || (kind === 'workshop' && progress.bridgesBuilt[0])
-        || (kind === 'foundry' && progress.bridgesBuilt[1])
-        || (kind === 'observatory' && progress.bridgesBuilt[2]);
+        ? progress.warehousesBuilt[0]
+        : kind === 'workshop'
+          ? progress.bridgesBuilt[0]
+          : kind === 'foundry'
+            ? progress.bridgesBuilt[1]
+            : progress.bridgesBuilt[2];
       entity.building.visible = built;
       entity.pad.visible = accessible && !built;
       if (kind === 'camp') {
@@ -1195,6 +1448,7 @@ export class IlotaGame {
             : progress.observatoryBuilt;
       entity.root.visible = Boolean(built);
       entity.pad.visible = accessible && !built;
+      entity.guide.visible = entity.pad.visible && getIslandGoal(progress, entity.definition.fromIsland).completed;
     });
     this.caches.forEach((entity) => {
       entity.root.visible = !progress.cachesFound.includes(entity.definition.id);
@@ -1297,10 +1551,23 @@ export class IlotaGame {
     marker.position.y = 0.72;
     marker.rotation.x = Math.PI / 2;
     root.add(marker);
+    const cargoRack = new THREE.Group();
+    cargoRack.position.set(0, 0.63, -0.12);
+    cargoRack.name = `cargaison:${state.id}`;
+    root.add(cargoRack);
     this.scene.add(root);
     const mixer = new THREE.AnimationMixer(model);
-    const walk = findAnimation(clips, /walk|gallop/i) ?? clips[0];
-    if (walk) mixer.clipAction(walk).play();
+    const actions = new Map<string, THREE.AnimationAction>();
+    const idle = findAnimation(clips, /^Idle$/i) ?? findAnimation(clips, /idle/i) ?? clips[0];
+    const walk = findAnimation(clips, /walk|gallop/i) ?? idle;
+    const act = findAnimation(clips, /attack|eating/i) ?? idle;
+    ([['idle', idle], ['walk', walk], ['act', act]] as const).forEach(([name, clip]) => {
+      if (!clip) return;
+      const action = mixer.clipAction(clip);
+      action.enabled = true;
+      actions.set(name, action);
+    });
+    actions.get('idle')?.play();
     const index = this.workers.length;
     const lateral = ((index % 3) - 1) * 0.55;
     root.position.set(lateral, 0, 1 + (index % 2) * 0.45);
@@ -1309,6 +1576,9 @@ export class IlotaGame {
       root,
       marker,
       mixer,
+      actions,
+      currentAction: 'idle',
+      cargoRack,
       task: state.task,
       level: state.level,
       phase: 'depositing',
@@ -1321,11 +1591,13 @@ export class IlotaGame {
       target: null,
       hub: vec(0, 1),
       cargo: 0,
+      cargoKind: state.task,
       routeChoices: 0,
       arrivalTimer: withArrival ? WORKER_FEEL.arrivalSeconds : 0,
       levelUpTimer: 0,
     };
     this.workers.push(entity);
+    this.syncWorkerCargoVisuals(entity);
     this.syncWorker(entity, state, true);
   }
 
@@ -1333,26 +1605,53 @@ export class IlotaGame {
     const changedTask = entity.task !== state.task;
     entity.task = state.task;
     entity.level = state.level;
-    if (changedTask) entity.cargo = 0;
+    if (changedTask && entity.cargo <= 0) entity.cargoKind = state.task;
     entity.marker.material.color.setHex(RESOURCE_COLORS[state.task]);
     entity.marker.scale.setScalar(0.9 + state.level * 0.12);
     entity.root.scale.setScalar(entity.arrivalTimer > 0 ? 0.04 : 0.9 + state.level * 0.055);
-    if (reroute) this.planWorkerCycle(entity, state);
+    if (reroute) {
+      if (entity.cargo > 0) this.routeWorkerToWarehouse(entity);
+      else this.planWorkerCycle(entity, state);
+    }
   }
 
-  private builtWorkerHubs(): THREE.Vector3[] {
-    return STRUCTURES
-      .filter((definition) => structureBuilt(this.economy.progress, definition.kind))
-      .map((definition) => vec(definition.x, definition.z + 0.9));
+  private playWorkerAction(entity: WorkerEntity, name: 'idle' | 'walk' | 'act', fade = 0.12): void {
+    if (entity.currentAction === name) return;
+    const next = entity.actions.get(name) ?? entity.actions.get('idle');
+    if (!next) return;
+    entity.actions.get(entity.currentAction)?.fadeOut(fade);
+    next.reset().fadeIn(fade).play();
+    entity.currentAction = name;
   }
 
-  private defaultWorkerHub(task: ResourceKind): THREE.Vector3 {
-    const preferred = task === 'copper'
-      ? STRUCTURES.find((item) => item.kind === 'foundry')
-      : task === 'crystal'
-        ? STRUCTURES.find((item) => item.kind === 'observatory')
-        : STRUCTURES.find((item) => item.kind === 'camp');
-    return vec(preferred?.x ?? 0, (preferred?.z ?? 0) + 0.9);
+  private builtWarehouseHubs(): Array<{ entity: WarehouseEntity; point: THREE.Vector3 }> {
+    return this.warehouses
+      .filter((entity) => this.economy.progress.warehousesBuilt[entity.definition.islandIndex])
+      .map((entity) => ({
+        entity,
+        point: vec(entity.definition.x, entity.definition.z + 1.15),
+      }));
+  }
+
+  private nearestWarehouseRoute(start: THREE.Vector3): { point: THREE.Vector3; route: PlannedRoute } | null {
+    return this.builtWarehouseHubs()
+      .map(({ point }) => ({ point, route: this.planFrom(start, point) }))
+      .filter((candidate): candidate is { point: THREE.Vector3; route: PlannedRoute } => Boolean(candidate.route))
+      .sort((a, b) => a.route.distance - b.route.distance)[0] ?? null;
+  }
+
+  private routeWorkerToWarehouse(entity: WorkerEntity): boolean {
+    const destination = this.nearestWarehouseRoute(entity.root.position);
+    if (!destination) {
+      entity.route = [];
+      entity.phase = 'depositing';
+      entity.phaseTimer = 0.5;
+      this.playWorkerAction(entity, 'idle');
+      return false;
+    }
+    entity.hub.copy(destination.point);
+    this.applyWorkerRoute(entity, destination.route, 'toHub');
+    return true;
   }
 
   private planFrom(start: THREE.Vector3, target: THREE.Vector3): PlannedRoute | null {
@@ -1373,53 +1672,63 @@ export class IlotaGame {
     entity.phaseTimer = 0;
   }
 
+  private reservedAmount(node: ResourceNode, excludingWorkerId: string): number {
+    if (!hasSkill(this.economy.progress, 'archipelago_consciousness')) return 0;
+    return this.workers.reduce((total, worker) => {
+      if (
+        worker.id === excludingWorkerId
+        || worker.target !== node
+        || (worker.phase !== 'toResource' && worker.phase !== 'gathering')
+      ) return total;
+      const state = this.economy.progress.workers.find((candidate) => candidate.id === worker.id);
+      return total + (state ? getWorkerYield(state.level, this.economy.progress) : 0);
+    }, 0);
+  }
+
   private planWorkerCycle(entity: WorkerEntity, state: WorkerState): void {
     const start = entity.root.position;
     const matchingResources = this.resources.filter((node) =>
-      node.kind === state.task && node.amount > 0 && node.root.visible);
+      node.kind === state.task
+      && node.amount - this.reservedAmount(node, entity.id) > 0
+      && node.root.visible);
     const reachable = matchingResources
-      .map((node) => ({ node, outbound: this.planFrom(start, node.root.position) }))
-      .filter((candidate): candidate is { node: ResourceNode; outbound: PlannedRoute } => Boolean(candidate.outbound));
+      .map((node) => {
+        const outbound = this.planFrom(start, node.root.position);
+        const warehouse = this.nearestWarehouseRoute(node.root.position);
+        return {
+          node,
+          outbound,
+          returning: warehouse?.route ?? null,
+          hub: warehouse?.point ?? null,
+        };
+      })
+      .filter((candidate): candidate is {
+        node: ResourceNode;
+        outbound: PlannedRoute;
+        returning: PlannedRoute;
+        hub: THREE.Vector3;
+      } => Boolean(candidate.outbound && candidate.returning && candidate.hub));
     if (!reachable.length) {
       entity.route = [];
       entity.routeBridgeIndices = [];
       entity.target = null;
       entity.phase = 'depositing';
-      entity.phaseTimer = 1;
+      entity.phaseTimer = 0.28;
+      this.playWorkerAction(entity, 'idle');
       return;
     }
 
     entity.routeChoices += 1;
     const uninformedIndex = chooseUninformedResourceIndex(entity.id, entity.routeChoices, reachable.length);
     let selected = reachable[Math.max(0, uninformedIndex)] ?? reachable[0]!;
-    let selectedHub = this.defaultWorkerHub(state.task);
 
     if (hasSkill(this.economy.progress, 'optimal_routes')) {
-      const hubs = this.builtWorkerHubs();
-      const options = reachable.flatMap((candidate) => hubs.map((hub) => ({
-        ...candidate,
-        hub,
-        returning: planRoute(
-          { x: candidate.node.root.position.x, z: candidate.node.root.position.z },
-          { x: hub.x, z: hub.z },
-          this.economy.progress.bridgesBuilt,
-        ),
-      }))).filter((candidate) => Boolean(candidate.returning));
-      const shortest = options.sort((a, b) =>
-        a.outbound.distance + (a.returning?.distance ?? Infinity) - b.outbound.distance - (b.returning?.distance ?? Infinity))[0];
-      if (shortest) {
-        selected = shortest;
-        selectedHub = shortest.hub;
-      }
+      selected = [...reachable].sort((a, b) =>
+        a.outbound.distance + a.returning.distance - b.outbound.distance - b.returning.distance)[0] ?? selected;
     }
 
-    const fallbackReturn = this.planFrom(selected.node.root.position, selectedHub);
-    if (!fallbackReturn) {
-      const safeHub = this.builtWorkerHubs().find((hub) => this.planFrom(selected.node.root.position, hub));
-      if (safeHub) selectedHub = safeHub;
-    }
     entity.target = selected.node;
-    entity.hub.copy(selectedHub);
+    entity.hub.copy(selected.hub);
     this.applyWorkerRoute(entity, selected.outbound, 'toResource');
   }
 
@@ -1431,10 +1740,12 @@ export class IlotaGame {
     this.fpsAverage += ((1 / rawDelta) - this.fpsAverage) * 0.05;
     this.worldTime += rawDelta;
     this.updateAmbient(rawDelta);
+    if (this.tideResetAnimation) this.updateTideResetAnimation(rawDelta);
     if (this.active) this.updateGame(rawDelta);
     this.playerMixer.update(rawDelta);
     this.workers.forEach((worker) => worker.mixer.update(rawDelta));
     this.updateParticles(rawDelta);
+    this.updateCargoDrops(rawDelta);
     this.updateCamera(rawDelta);
     this.updateDiagnostics();
     this.renderer.render(this.scene, this.camera);
@@ -1444,14 +1755,18 @@ export class IlotaGame {
     this.economy.tick(delta);
     this.input.updateKeyboard();
     this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
+    this.updateBridgeGuides();
     if (!this.managementOpen) {
-      this.updatePlayer(delta);
+      if (!this.playerDeposit) this.updatePlayer(delta);
+      else this.playPlayerAction('idle');
       this.interaction = this.findInteraction();
       this.updateInteractionUI(this.interaction);
-      this.handleAction(delta);
+      if (!this.playerDeposit) this.handleAction(delta);
     }
+    this.updateActivePowers(delta);
     this.updateResources(delta);
     this.updateWorkers(delta);
+    this.updatePlayerDeposit(delta);
     this.updateAutoRegulation(delta);
 
     this.saveCooldown -= delta;
@@ -1459,6 +1774,22 @@ export class IlotaGame {
       this.saveCooldown = 4;
       this.save();
     }
+  }
+
+  private updateBridgeGuides(): void {
+    this.bridges.forEach((bridge) => {
+      const shouldGuide = bridge.pad.visible
+        && getIslandGoal(this.economy.progress, bridge.definition.fromIsland).completed;
+      bridge.guide.visible = shouldGuide;
+      if (shouldGuide && bridge.index === 0 && !this.managementOpen) {
+        this.maybeShowTutorial(
+          'bridge-guidance',
+          'Le pont est prêt',
+          'Tous les objectifs sont validés. Suis les flèches dorées apparues dans le monde : elles te conduisent directement au chantier du pont.',
+          '➤',
+        );
+      }
+    });
   }
 
   private updatePlayer(delta: number): void {
@@ -1475,7 +1806,11 @@ export class IlotaGame {
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const direction = right.multiplyScalar(move.x).add(forward.multiplyScalar(move.y)).normalize();
     this.lastMoveDirection.copy(direction);
-    const candidate = this.player.position.clone().addScaledVector(direction, getPlayerSpeed(this.economy.progress) * magnitude * delta);
+    const flowMultiplier = this.explorationFlowRemaining > 0 ? 2 : 1;
+    const candidate = this.player.position.clone().addScaledVector(
+      direction,
+      getPlayerSpeed(this.economy.progress) * flowMultiplier * magnitude * delta,
+    );
     if (this.isWalkable(candidate)) this.player.position.copy(candidate);
     const desiredRotation = Math.atan2(direction.x, direction.z);
     let difference = desiredRotation - this.player.rotation.y;
@@ -1507,7 +1842,8 @@ export class IlotaGame {
   private updateResources(delta: number): void {
     this.resources.forEach((node) => {
       if (node.amount <= 0) {
-        node.respawn -= delta;
+        const surgeMultiplier = this.industrySurgeRemaining > 0 && node.kind === this.industrySurgeKind ? 2 : 1;
+        node.respawn -= delta * surgeMultiplier;
         node.currentScale = THREE.MathUtils.damp(node.currentScale, 0, 10, delta);
         node.root.scale.setScalar(node.currentScale);
         if (node.currentScale < 0.025) node.root.visible = false;
@@ -1581,16 +1917,20 @@ export class IlotaGame {
       if ((entity.phase === 'toResource' || entity.phase === 'gathering')
         && (!entity.target || entity.target.amount <= 0 || entity.target.kind !== state.task)) {
         entity.target = null;
-        entity.cargo = 0;
         this.planWorkerCycle(entity, state);
       }
 
+      const travelSpeed = getWorkerTravelSpeed(state.level, this.economy.progress)
+        * (this.explorationFlowRemaining > 0 && entity.cargo > 0 ? 2 : 1);
       if (entity.phase === 'toResource') {
-        if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
+        this.playWorkerAction(entity, 'walk');
+        if (this.advanceWorker(entity, travelSpeed, delta)) {
           entity.phase = 'gathering';
           entity.phaseTimer = getWorkerGatherSeconds(state.level, this.economy.progress);
+          this.playWorkerAction(entity, 'act', 0.08);
         }
       } else if (entity.phase === 'gathering') {
+        this.playWorkerAction(entity, 'act', 0.08);
         entity.phaseTimer -= delta;
         if (entity.phaseTimer <= 0) {
           const target = entity.target;
@@ -1602,6 +1942,8 @@ export class IlotaGame {
           }
           const requested = getWorkerYield(state.level, this.economy.progress);
           entity.cargo = this.consumeResourceNode(target, requested, entity.id);
+          entity.cargoKind = target.kind;
+          this.syncWorkerCargoVisuals(entity);
           if (entity.cargo <= 0) {
             entity.target = null;
             this.planWorkerCycle(entity, state);
@@ -1613,29 +1955,40 @@ export class IlotaGame {
           if (returning) this.applyWorkerRoute(entity, returning, 'toHub');
           else {
             entity.phase = 'depositing';
-            entity.phaseTimer = 1;
+            entity.phaseTimer = 0.28;
           }
         }
       } else if (entity.phase === 'toHub') {
-        if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
-          if (entity.cargo > 0) {
-            this.economy.add(state.task, entity.cargo);
-            this.economy.recordDelivery();
-          }
-          entity.cargo = 0;
-          this.ui.update(this.economy.progress);
-          this.spawnParticles(entity.hub.clone().setY(0.8), state.task, 4 + state.level * 2);
-          this.save();
+        this.playWorkerAction(entity, 'walk');
+        if (this.advanceWorker(entity, travelSpeed, delta)) {
           entity.phase = 'depositing';
-          entity.phaseTimer = WORKER_FEEL.depositPauseSeconds;
+          entity.phaseTimer = entity.cargo > 0 ? 0.04 : WORKER_FEEL.depositPauseSeconds;
+          this.playWorkerAction(entity, 'idle', 0.08);
         }
       } else {
+        this.playWorkerAction(entity, 'idle');
         entity.phaseTimer -= delta;
-        if (entity.phaseTimer <= 0) {
+        if (entity.cargo > 0 && entity.root.position.distanceToSquared(entity.hub) <= 1.8 * 1.8) {
+          if (entity.phaseTimer <= 0) {
+            const origin = entity.cargoRack.getWorldPosition(new THREE.Vector3()).setY(0.78);
+            const target = entity.hub.clone().setY(0.42);
+            entity.cargo -= 1;
+            this.spawnCargoDrop(origin, target, entity.cargoKind, () => {
+              this.economy.add(entity.cargoKind, 1);
+              this.ui.update(this.economy.progress);
+              this.save();
+            });
+            this.syncWorkerCargoVisuals(entity);
+            if (entity.cargo <= 0) {
+              this.economy.recordDelivery();
+              this.spawnParticles(target.clone().setY(0.7), entity.cargoKind, 4 + state.level * 2);
+              this.save();
+              entity.phaseTimer = WORKER_FEEL.depositPauseSeconds;
+            } else entity.phaseTimer = WORKER_FEEL.depositUnitSeconds;
+          }
+        } else if (entity.phaseTimer <= 0) {
           if (entity.cargo > 0) {
-            const returning = this.planFrom(entity.root.position, entity.hub);
-            if (returning) this.applyWorkerRoute(entity, returning, 'toHub');
-            else entity.phaseTimer = 1;
+            if (!this.routeWorkerToWarehouse(entity)) entity.phaseTimer = 0.28;
           } else this.planWorkerCycle(entity, state);
         }
       }
@@ -1643,6 +1996,57 @@ export class IlotaGame {
         ? Math.sin(this.worldTime * 11 + entity.root.id) * 0.06
         : THREE.MathUtils.damp(entity.root.rotation.z, 0, 9, delta);
     });
+  }
+
+  private updateActivePowers(delta: number): void {
+    const progress = this.economy.progress;
+
+    if (!progress.industrySurge || !hasSkill(progress, 'endless_engine')) {
+      this.industrySurgeRemaining = 0;
+      this.industrySurgeCooldown = 2.5;
+    } else if (this.industrySurgeRemaining > 0) {
+      this.industrySurgeRemaining = Math.max(0, this.industrySurgeRemaining - delta);
+      if (this.industrySurgeRemaining <= 0) this.industrySurgeCooldown = 16;
+    } else {
+      this.industrySurgeCooldown -= delta;
+      if (this.industrySurgeCooldown <= 0) {
+        this.industrySurgeKind = getPriorityShortage(progress);
+        this.industrySurgeRemaining = 10;
+        this.ui.toast(`Surcharge tellurique · la repousse de ${RESOURCE_LABELS[this.industrySurgeKind]} est doublée !`);
+      }
+    }
+
+    if (!progress.explorationFlow || !hasSkill(progress, 'ocean_legacy')) {
+      this.explorationFlowRemaining = 0;
+      this.explorationFlowCooldown = 4;
+    } else if (this.explorationFlowRemaining > 0) {
+      this.explorationFlowRemaining = Math.max(0, this.explorationFlowRemaining - delta);
+      if (this.explorationFlowRemaining <= 0) this.explorationFlowCooldown = 18;
+    } else {
+      const transportActive = getPlayerCargoTotal(progress) > 0
+        || this.workers.some((worker) => worker.cargo > 0 || worker.phase === 'toHub');
+      if (transportActive) this.explorationFlowCooldown -= delta;
+      if (transportActive && this.explorationFlowCooldown <= 0) {
+        this.explorationFlowRemaining = 10;
+        this.ui.toast('Courant de Marée · les cargaisons filent deux fois plus vite !');
+      }
+    }
+
+    this.industryVfxCooldown -= delta;
+    if (this.industrySurgeRemaining > 0 && this.industryVfxCooldown <= 0) {
+      this.industryVfxCooldown = 0.28;
+      const candidates = this.resources.filter((node) => node.kind === this.industrySurgeKind && node.root.visible);
+      const node = candidates[Math.floor(this.worldTime * 3) % Math.max(1, candidates.length)];
+      if (node) this.spawnParticles(node.root.position.clone().setY(1.15), this.industrySurgeKind, 3);
+    }
+
+    this.ui.setPowerEffects(
+      this.industrySurgeRemaining > 0,
+      this.industrySurgeKind,
+      this.industrySurgeRemaining,
+      this.explorationFlowRemaining > 0,
+      this.explorationFlowRemaining,
+    );
   }
 
   private updateAutoRegulation(delta: number): void {
@@ -1667,6 +2071,11 @@ export class IlotaGame {
   private findInteraction(): Interaction | null {
     const position = this.player.position;
     const near = (target: THREE.Vector3, distance: number): boolean => position.distanceToSquared(target) <= distance * distance;
+    for (const entity of this.warehouses) {
+      const built = Boolean(this.economy.progress.warehousesBuilt[entity.definition.islandIndex]);
+      const target = built ? entity.building : entity.pad;
+      if (target.visible && near(target.position, entity.definition.radius + 1.15)) return { type: 'warehouse', entity };
+    }
     for (const [kind, entity] of this.structures) {
       const built = structureBuilt(this.economy.progress, kind);
       const target = built ? entity.building : entity.pad;
@@ -1674,6 +2083,7 @@ export class IlotaGame {
     }
     for (const entity of this.projects) {
       const built = hasProject(this.economy.progress, entity.definition.id);
+      if (built) continue;
       const target = built ? entity.building : entity.pad;
       if (target.visible && near(target.position, entity.definition.radius + 1.05)) return { type: 'project', entity };
     }
@@ -1705,7 +2115,51 @@ export class IlotaGame {
     }
     if (interaction.type === 'resource') {
       const label = interaction.node.kind === 'wood' ? 'Arbre' : interaction.node.kind === 'stone' ? 'Rocher' : interaction.node.kind === 'copper' ? 'Filon de cuivre' : 'Cristal ancien';
-      this.ui.setContext(`${label} · ${interaction.node.amount}/${interaction.node.capacity}`, 'RÉCOLTER', RESOURCE_ICONS[interaction.node.kind]);
+      const carried = getPlayerCargoTotal(this.economy.progress);
+      this.ui.setContext(
+        `${label} · ${interaction.node.amount}/${interaction.node.capacity}`,
+        carried >= PLAYER_CARGO_CAPACITY ? 'DOS PLEIN' : 'RÉCOLTER',
+        RESOURCE_ICONS[interaction.node.kind],
+        carried < PLAYER_CARGO_CAPACITY,
+        `Cargaison ${carried}/${PLAYER_CARGO_CAPACITY} · décharge-la dans un dépôt.`,
+      );
+      return;
+    }
+    if (interaction.type === 'warehouse') {
+      const { islandIndex, name } = interaction.entity.definition;
+      const built = Boolean(this.economy.progress.warehousesBuilt[islandIndex]);
+      if (built) {
+        const carried = getPlayerCargoTotal(this.economy.progress);
+        this.ui.setContext(
+          `${name} · stock logistique`,
+          carried > 0 ? 'DÉCHARGER' : 'DÉPÔT VIDE',
+          '▣',
+          carried > 0,
+          carried > 0
+            ? carried === 1
+              ? '1 unité tombera dans le dépôt avant d’entrer dans le stock.'
+              : `${carried} unités tomberont une par une dans le dépôt.`
+            : 'Les travailleurs choisissent le dépôt construit le plus proche.',
+        );
+      } else if (!isWarehouseUnlocked(this.economy.progress, islandIndex)) {
+        this.ui.setContext(
+          `${name} · verrouillé`,
+          `MARÉE ${islandIndex + 1}`,
+          '≈',
+          false,
+          `${islandIndex} Nouvelle${islandIndex > 1 ? 's' : ''} Marée${islandIndex > 1 ? 's' : ''} requise${islandIndex > 1 ? 's' : ''}.`,
+        );
+      } else {
+        const warehouseCost = getWarehouseCost(this.economy.progress, islandIndex);
+        if (!warehouseCost) return;
+        this.setCostContext(
+          `Assembler ${name}`,
+          warehouseCost,
+          'BÂTIR',
+          '▣',
+          islandIndex === 0 ? 'Kit de départ gratuit · ton premier stock.' : 'Raccourcit tous les retours de cette île.',
+        );
+      }
       return;
     }
     if (interaction.type === 'structure') {
@@ -1804,6 +2258,47 @@ export class IlotaGame {
     }
     if (!justPressed) return;
 
+    if (this.interaction.type === 'warehouse') {
+      const entity = this.interaction.entity;
+      const islandIndex = entity.definition.islandIndex;
+      if (this.economy.progress.warehousesBuilt[islandIndex]) {
+        if (getPlayerCargoTotal(this.economy.progress) <= 0) {
+          this.ui.toast('Ton dos est vide · rapporte une cargaison récoltée.');
+          return;
+        }
+        this.playerDeposit = { warehouse: entity, timer: 0.04 };
+        this.input.release();
+        this.ui.toast('Déchargement · chaque unité rejoint maintenant le stock.');
+        return;
+      }
+      const warehouseCost = getWarehouseCost(this.economy.progress, islandIndex);
+      if (!isWarehouseUnlocked(this.economy.progress, islandIndex)) {
+        this.ui.toast(`Dépôt verrouillé · atteins la Marée ${islandIndex + 1}.`);
+      } else if (this.economy.buildWarehouse(islandIndex)) {
+        entity.building.visible = true;
+        this.startBuildingAssembly(entity.building);
+        this.spawnParticles(entity.building.position.clone().setY(1), 'wood', 22);
+        this.ui.toast(`${entity.definition.name} assemblé · les cargaisons ont une vraie destination.`);
+        this.changed();
+        if (islandIndex === 0) {
+          this.maybeShowTutorial(
+            'warehouse-central',
+            'Ton dépôt central',
+            'Tout ce que tu récoltes reste visible sur ton dos. Reviens ici et touche DÉCHARGER : les unités tomberont une à une et seulement alors le stock augmentera.',
+            '▣',
+          );
+        } else {
+          this.maybeShowTutorial(
+            `warehouse-${islandIndex}`,
+            'Un trajet raccourci',
+            `Le dépôt de ${entity.definition.name.replace('Dépôt ', '')} devient la destination locale. Les renards de cette île n’ont plus besoin de revenir jusqu’au centre.`,
+            '⇢',
+          );
+        }
+      } else if (warehouseCost) this.showMissing(warehouseCost);
+      return;
+    }
+
     if (this.interaction.type === 'structure') {
       const { kind } = this.interaction.entity.definition;
       if (structureBuilt(this.economy.progress, kind)) {
@@ -1820,6 +2315,35 @@ export class IlotaGame {
         const buildOrigin = this.interaction.entity.building.getWorldPosition(new THREE.Vector3());
         this.spawnParticles(buildOrigin.setY(1.2), kind === 'foundry' ? 'copper' : kind === 'observatory' ? 'crystal' : 'wood', 20);
         this.changed();
+        if (kind === 'camp') {
+          this.maybeShowTutorial(
+            'nursery',
+            'La nurserie',
+            'Entre dans ce bâtiment pour recruter tes renards, voir leur niveau et changer leur métier. Les améliorations se feront plus tard dans des bâtiments spécialisés.',
+            '🦊',
+          );
+        } else if (kind === 'workshop') {
+          this.maybeShowTutorial(
+            'workshop',
+            'Formation niveau 2',
+            'L’Atelier des Pins est le seul endroit où un renard niveau 1 peut passer niveau 2. Choisis-le dans la liste, puis confirme sa formation.',
+            '⚒',
+          );
+        } else if (kind === 'foundry') {
+          this.maybeShowTutorial(
+            'foundry',
+            'Maîtrise niveau 3',
+            'La Fonderie Cuivrée forme uniquement les renards déjà niveau 2. Elle déverrouille aussi le métier du cuivre dans la nurserie.',
+            '⚙',
+          );
+        } else {
+          this.maybeShowTutorial(
+            'observatory',
+            'L’Autel du Savoir',
+            'Touche un hexagone pour lire son pouvoir. L’achat ne se fait jamais au premier toucher : il faut ensuite le confirmer dans la grande fiche.',
+            '✦',
+          );
+        }
       } else this.showMissing(getStructureCost(this.economy.progress, kind));
       return;
     }
@@ -1848,6 +2372,14 @@ export class IlotaGame {
         this.ui.toast(`${definition.name} terminé · nouvelle île · +1 Savoir`);
         this.spawnParticles(this.interaction.entity.start.clone().lerp(this.interaction.entity.end, 0.5).setY(0.7), index >= 2 ? 'crystal' : 'stone', 26);
         this.changed();
+        if (index === 0) {
+          this.maybeShowTutorial(
+            'pins-logistics',
+            'Le prochain dépôt est verrouillé',
+            'Pendant cette première Marée, les renards des îles lointaines reviendront au dépôt central. Termine l’acte et relance une Marée pour construire le dépôt des Pins.',
+            '≈',
+          );
+        }
       } else if (!this.economy.bridgeRequirementsMet(index)) {
         this.ui.toast(formatBridgeRequirement(this.economy.progress, index));
       } else this.showMissing(bridgeCost);
@@ -1882,8 +2414,16 @@ export class IlotaGame {
 
   private harvest(node: ResourceNode): void {
     if (node.amount <= 0) return;
-    this.consumeResourceNode(node, 1);
-    this.economy.add(node.kind, getManualYield(this.economy.progress, node.kind));
+    const free = PLAYER_CARGO_CAPACITY - getPlayerCargoTotal(this.economy.progress);
+    if (free <= 0) {
+      this.ui.toast('Dos plein · retourne à un dépôt pour décharger.');
+      return;
+    }
+    const requested = Math.min(free, getManualYield(this.economy.progress, node.kind));
+    const gathered = this.consumeResourceNode(node, requested);
+    const carried = this.economy.carryForPlayer(node.kind, gathered);
+    if (carried <= 0) return;
+    this.syncPlayerCargoVisuals();
     const height = node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
     this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
     if (node.amount <= 0) {
@@ -1912,6 +2452,152 @@ export class IlotaGame {
       };
     }
     return gathered;
+  }
+
+  private createCargoPiece(kind: ResourceKind, index = 0): THREE.Object3D {
+    const material = new THREE.MeshStandardMaterial({
+      color: RESOURCE_COLORS[kind],
+      roughness: kind === 'crystal' ? 0.28 : 0.72,
+      metalness: kind === 'copper' ? 0.28 : 0.04,
+      emissive: kind === 'crystal' ? 0x444070 : 0x000000,
+      emissiveIntensity: kind === 'crystal' ? 0.55 : 0,
+      flatShading: true,
+    });
+    let piece: THREE.Mesh;
+    if (kind === 'wood') {
+      piece = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.34, 7), material);
+      piece.rotation.z = Math.PI / 2;
+    } else if (kind === 'stone') {
+      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), material);
+    } else if (kind === 'copper') {
+      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.115, 0), material);
+      piece.scale.y = 0.82;
+    } else {
+      piece = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), material);
+      piece.scale.y = 1.35;
+    }
+    piece.rotation.y = index * 1.17;
+    piece.castShadow = true;
+    piece.userData.cargoPiece = true;
+    piece.userData.cargoKind = kind;
+    return piece;
+  }
+
+  private clearCargoRack(rack: THREE.Group): void {
+    [...rack.children].forEach((child) => {
+      rack.remove(child);
+      child.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => material.dispose());
+      });
+    });
+  }
+
+  private populateCargoRack(rack: THREE.Group, kinds: readonly ResourceKind[]): void {
+    this.clearCargoRack(rack);
+    kinds.slice(0, PLAYER_CARGO_CAPACITY).forEach((kind, index) => {
+      const piece = this.createCargoPiece(kind, index);
+      const column = index % 4;
+      const row = Math.floor(index / 4);
+      piece.position.set(
+        (column - 1.5) * 0.145,
+        row * 0.115,
+        ((index + row) % 2 ? -1 : 1) * 0.075,
+      );
+      piece.rotation.x += (column - 1.5) * 0.08;
+      rack.add(piece);
+    });
+  }
+
+  private syncPlayerCargoVisuals(): void {
+    const kinds: ResourceKind[] = [];
+    RESOURCE_KINDS.forEach((kind) => {
+      for (let index = 0; index < this.economy.progress.playerCargo[kind]; index += 1) kinds.push(kind);
+    });
+    this.populateCargoRack(this.playerCargoRack, kinds);
+    this.ui.updateCargo(getPlayerCargoTotal(this.economy.progress), PLAYER_CARGO_CAPACITY);
+  }
+
+  private syncWorkerCargoVisuals(entity: WorkerEntity): void {
+    this.populateCargoRack(
+      entity.cargoRack,
+      Array.from({ length: Math.min(PLAYER_CARGO_CAPACITY, entity.cargo) }, () => entity.cargoKind),
+    );
+  }
+
+  private spawnCargoDrop(
+    origin: THREE.Vector3,
+    target: THREE.Vector3,
+    kind: ResourceKind,
+    onLand?: () => void,
+  ): void {
+    const mesh = this.createCargoPiece(kind, this.cargoDrops.length);
+    mesh.position.copy(origin);
+    mesh.scale.setScalar(1.35);
+    this.scene.add(mesh);
+    this.cargoDrops.push({
+      mesh,
+      start: origin.clone(),
+      target: target.clone(),
+      elapsed: 0,
+      duration: 0.42,
+      onLand,
+    });
+  }
+
+  private updateCargoDrops(delta: number): void {
+    for (let index = this.cargoDrops.length - 1; index >= 0; index -= 1) {
+      const drop = this.cargoDrops[index];
+      if (!drop) continue;
+      drop.elapsed += delta;
+      const ratio = THREE.MathUtils.clamp(drop.elapsed / drop.duration, 0, 1);
+      const eased = 1 - Math.pow(1 - ratio, 2);
+      drop.mesh.position.lerpVectors(drop.start, drop.target, eased);
+      drop.mesh.position.y += Math.sin(ratio * Math.PI) * 0.52;
+      drop.mesh.rotation.x += delta * 9;
+      drop.mesh.rotation.y += delta * 7;
+      drop.mesh.scale.setScalar(1.35 * Math.max(0.08, 1 - ratio * 0.68));
+      if (ratio < 1) continue;
+      this.scene.remove(drop.mesh);
+      drop.mesh.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => material.dispose());
+      });
+      drop.onLand?.();
+      this.cargoDrops.splice(index, 1);
+    }
+  }
+
+  private updatePlayerDeposit(delta: number): void {
+    const deposit = this.playerDeposit;
+    if (!deposit) return;
+    deposit.timer -= delta;
+    if (deposit.timer > 0) return;
+    const kind = RESOURCE_KINDS.find((candidate) => this.economy.progress.playerCargo[candidate] > 0);
+    if (!kind) {
+      this.playerDeposit = null;
+      this.economy.recordDelivery();
+      this.ui.toast('Cargaison rangée · le stock est maintenant disponible.');
+      this.ui.update(this.economy.progress);
+      this.save();
+      return;
+    }
+    const origin = this.playerCargoRack.getWorldPosition(new THREE.Vector3()).setY(0.92);
+    const target = vec(deposit.warehouse.definition.x, deposit.warehouse.definition.z + 1.05).setY(0.42);
+    if (this.economy.unloadPlayerCargo(kind, 1) > 0) {
+      this.spawnCargoDrop(origin, target, kind, () => {
+        this.economy.add(kind, 1);
+        this.ui.update(this.economy.progress);
+        this.save();
+      });
+      this.syncPlayerCargoVisuals();
+      this.ui.update(this.economy.progress);
+    }
+    deposit.timer = WORKER_FEEL.depositUnitSeconds;
   }
 
   private showMissing(cost: Cost): void {
@@ -1979,7 +2665,7 @@ export class IlotaGame {
       }
       if (object.userData.heartRing) object.rotation.z += delta * (this.economy.progress.completed ? 1.5 : 0.25);
       if (object.userData.observatoryLens) {
-        const baseY = Number(object.userData.baseY) || 5.72;
+        const baseY = Number(object.userData.baseY) || 6.25;
         object.position.y = baseY + Math.sin(this.worldTime * 1.9) * 0.08;
         object.rotation.y += delta * 0.65;
       }
@@ -1990,6 +2676,12 @@ export class IlotaGame {
       if (object.userData.structureGlow) {
         const pulse = 1 + Math.sin(this.worldTime * 5.2 + object.id) * 0.09;
         object.scale.setScalar(pulse);
+      }
+      if (object.userData.bridgeGuide) {
+        const phase = Number(object.userData.guidePhase) || 0;
+        const pulse = 0.9 + (Math.sin(this.worldTime * 4.5 - phase) + 1) * 0.16;
+        object.scale.setScalar(pulse);
+        object.position.y = 0.48 + Math.sin(this.worldTime * 3.4 - phase) * 0.12;
       }
       if (object.userData.assembling) {
         const elapsed = (Number(object.userData.assemblyElapsed) || 0) + delta;
@@ -2043,7 +2735,97 @@ export class IlotaGame {
     this.currentPlayerAction = name;
   }
 
+  private updateTideResetAnimation(delta: number): void {
+    const animation = this.tideResetAnimation;
+    if (!animation) return;
+    animation.elapsed += delta;
+    const elapsed = animation.elapsed;
+
+    for (let islandIndex = 4; islandIndex >= 1; islandIndex -= 1) {
+      const order = 4 - islandIndex;
+      const start = 0.55 + order * 0.62;
+      const ratio = THREE.MathUtils.clamp((elapsed - start) / 0.9, 0, 1);
+      const island = this.islands[islandIndex];
+      if (island) island.root.position.y = THREE.MathUtils.lerp(0, HIDDEN_ISLAND_Y, ratio * ratio);
+      const bridge = this.bridges[islandIndex - 1];
+      if (!bridge) continue;
+      bridge.root.children.forEach((child, childIndex) => {
+        if (!child.userData.tideBasePosition) {
+          child.userData.tideBasePosition = child.position.clone();
+          child.userData.tideBaseRotation = child.rotation.clone();
+        }
+        const local = THREE.MathUtils.clamp((ratio - (childIndex % 9) * 0.035) / 0.68, 0, 1);
+        const base = child.userData.tideBasePosition as THREE.Vector3;
+        const baseRotation = child.userData.tideBaseRotation as THREE.Euler;
+        child.position.copy(base);
+        child.position.y = base.y - local * (2.8 + (childIndex % 4) * 0.45);
+        child.rotation.copy(baseRotation);
+        child.rotation.x += local * (0.7 + (childIndex % 3) * 0.24);
+        child.rotation.z += local * ((childIndex % 2 ? 1 : -1) * 0.58);
+      });
+    }
+
+    if (elapsed > 2.55) {
+      const fade = THREE.MathUtils.clamp((elapsed - 2.55) / 0.7, 0, 1);
+      this.workers.forEach((worker, index) => {
+        worker.root.position.y = -fade * (1.2 + (index % 3) * 0.2);
+        worker.root.scale.setScalar(Math.max(0.02, (0.95 + worker.level * 0.055) * (1 - fade)));
+        if (fade >= 1) worker.root.visible = false;
+      });
+    }
+
+    if (elapsed >= 3.55 && !animation.playerEmerged) {
+      animation.playerEmerged = true;
+      this.player.visible = true;
+      this.player.position.set(0, 0, 0.8);
+      this.player.scale.setScalar(0.04);
+      this.player.rotation.y = 0;
+      this.syncPlayerCargoVisuals();
+      this.playPlayerAction('walk', 0.08);
+    }
+    if (animation.playerEmerged) {
+      const emerge = THREE.MathUtils.clamp((elapsed - 3.55) / 1.3, 0, 1);
+      const shifted = emerge - 1;
+      const overshoot = 1 + 2.70158 * shifted ** 3 + 1.70158 * shifted ** 2;
+      this.player.scale.setScalar(Math.max(0.04, overshoot));
+      this.player.position.z = THREE.MathUtils.lerp(0.8, 3.6, emerge);
+      if (emerge >= 1) this.playPlayerAction('idle');
+    } else if (elapsed > 2.9) {
+      this.player.visible = false;
+    }
+
+    const stage = elapsed < 1.2
+      ? 'La Couronne disparaît…'
+      : elapsed < 2.8
+        ? 'Les ponts cèdent. La Marée reprend l’archipel.'
+        : elapsed < 4.7
+          ? 'Une seule île demeure.'
+          : `Marée ${this.economy.progress.rebirths + 2} · +${animation.reward} Savoir`;
+    this.ui.updateTideTransition(stage, Math.min(1, elapsed / 5.6));
+
+    if (elapsed >= 4.85 && !animation.rebirthApplied) {
+      animation.rebirthApplied = true;
+      this.economy.rebirth();
+      this.syncPlayerCargoVisuals();
+      this.save();
+    }
+    if (elapsed >= 5.65) window.location.reload();
+  }
+
   private updateCamera(delta: number): void {
+    if (this.tideResetAnimation) {
+      const elapsed = this.tideResetAnimation.elapsed;
+      const overview = new THREE.Vector3(36, 48, -42);
+      const returnCamera = new THREE.Vector3(10.5, 12.5, 15.5);
+      const outward = THREE.MathUtils.smootherstep(THREE.MathUtils.clamp(elapsed / 0.8, 0, 1), 0, 1);
+      const homeward = THREE.MathUtils.smootherstep(THREE.MathUtils.clamp((elapsed - 2.85) / 1.45, 0, 1), 0, 1);
+      const firstLeg = this.tideResetAnimation.cameraStart.clone().lerp(overview, outward);
+      this.camera.position.copy(firstLeg.lerp(returnCamera, homeward));
+      const overviewTarget = new THREE.Vector3(6, -1, -48);
+      const homeTarget = new THREE.Vector3(0, 0.7, 0);
+      this.camera.lookAt(overviewTarget.lerp(homeTarget, homeward));
+      return;
+    }
     const offset = new THREE.Vector3(10.5, 12.5, 15.5);
     const desired = this.player.position.clone().add(offset);
     const smoothing = 1 - Math.exp(-4.2 * delta);
@@ -2072,6 +2854,7 @@ export class IlotaGame {
     this.diagnostics.workerTasks = progress.workers.map((worker) => worker.task).join(',');
     this.diagnostics.bridgeBuilt = progress.bridgesBuilt[0];
     this.diagnostics.bridges = progress.bridgesBuilt.filter(Boolean).length;
+    this.diagnostics.bridgeGuides = this.bridges.filter((bridge) => bridge.guide.visible).length;
     this.diagnostics.chapter = getChapter(progress);
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');
     this.diagnostics.completed = progress.completed;
@@ -2084,9 +2867,12 @@ export class IlotaGame {
     this.diagnostics.skills = progress.skills.join(',');
     this.diagnostics.autoRegulation = progress.autoRegulation;
     this.diagnostics.projects = getCompletedProjectCount(progress);
+    this.diagnostics.warehouses = progress.warehousesBuilt.filter(Boolean).length;
+    this.diagnostics.playerCargo = getPlayerCargoTotal(progress);
     this.diagnostics.currentIsland = findIslandIndexForPoint(this.player.position.x, this.player.position.z);
     this.diagnostics.assemblingBuildings = [
       ...this.structures.values(),
+      ...this.warehouses,
       ...this.projects,
     ].filter((entity) => Boolean(entity.building.userData.assembling)).length;
     this.diagnostics.visibleIslands = this.islands.filter((island) => island.root.position.y > -0.2).length;
@@ -2107,6 +2893,8 @@ export class IlotaGame {
       targetNode: worker.target?.id ?? '',
       targetIsland: worker.target?.islandIndex ?? -1,
       cargo: worker.cargo,
+      cargoVisuals: worker.cargoRack.children.length,
+      animation: worker.currentAction,
     }));
     this.diagnostics.resourceNodes = this.resources.map((node) => ({
       id: node.id,
@@ -2128,6 +2916,10 @@ export class IlotaGame {
       scale: Number(this.lastHarvestedNode.currentScale.toFixed(3)),
     } : null;
     this.diagnostics.lastWorkerHarvest = this.lastWorkerHarvest;
+    this.diagnostics.industrySurge = this.industrySurgeRemaining > 0;
+    this.diagnostics.industrySurgeKind = this.industrySurgeRemaining > 0 ? this.industrySurgeKind : '';
+    this.diagnostics.explorationFlow = this.explorationFlowRemaining > 0;
+    this.diagnostics.rebirthAnimation = Boolean(this.tideResetAnimation);
     this.diagnostics.fps = Math.round(this.fpsAverage);
   }
 

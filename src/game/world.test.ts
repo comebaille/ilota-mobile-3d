@@ -29,7 +29,7 @@ describe('profils de repousse par île', () => {
 
   it('retrouve l’île d’un emplacement de ressource', () => {
     expect(findIslandIndexForPoint(0, 0)).toBe(0);
-    expect(findIslandIndexForPoint(12.5, -36)).toBe(2);
-    expect(findIslandIndexForPoint(14.4, -69.3)).toBe(4);
+    expect(findIslandIndexForPoint(16, -47)).toBe(2);
+    expect(findIslandIndexForPoint(15, -91)).toBe(4);
   });
 });

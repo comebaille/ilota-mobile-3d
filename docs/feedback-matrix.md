@@ -12,8 +12,14 @@
 | Choisir un savoir | grand inspecteur avec pouvoir, coût et prérequis | aucune dépense avant `CONFIRMER · ACHETER` | texte complet et bouton séparé | impulsion de bordure brève |
 | Achever un Grand Travail | pièces du bâtiment assemblées successivement | coût retiré, bonus actif, Savoir attribué et objectif coché | enseigne, fiche d’interaction et état `ACHEVÉ` | pièces stabilisées sans rebond prolongé |
 | Entrer sur une île | panneau latéral avec progression `x/y` | chaque ligne relit la vraie règle du pont | coche + `VALIDÉ` ou cercle + `À FAIRE` | panneau compact une fois terminé |
-| Récolte ouvrière | particules sur le filon | réserve réduite de la cargaison exacte | diagnostic et taille du filon | disparition par fondu court |
+| Récolte manuelle | pièce 3D ajoutée sur le dos, compteur `x/16` | aucun stock crédité avant le dépôt | matière, icône et quantité | empilement instantané |
+| Décharger | une pièce tombe toutes les 0,105 s vers le hangar | chaque unité rejoint le stock uniquement à son arrivée | compteur du dos puis compteur global | trajectoire brève sans secousse |
+| Récolte ouvrière | particules et cargaison exacte sur le dos | réserve réduite avant le trajet retour | diagnostic, quantité et taille du filon | disparition par fondu court |
 | Épuisement | filon rétréci jusqu’à zéro | cible invalidée, repousse lancée, nouveau choix | disparition complète | échelle mise à jour quasi instantanément |
 | Routes optimales | aucun effet artificiel | comparaison de chaque aller + retour | talent nommé dans l’arbre | sans animation dédiée |
+| Surcharge Technique | éclairs jaunes sur les bords et filon prioritaire animé | compte à rebours de repousse ×2 pendant 10 s | libellé `SURCHARGE` + matière + secondes | halo statique si mouvement réduit |
+| Courant Exploration | vagues turquoise sur les bords | vitesse ×2 uniquement pendant une cargaison | libellé `COURANT DE MARÉE` + secondes | halo statique si mouvement réduit |
+| Objectifs terminés | cinq flèches dorées pulsent vers le pont | le pad relit les mêmes critères | tutoriel et panneau `VALIDÉ` | aucun geste rapide requis |
+| Nouvelle Marée | caméra large, îles englouties et ponts brisés | rebirth appliqué une seule fois avant rechargement | étape, progression et récompense de Savoir | animation non interactive et prévisible |
 
 Les durées de recrutement, niveau et dépôt sont centralisées dans `WORKER_FEEL`. Les effets ne créditent jamais une ressource : l’économie est modifiée par la simulation, puis seulement représentée par l’interface.

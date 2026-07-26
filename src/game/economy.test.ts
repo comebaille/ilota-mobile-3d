@@ -9,13 +9,16 @@ import {
   getBridgeCost,
   getCycleMultiplier,
   getIslandGoal,
+  getPlayerCargoTotal,
   getPlayerSpeed,
   getSkillRank,
   getTotalWorkerLevels,
   getWorkerCapacity,
   getWorkerYield,
+  getWarehouseCost,
   isProjectVisible,
   isSkillVisible,
+  isWarehouseUnlocked,
   type IslandProgress,
 } from './economy';
 
@@ -24,6 +27,7 @@ const richEconomy = (initial?: Partial<IslandProgress>): Economy => new Economy(
   stone: 9_999,
   copper: 9_999,
   crystal: 9_999,
+  warehousesBuilt: [true, false, false, false, false],
   ...initial,
 });
 
@@ -34,7 +38,7 @@ const completeProjectsUntil = (economy: Economy, targetCount: number): void => {
   });
 };
 
-describe('Economy v5', () => {
+describe('Economy v6', () => {
   it('récolte quatre ressources sans produire de valeur négative', () => {
     const economy = new Economy();
     economy.add('wood', 3);
@@ -133,7 +137,7 @@ describe('Economy v5', () => {
     expect(restored.progress.workers[0]).toMatchObject({ id: worker.id, task: 'stone', level: 2 });
   });
 
-  it('migre la petite campagne v1 vers le premier pont de la v5', () => {
+  it('migre la petite campagne v1 vers le premier pont de la v6', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 1,
       wood: 17,
@@ -146,7 +150,8 @@ describe('Economy v5', () => {
       completed: true,
       elapsedSeconds: 42,
     }));
-    expect(restored.progress).toMatchObject({ version: 5, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress).toMatchObject({ version: 6, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress.warehousesBuilt).toEqual([true, false, false, false, false]);
     expect(restored.progress.projectsCompleted).toEqual([]);
     expect(restored.progress.bridgesBuilt).toEqual([true, false, false, false]);
     expect(restored.progress.workers.map((worker) => worker.task)).toEqual(['wood', 'stone']);
@@ -174,7 +179,7 @@ describe('Economy v5', () => {
       completed: true,
       elapsedSeconds: 600,
     }));
-    expect(restored.progress).toMatchObject({ version: 5, completed: true, knowledge: 10, rebirths: 0 });
+    expect(restored.progress).toMatchObject({ version: 6, completed: true, knowledge: 10, rebirths: 0 });
     expect(restored.progress.cycleMilestones).toHaveLength(9);
   });
 
@@ -191,7 +196,7 @@ describe('Economy v5', () => {
       skillRanks: { trail_sense: 1 },
     }));
     expect(restored.progress).toMatchObject({
-      version: 5,
+      version: 6,
       wood: 73,
       stone: 51,
       campBuilt: true,
@@ -313,7 +318,7 @@ describe('Economy v5', () => {
       skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
       autoRegulation: true,
     }));
-    expect(restored.progress.version).toBe(5);
+    expect(restored.progress.version).toBe(6);
     expect(restored.progress.skills).toEqual(expect.arrayContaining([
       'awakening',
       'insight_gateway',
@@ -331,9 +336,10 @@ describe('Economy v5', () => {
     expect(getAutoRegulationInterval(collective.progress)).toBe(3);
     expect(getAutoRegulationMoveCount(collective.progress)).toBe(2);
 
-    const builders = new Economy({ skills: ['master_builders'] });
     const engine = new Economy({ skills: ['endless_engine'] });
-    expect(getWorkerYield(1, engine.progress)).toBe(getWorkerYield(1, builders.progress) * 2);
+    expect(engine.setIndustrySurge(true)).toBe(true);
+    expect(engine.progress.industrySurge).toBe(true);
+    expect(getWorkerYield(3, engine.progress)).toBeLessThanOrEqual(16);
 
     const legacy = new Economy({
       completed: true,
@@ -345,6 +351,7 @@ describe('Economy v5', () => {
     });
     legacy.rebirth();
     expect(legacy.progress).toMatchObject({ wood: 35, stone: 28, copper: 21, crystal: 14 });
+    expect(legacy.setExplorationFlow(true)).toBe(true);
   });
 
   it('fusionne les trois sommets dans un pouvoir final cher et radical', () => {
@@ -392,7 +399,7 @@ describe('Economy v5', () => {
     });
     const reward = economy.rebirth();
     expect(reward).toBe(3);
-    expect(economy.progress).toMatchObject({ version: 5, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
+    expect(economy.progress).toMatchObject({ version: 6, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
     expect(economy.progress.skills).toContain('tidal_memory');
     expect(economy.progress.workers).toEqual([]);
     expect(getCycleMultiplier(economy.progress)).toBeCloseTo(1.22);
@@ -423,5 +430,33 @@ describe('Economy v5', () => {
       workers,
     });
     expect(chooseAutoRegulationMove(economy.progress)).toMatchObject({ from: 'wood', to: 'copper' });
+  });
+
+  it('stocke la récolte manuelle sur le dos avant de la déposer', () => {
+    const economy = new Economy();
+    expect(economy.carryForPlayer('stone', 5)).toBe(5);
+    expect(economy.progress.stone).toBe(0);
+    expect(getPlayerCargoTotal(economy.progress)).toBe(5);
+    expect(economy.depositPlayerCargo('stone', 1)).toBe(1);
+    expect(economy.progress.stone).toBe(1);
+    expect(getPlayerCargoTotal(economy.progress)).toBe(4);
+    expect(economy.unloadPlayerCargo('stone', 2)).toBe(2);
+    expect(economy.progress.stone).toBe(1);
+    expect(getPlayerCargoTotal(economy.progress)).toBe(2);
+    expect(economy.carryForPlayer('wood', 99)).toBe(14);
+    expect(getPlayerCargoTotal(economy.progress)).toBe(16);
+  });
+
+  it('débloque un dépôt local supplémentaire à chaque Nouvelle Marée', () => {
+    const economy = richEconomy();
+    expect(isWarehouseUnlocked(economy.progress, 1)).toBe(false);
+    expect(economy.buildWarehouse(1)).toBe(false);
+    economy.progress.bridgesBuilt[0] = true;
+    economy.progress.rebirths = 1;
+    expect(isWarehouseUnlocked(economy.progress, 1)).toBe(true);
+    expect(getWarehouseCost(economy.progress, 1)).not.toBeNull();
+    expect(economy.buildWarehouse(1)).toBe(true);
+    expect(economy.progress.warehousesBuilt).toEqual([true, true, false, false, false]);
+    expect(economy.buildWarehouse(2)).toBe(false);
   });
 });

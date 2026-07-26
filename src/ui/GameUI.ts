@@ -2,6 +2,7 @@ import {
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
+  PLAYER_CARGO_CAPACITY,
   ISLAND_PROJECTS,
   SKILL_BRANCH_LABELS,
   SKILL_DEFINITIONS,
@@ -52,6 +53,8 @@ interface TalentHandlers {
   onOpenChange: (open: boolean) => void;
   onUnlock: (skill: SkillId) => void;
   onAutoToggle: (enabled: boolean) => void;
+  onIndustryToggle: (enabled: boolean) => void;
+  onExplorationToggle: (enabled: boolean) => void;
 }
 
 interface ProjectHandlers {
@@ -115,6 +118,8 @@ export class GameUI {
     copper: byId<HTMLElement>('copper-count'),
     crystal: byId<HTMLElement>('crystal-count'),
   };
+  private readonly cargoMeter = byId<HTMLElement>('cargo-meter');
+  private readonly cargoCount = byId<HTMLElement>('cargo-count');
   private readonly objectiveEyebrow = byId<HTMLElement>('objective-eyebrow');
   private readonly objectiveTitle = byId<HTMLElement>('objective-title');
   private readonly objectiveDetail = byId<HTMLElement>('objective-detail');
@@ -167,6 +172,8 @@ export class GameUI {
   private readonly skillInspectorStatus = byId<HTMLElement>('skill-inspector-status');
   private readonly skillBuyButton = byId<HTMLButtonElement>('skill-buy-button');
   private readonly autoRegulationButton = byId<HTMLButtonElement>('auto-regulation-button');
+  private readonly industrySurgeButton = byId<HTMLButtonElement>('industry-surge-button');
+  private readonly explorationFlowButton = byId<HTMLButtonElement>('exploration-flow-button');
   private readonly menuButton = byId<HTMLButtonElement>('menu-button');
   private readonly menuPanel = byId<HTMLElement>('menu-panel');
   private readonly menuCloseButton = byId<HTMLButtonElement>('menu-close-button');
@@ -175,6 +182,18 @@ export class GameUI {
   private readonly menuTideHelp = byId<HTMLElement>('menu-tide-help');
   private readonly menuResetButton = byId<HTMLButtonElement>('menu-reset-button');
   private readonly menuStatus = byId<HTMLElement>('menu-status');
+  private readonly tutorialPanel = byId<HTMLElement>('tutorial-panel');
+  private readonly tutorialIcon = byId<HTMLElement>('tutorial-icon');
+  private readonly tutorialTitle = byId<HTMLElement>('tutorial-title');
+  private readonly tutorialDetail = byId<HTMLElement>('tutorial-detail');
+  private readonly tutorialContinueButton = byId<HTMLButtonElement>('tutorial-continue-button');
+  private readonly tideTransition = byId<HTMLElement>('tide-transition');
+  private readonly tideTransitionKicker = byId<HTMLElement>('tide-transition-kicker');
+  private readonly tideTransitionStage = byId<HTMLElement>('tide-transition-stage');
+  private readonly tideTransitionProgress = byId<HTMLElement>('tide-transition-progress');
+  private readonly tideTransitionReward = byId<HTMLElement>('tide-transition-reward');
+  private readonly powerVfx = byId<HTMLElement>('power-vfx');
+  private readonly powerVfxLabel = byId<HTMLElement>('power-vfx-label');
   private toastTimer = 0;
   private installPrompt: InstallPrompt | null = null;
   private crewHandlers: CrewHandlers | null = null;
@@ -200,6 +219,8 @@ export class GameUI {
   private menuTideArmed = false;
   private menuTimer = 0;
   private lastGoalKey = '';
+  private tutorialCloseHandler: (() => void) | null = null;
+  private lastLevelUpKey = '';
 
   constructor() {
     window.addEventListener('beforeinstallprompt', (event) => {
@@ -295,9 +316,24 @@ export class GameUI {
       if (!this.latestProgress) return;
       this.talentHandlers?.onAutoToggle(!this.latestProgress.autoRegulation);
     });
+    this.industrySurgeButton.addEventListener('click', () => {
+      if (!this.latestProgress) return;
+      this.talentHandlers?.onIndustryToggle(!this.latestProgress.industrySurge);
+    });
+    this.explorationFlowButton.addEventListener('click', () => {
+      if (!this.latestProgress) return;
+      this.talentHandlers?.onExplorationToggle(!this.latestProgress.explorationFlow);
+    });
+    this.tutorialContinueButton.addEventListener('click', () => {
+      this.tutorialPanel.hidden = true;
+      const handler = this.tutorialCloseHandler;
+      this.tutorialCloseHandler = null;
+      handler?.();
+    });
     window.addEventListener('keydown', (event) => {
       if (event.code !== 'Escape') return;
-      if (!this.crewPanel.hidden) this.hideCrew();
+      if (!this.tutorialPanel.hidden) this.tutorialContinueButton.click();
+      else if (!this.crewPanel.hidden) this.hideCrew();
       else if (!this.projectsPanel.hidden) this.hideProjects();
       else if (!this.talentPanel.hidden) this.hideTalents();
       else if (!this.menuPanel.hidden) this.hideMenu();
@@ -341,12 +377,16 @@ export class GameUI {
   }
 
   celebrateLevelUp(workerId: string, level: number): void {
+    const key = `${workerId}:${level}`;
+    if (this.lastLevelUpKey === key) return;
+    this.lastLevelUpKey = key;
     this.selectedWorkerId = workerId;
     this.levelUpWorker = { id: workerId, level };
     window.clearTimeout(this.levelUpAnimationTimer);
     if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
     this.levelUpAnimationTimer = window.setTimeout(() => {
       this.levelUpWorker = null;
+      this.lastLevelUpKey = '';
       if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
     }, 1550);
   }
@@ -493,6 +533,52 @@ export class GameUI {
     if (this.latestProgress) this.renderMenu(this.latestProgress);
   }
 
+  updateCargo(amount: number, capacity: number): void {
+    this.cargoCount.textContent = `${amount} / ${capacity}`;
+    this.cargoMeter.classList.toggle('carrying', amount > 0);
+    this.cargoMeter.classList.toggle('full', amount >= capacity);
+    this.cargoMeter.setAttribute('aria-label', `Cargaison portée : ${amount} unités sur ${capacity}`);
+  }
+
+  showTutorial(title: string, detail: string, icon: string, onClose: () => void): void {
+    this.tutorialTitle.textContent = title;
+    this.tutorialDetail.textContent = detail;
+    this.tutorialIcon.textContent = icon;
+    this.tutorialCloseHandler = onClose;
+    this.tutorialPanel.hidden = false;
+    window.setTimeout(() => this.tutorialContinueButton.focus(), 0);
+  }
+
+  showTideTransition(tide: number, reward: number): void {
+    document.documentElement.classList.add('tide-cinematic');
+    this.tideTransitionKicker.textContent = `NOUVELLE MARÉE · CYCLE ${tide}`;
+    this.tideTransitionStage.textContent = 'La Couronne disparaît…';
+    this.tideTransitionProgress.style.width = '0%';
+    this.tideTransitionReward.textContent = `+${reward} SAVOIR`;
+    this.tideTransition.hidden = false;
+  }
+
+  updateTideTransition(stage: string, progress: number): void {
+    this.tideTransitionStage.textContent = stage;
+    this.tideTransitionProgress.style.width = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`;
+  }
+
+  setPowerEffects(
+    industryActive: boolean,
+    industryKind: ResourceKind,
+    industryRemaining: number,
+    explorationActive: boolean,
+    explorationRemaining: number,
+  ): void {
+    this.powerVfx.classList.toggle('industry-active', industryActive);
+    this.powerVfx.classList.toggle('exploration-active', explorationActive);
+    this.powerVfxLabel.textContent = industryActive
+      ? `ϟ SURCHARGE · ${RESOURCE_LABELS[industryKind].toUpperCase()} · ${Math.ceil(industryRemaining)} s`
+      : explorationActive
+        ? `≋ COURANT DE MARÉE · ${Math.ceil(explorationRemaining)} s`
+        : '';
+  }
+
   setLoading(progress: number, label: string): void {
     this.loadingBar.style.width = `${Math.max(4, progress * 100)}%`;
     this.loadingLabel.textContent = label === 'renards' ? 'Les bâtisseurs arrivent' : `Plantation : ${label}`;
@@ -511,6 +597,10 @@ export class GameUI {
   update(progress: IslandProgress): void {
     this.latestProgress = progress;
     RESOURCE_KINDS.forEach((kind) => { this.resourceCounts[kind].textContent = String(progress[kind]); });
+    this.updateCargo(
+      RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0),
+      PLAYER_CARGO_CAPACITY,
+    );
 
     const objective = getObjective(progress);
     this.objectiveEyebrow.textContent = objective.eyebrow;
@@ -666,14 +756,6 @@ export class GameUI {
         burst.setAttribute('role', 'status');
         card.append(burst);
       }
-      if (isLeveling) {
-        const burst = element('span', 'worker-burst level-up-burst');
-        burst.textContent = 'LEVEL UP !';
-        burst.setAttribute('aria-label', `${worker.name} passe niveau ${this.levelUpWorker?.level ?? worker.level}`);
-        burst.setAttribute('role', 'status');
-        card.append(burst);
-      }
-
       card.append(heading);
       this.workerList.append(card);
     });
@@ -918,10 +1000,28 @@ export class GameUI {
     this.autoRegulationButton.disabled = !autoUnlocked;
     this.autoRegulationButton.setAttribute('aria-pressed', String(progress.autoRegulation));
     this.autoRegulationButton.textContent = !autoUnlocked
-      ? 'AUTO-RÉGULATION · TALENT REQUIS'
+      ? 'INTELLIGENCE · TALENT REQUIS'
       : progress.autoRegulation
-        ? 'AUTO-RÉGULATION ACTIVE'
-        : 'ACTIVER L’AUTO-RÉGULATION';
+        ? 'INTELLIGENCE · AUTO-RÉGULATION ACTIVE'
+        : 'INTELLIGENCE · ACTIVER L’AUTO-RÉGULATION';
+
+    const industryUnlocked = hasSkill(progress, 'endless_engine');
+    this.industrySurgeButton.disabled = !industryUnlocked;
+    this.industrySurgeButton.setAttribute('aria-pressed', String(progress.industrySurge));
+    this.industrySurgeButton.textContent = !industryUnlocked
+      ? 'TECHNIQUE · TALENT REQUIS'
+      : progress.industrySurge
+        ? 'TECHNIQUE · SURCHARGE ARMÉE'
+        : 'TECHNIQUE · ACTIVER LA SURCHARGE';
+
+    const explorationUnlocked = hasSkill(progress, 'ocean_legacy');
+    this.explorationFlowButton.disabled = !explorationUnlocked;
+    this.explorationFlowButton.setAttribute('aria-pressed', String(progress.explorationFlow));
+    this.explorationFlowButton.textContent = !explorationUnlocked
+      ? 'EXPLORATION · TALENT REQUIS'
+      : progress.explorationFlow
+        ? 'EXPLORATION · COURANT ARMÉ'
+        : 'EXPLORATION · ACTIVER LE COURANT';
     this.renderSkillInspector(progress);
   }
 
