@@ -1,4 +1,4 @@
-import type { Cost, ResourceKind, StructureKind } from './economy';
+import { RESOURCE_KINDS, type Cost, type ResourceKind, type StructureKind } from './economy';
 import type { NatureKind } from './assets';
 
 export interface Point2 {
@@ -37,6 +37,12 @@ export interface ResourceSpawn extends Point2 {
   model?: NatureKind;
 }
 
+export interface ResourceSpawnProfile {
+  islandId: string;
+  weights: Record<ResourceKind, number>;
+  minimums: Partial<Record<ResourceKind, number>>;
+}
+
 export interface CacheDefinition extends Point2 {
   id: string;
   reward: Cost;
@@ -49,6 +55,66 @@ export const ISLANDS: readonly IslandDefinition[] = [
   { id: 'cristal', name: 'Île de Cristal', x: -1, z: -52, radius: 7.6, rotation: -0.14, topColor: 0x769a75, shoreColor: 0xcabf8b },
   { id: 'couronne', name: 'Île Couronne', x: 11, z: -67, radius: 7, rotation: 0.31, topColor: 0x819f68, shoreColor: 0xd5bd76 },
 ];
+
+/**
+ * Les poids sont aussi les pourcentages affichés au joueur. Un poids à zéro
+ * interdit totalement la ressource sur l'île lors d'une repousse.
+ */
+export const RESOURCE_SPAWN_PROFILES: readonly ResourceSpawnProfile[] = [
+  {
+    islandId: 'marees',
+    weights: { wood: 55, stone: 45, copper: 0, crystal: 0 },
+    minimums: { wood: 4, stone: 3 },
+  },
+  {
+    islandId: 'pins',
+    weights: { wood: 60, stone: 40, copper: 0, crystal: 0 },
+    minimums: { wood: 2, stone: 2 },
+  },
+  {
+    islandId: 'cuivre',
+    weights: { wood: 15, stone: 20, copper: 65, crystal: 0 },
+    minimums: { wood: 1, stone: 1, copper: 2 },
+  },
+  {
+    islandId: 'cristal',
+    weights: { wood: 10, stone: 15, copper: 25, crystal: 50 },
+    minimums: { wood: 1, copper: 1, crystal: 2 },
+  },
+  {
+    islandId: 'couronne',
+    weights: { wood: 25, stone: 25, copper: 25, crystal: 25 },
+    minimums: { crystal: 1 },
+  },
+];
+
+export const findIslandIndexForPoint = (x: number, z: number): number => {
+  const containing = ISLANDS.findIndex((island) => Math.hypot(x - island.x, z - island.z) <= island.radius);
+  if (containing >= 0) return containing;
+  return ISLANDS
+    .map((island, index) => ({ index, distance: Math.hypot(x - island.x, z - island.z) }))
+    .sort((a, b) => a.distance - b.distance)[0]?.index ?? 0;
+};
+
+export const pickResourceKindForIsland = (
+  islandIndex: number,
+  roll: number,
+  currentCounts: Partial<Record<ResourceKind, number>> = {},
+): ResourceKind => {
+  const profile = RESOURCE_SPAWN_PROFILES[islandIndex] ?? RESOURCE_SPAWN_PROFILES[0]!;
+  const required = RESOURCE_KINDS.find((kind) =>
+    profile.weights[kind] > 0 && (currentCounts[kind] ?? 0) < (profile.minimums[kind] ?? 0));
+  if (required) return required;
+
+  const total = RESOURCE_KINDS.reduce((sum, kind) => sum + profile.weights[kind], 0);
+  if (total <= 0) return 'wood';
+  let cursor = Math.min(0.999999, Math.max(0, roll)) * total;
+  for (const kind of RESOURCE_KINDS) {
+    cursor -= profile.weights[kind];
+    if (cursor < 0 && profile.weights[kind] > 0) return kind;
+  }
+  return RESOURCE_KINDS.find((kind) => profile.weights[kind] > 0) ?? 'wood';
+};
 
 export const BRIDGES: readonly BridgeDefinition[] = [
   { id: 'pins', name: 'Pont des Pins', fromIsland: 0, toIsland: 1 },

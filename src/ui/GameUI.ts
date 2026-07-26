@@ -25,6 +25,7 @@ import {
   type SkillBranch,
   type SkillId,
 } from '../game/economy';
+import { ISLANDS, RESOURCE_SPAWN_PROFILES } from '../game/world';
 
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -105,6 +106,7 @@ export class GameUI {
   private readonly crewCloseButton = byId<HTMLButtonElement>('crew-close-button');
   private readonly crewCapacity = byId<HTMLElement>('crew-capacity');
   private readonly crewHelp = byId<HTMLElement>('crew-help');
+  private readonly jobDocks = byId<HTMLElement>('job-docks');
   private readonly workerList = byId<HTMLElement>('worker-list');
   private readonly recruitButton = byId<HTMLButtonElement>('recruit-button');
   private readonly recruitCost = byId<HTMLElement>('recruit-cost');
@@ -123,6 +125,11 @@ export class GameUI {
   private talentHandlers: TalentHandlers | null = null;
   private latestProgress: IslandProgress | null = null;
   private selectedSkill: SkillId | null = null;
+  private selectedWorkerId: string | null = null;
+  private newRecruitWorkerId: string | null = null;
+  private levelUpWorker: { id: string; level: number } | null = null;
+  private recruitAnimationTimer = 0;
+  private levelUpAnimationTimer = 0;
 
   constructor() {
     window.addEventListener('beforeinstallprompt', (event) => {
@@ -149,10 +156,22 @@ export class GameUI {
       if (!target || target.disabled) return;
       const workerId = target.dataset.workerId;
       if (!workerId) return;
-      if (target.dataset.action === 'upgrade') this.crewHandlers?.onUpgrade(workerId);
-      if (target.dataset.action === 'assign' && target.dataset.task) {
-        this.crewHandlers?.onAssign(workerId, target.dataset.task as ResourceKind);
+      if (target.dataset.action === 'select') {
+        this.selectedWorkerId = workerId;
+        if (this.latestProgress) this.renderCrew(this.latestProgress);
       }
+      if (target.dataset.action === 'upgrade') this.crewHandlers?.onUpgrade(workerId);
+    });
+    this.jobDocks.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-task]') : null;
+      if (!target?.dataset.task || target.disabled) return;
+      const worker = this.latestProgress?.workers.find((candidate) => candidate.id === this.selectedWorkerId);
+      if (!worker) {
+        this.crewHelp.textContent = 'Choisis d’abord une carte de renard, puis touche ce métier.';
+        this.workerList.querySelector<HTMLButtonElement>('.worker-select')?.focus({ preventScroll: true });
+        return;
+      }
+      this.crewHandlers?.onAssign(worker.id, target.dataset.task as ResourceKind);
     });
     this.talentButton.addEventListener('click', () => this.showTalents());
     this.talentCloseButton.addEventListener('click', () => this.hideTalents());
@@ -185,6 +204,28 @@ export class GameUI {
 
   bindTalentHandlers(handlers: TalentHandlers): void {
     this.talentHandlers = handlers;
+  }
+
+  celebrateRecruit(workerId: string): void {
+    this.selectedWorkerId = workerId;
+    this.newRecruitWorkerId = workerId;
+    window.clearTimeout(this.recruitAnimationTimer);
+    if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
+    this.recruitAnimationTimer = window.setTimeout(() => {
+      this.newRecruitWorkerId = null;
+      if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
+    }, 1450);
+  }
+
+  celebrateLevelUp(workerId: string, level: number): void {
+    this.selectedWorkerId = workerId;
+    this.levelUpWorker = { id: workerId, level };
+    window.clearTimeout(this.levelUpAnimationTimer);
+    if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
+    this.levelUpAnimationTimer = window.setTimeout(() => {
+      this.levelUpWorker = null;
+      if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
+    }, 1550);
   }
 
   get isCrewOpen(): boolean {
@@ -263,58 +304,118 @@ export class GameUI {
     const capacity = getWorkerCapacity(progress);
     const levelCap = getWorkerLevelCap(progress);
     const unlockedTasks = getUnlockedWorkerTasks(progress);
-    this.crewCapacity.textContent = `${progress.workers.length} / ${capacity} postes · niveau max ${levelCap}`;
-    this.crewHelp.textContent = progress.autoRegulation
-      ? `Auto-régulation active · priorité actuelle : ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
-      : progress.observatoryBuilt
-      ? 'Tous les métiers sont ouverts : adapte l’équipe à ton prochain coût.'
-      : progress.foundryBuilt
-        ? 'Le cuivre est ouvert. L’observatoire débloquera le cristal.'
-        : progress.workshopBuilt
-          ? 'Améliore les renards ou rééquilibre bois et pierre avant le cuivre.'
-          : 'Assigne au moins un bûcheron et un mineur pour ouvrir le premier pont.';
+    const selectedWorker = progress.workers.find((worker) => worker.id === this.selectedWorkerId);
+    if (this.selectedWorkerId && !selectedWorker) this.selectedWorkerId = null;
+    this.crewCapacity.textContent = `${progress.workers.length} / ${capacity} terriers · niveau max ${levelCap}`;
+    this.crewHelp.textContent = selectedWorker
+      ? `${selectedWorker.name} sélectionné · touche un grand métier ci-dessous pour le déplacer.`
+      : progress.autoRegulation
+        ? `Auto-régulation active · priorité actuelle : ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
+        : '1. Choisis une carte de renard · 2. Touche un métier.';
 
     const recruitCost = getRecruitCost(progress);
     this.recruitCost.textContent = progress.workers.length >= capacity ? 'CAPACITÉ ATTEINTE' : formatCost(recruitCost);
     this.recruitButton.disabled = progress.workers.length >= capacity || !canAfford(progress, recruitCost);
 
+    const accessibleIslandCount = Math.min(ISLANDS.length, progress.bridgesBuilt.filter(Boolean).length + 1);
+    this.jobDocks.replaceChildren();
+    RESOURCE_KINDS.forEach((task) => {
+      const assigned = progress.workers.filter((worker) => worker.task === task).length;
+      const enabled = unlockedTasks.includes(task);
+      const accessibleProfiles = RESOURCE_SPAWN_PROFILES.slice(0, accessibleIslandCount);
+      const rates = accessibleProfiles
+        .map((profile, islandIndex) => {
+          const islandName = ISLANDS[islandIndex]?.name
+            .replace(/^Îlot des |^Île des |^Île de |^Île /, '') ?? `I${islandIndex + 1}`;
+          return `${islandName} ${profile.weights[task]} %`;
+        });
+      const dock = element('button', `job-dock job-${task}`);
+      dock.type = 'button';
+      dock.dataset.task = task;
+      dock.disabled = !enabled;
+      dock.title = rates.join(' · ');
+      dock.setAttribute('aria-pressed', String(selectedWorker?.task === task));
+      dock.setAttribute('aria-label', enabled
+        ? selectedWorker
+          ? `Affecter ${selectedWorker.name} ${ASSIGNMENT_LABELS[task]}. ${rates.join(', ')}`
+          : `Métier ${RESOURCE_LABELS[task]}, ${assigned} renard${assigned > 1 ? 's' : ''}. Choisir d’abord un renard.`
+        : `${RESOURCE_LABELS[task]} verrouillé`);
+
+      const icon = element('span', 'job-icon');
+      icon.textContent = RESOURCE_ICONS[task];
+      icon.setAttribute('aria-hidden', 'true');
+      const copy = element('span', 'job-copy');
+      const label = element('strong');
+      label.textContent = selectedWorker?.task === task ? `${RESOURCE_LABELS[task]} ✓` : RESOURCE_LABELS[task];
+      const chance = element('small');
+      chance.textContent = enabled
+        ? `${accessibleProfiles.map((profile) => profile.weights[task]).join(' · ')} % · I1→I${accessibleIslandCount}`
+        : 'MÉTIER VERROUILLÉ';
+      copy.append(label, chance);
+      const count = element('span', 'job-count');
+      count.textContent = String(assigned);
+      count.setAttribute('aria-label', `${assigned} renard${assigned > 1 ? 's' : ''}`);
+      dock.append(icon, copy, count);
+      this.jobDocks.append(dock);
+    });
+
     this.workerList.replaceChildren();
     if (progress.workers.length === 0) {
       const empty = element('div', 'crew-empty');
-      empty.innerHTML = '<span aria-hidden="true">♟</span><strong>Aucun travailleur</strong><small>Récolte le coût indiqué puis recrute ton premier renard.</small>';
+      empty.innerHTML = '<span aria-hidden="true">🦊</span><strong>Le terrier est vide</strong><small>Récolte le coût indiqué puis appelle ton premier renard.</small>';
       this.workerList.append(empty);
       return;
     }
 
     progress.workers.forEach((worker) => {
-      const card = element('article', `worker-card task-${worker.task}`);
-      const heading = element('header', 'worker-card-header');
+      const isSelected = worker.id === this.selectedWorkerId;
+      const isNew = worker.id === this.newRecruitWorkerId;
+      const isLeveling = worker.id === this.levelUpWorker?.id;
+      const card = element('article', [
+        'worker-card',
+        `task-${worker.task}`,
+        isSelected ? 'selected' : '',
+        isNew ? 'new-recruit' : '',
+        isLeveling ? 'leveling-up' : '',
+      ].filter(Boolean).join(' '));
+      const heading = element('button', 'worker-select');
+      heading.type = 'button';
+      heading.dataset.action = 'select';
+      heading.dataset.workerId = worker.id;
+      heading.setAttribute('aria-pressed', String(isSelected));
+      heading.setAttribute('aria-label', `Sélectionner ${worker.name}, niveau ${worker.level}, métier ${RESOURCE_LABELS[worker.task]}`);
       const avatar = element('span', 'worker-avatar');
-      avatar.textContent = RESOURCE_ICONS[worker.task];
+      avatar.textContent = '🦊';
       avatar.setAttribute('aria-hidden', 'true');
       const identity = element('div', 'worker-identity');
       const name = element('strong');
       name.textContent = worker.name;
       const level = element('small');
-      level.textContent = `Niveau ${worker.level} · +${getWorkerYield(worker.level, progress)} par livraison · trajet réel`;
-      identity.append(name, level);
-      heading.append(avatar, identity);
+      level.textContent = `NIV ${worker.level} · +${getWorkerYield(worker.level, progress)} / livraison`;
+      const pips = element('span', 'level-pips');
+      pips.setAttribute('aria-hidden', 'true');
+      for (let rank = 1; rank <= 3; rank += 1) {
+        const pip = element('i', rank <= worker.level ? 'filled' : '');
+        pips.append(pip);
+      }
+      identity.append(name, level, pips);
+      const currentJob = element('span', 'current-job');
+      currentJob.innerHTML = `<span aria-hidden="true">${RESOURCE_ICONS[worker.task]}</span><small>${RESOURCE_LABELS[worker.task]}</small>`;
+      heading.append(avatar, identity, currentJob);
 
-      const assignmentLabel = element('span', 'worker-section-label');
-      assignmentLabel.textContent = 'AFFECTATION';
-      const assignments = element('div', 'assignment-grid');
-      RESOURCE_KINDS.forEach((task) => {
-        const button = element('button', 'assignment-button');
-        button.type = 'button';
-        button.dataset.action = 'assign';
-        button.dataset.workerId = worker.id;
-        button.dataset.task = task;
-        button.disabled = !unlockedTasks.includes(task);
-        button.setAttribute('aria-pressed', String(worker.task === task));
-        button.setAttribute('aria-label', `Assigner ${worker.name} ${ASSIGNMENT_LABELS[task]}`);
-        button.innerHTML = `<span aria-hidden="true">${RESOURCE_ICONS[task]}</span><small>${RESOURCE_LABELS[task]}</small>`;
-        assignments.append(button);
-      });
+      if (isNew) {
+        const burst = element('span', 'worker-burst recruit-burst');
+        burst.textContent = 'NOUVEAU !';
+        burst.setAttribute('role', 'status');
+        card.append(burst);
+      }
+      if (isLeveling) {
+        const burst = element('span', 'worker-burst level-up-burst');
+        burst.textContent = 'LEVEL UP !';
+        burst.setAttribute('aria-label', `${worker.name} passe niveau ${this.levelUpWorker?.level ?? worker.level}`);
+        burst.setAttribute('role', 'status');
+        card.append(burst);
+      }
 
       const upgrade = element('button', 'upgrade-button');
       upgrade.type = 'button';
@@ -328,11 +429,12 @@ export class GameUI {
         upgrade.disabled = true;
       } else {
         const upgradeCost = getUpgradeCost(worker, progress);
-        upgrade.textContent = `AMÉLIORER NIVEAU ${worker.level + 1} · ${formatCost(upgradeCost)}`;
+        upgrade.textContent = `NIV ${worker.level} → ${worker.level + 1} · ${formatCost(upgradeCost)}`;
+        upgrade.setAttribute('aria-label', `Améliorer ${worker.name} au niveau ${worker.level + 1}, coût ${formatCost(upgradeCost)}`);
         upgrade.disabled = !canAfford(progress, upgradeCost);
       }
 
-      card.append(heading, assignmentLabel, assignments, upgrade);
+      card.append(heading, upgrade);
       this.workerList.append(card);
     });
   }

@@ -30,10 +30,23 @@ interface IlotaDiagnostics {
     routeBridges: number[];
     bridgesUsed: number[];
     routeDistance: number;
+    routeChoices: number;
+    targetNode: string;
+    targetIsland: number;
+    cargo: number;
   }>;
+  resourceNodes: Array<{ id: string; kind: string; island: number; amount: number; capacity: number }>;
   player: { x: number; z: number };
   facingAlignment: number;
   lastHarvest: { kind: string; remaining: number; capacity: number; scale: number } | null;
+  lastWorkerHarvest: {
+    workerId: string;
+    nodeId: string;
+    kind: string;
+    gathered: number;
+    remaining: number;
+    island: number;
+  } | null;
   assetsLoaded: number;
   fps: number;
 }
@@ -115,7 +128,7 @@ const createNavigator = (page: Page) => {
 
 const openCrew = async (page: Page): Promise<void> => {
   await page.getByRole('button', { name: /gérer l’équipe/i }).click();
-  await expect(page.getByRole('dialog', { name: 'Tes travailleurs' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Place tes renards' })).toBeVisible();
   await expect.poll(async () => (await diagnostics(page)).crewOpen).toBe(true);
 };
 
@@ -128,7 +141,7 @@ const recruitUntil = async (page: Page, count: number): Promise<void> => {
   while (true) {
     const before = (await diagnostics(page)).workers;
     if (before >= count) break;
-    await page.getByRole('button', { name: /recruter un renard/i }).click();
+    await page.getByRole('button', { name: /appeler un renard/i }).click();
     await expect.poll(async () => (await diagnostics(page)).workers).toBe(before + 1);
   }
   await expect(page.locator('.worker-card')).toHaveCount(count);
@@ -136,12 +149,21 @@ const recruitUntil = async (page: Page, count: number): Promise<void> => {
 
 const upgradeWorker = async (page: Page, name: string): Promise<void> => {
   const card = page.locator('.worker-card').filter({ hasText: name });
-  await card.getByRole('button', { name: /améliorer niveau/i }).click();
+  await card.getByRole('button', { name: new RegExp(`Améliorer ${name}`, 'i') }).click();
 };
 
 const assignWorker = async (page: Page, name: string, task: string): Promise<void> => {
   const card = page.locator('.worker-card').filter({ hasText: name });
-  await card.getByRole('button', { name: new RegExp(`Assigner ${name}.*${task}`, 'i') }).click();
+  await card.getByRole('button', { name: new RegExp(`Sélectionner ${name}`, 'i') }).click();
+  const taskKind: Record<string, string> = {
+    bois: 'wood',
+    pierre: 'stone',
+    cuivre: 'copper',
+    cristal: 'crystal',
+  };
+  const kind = taskKind[task];
+  if (!kind) throw new Error(`Métier inconnu : ${task}`);
+  await page.locator(`.job-${kind}`).click();
 };
 
 test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone SE paysage', async ({ page }) => {
@@ -209,22 +231,36 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   await waitForGame(page);
   await openCrew(page);
   await recruitUntil(page, 3);
+  await expect(page.locator('.worker-card').filter({ hasText: 'Sève' }).locator('.recruit-burst')).toContainText('NOUVEAU');
+  await expect(page.locator('.job-wood')).toContainText('55 · 60 %');
+  await expect(page.locator('.job-copper')).toContainText('MÉTIER VERROUILLÉ');
   await assignWorker(page, 'Milo', 'pierre');
   await upgradeWorker(page, 'Milo');
+  await expect(page.locator('.worker-card').filter({ hasText: 'Milo' }).locator('.level-up-burst')).toContainText('LEVEL UP');
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(4);
   await expect.poll(async () => (await diagnostics(page)).workerTasks.split(',')[0]).toBe('stone');
+  await expect(page.locator('.job-stone')).toHaveAttribute('aria-pressed', 'true');
 
   const panelMetrics = await page.evaluate(() => {
     const panel = document.querySelector<HTMLElement>('.crew-sheet')!.getBoundingClientRect();
-    const assignment = document.querySelector<HTMLButtonElement>('.assignment-button')!.getBoundingClientRect();
+    const assignment = document.querySelector<HTMLButtonElement>('.job-dock')!.getBoundingClientRect();
     const close = document.getElementById('crew-close-button')!.getBoundingClientRect();
+    const touchTargets = [...document.querySelectorAll<HTMLButtonElement>(
+      '.job-dock:not(:disabled), .worker-select, .upgrade-button:not(:disabled), #recruit-button:not(:disabled)',
+    )].map((button) => button.getBoundingClientRect());
     return {
       panelInside: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
       assignmentTarget: assignment.width >= 24 && assignment.height >= 36,
       closeTarget: close.width >= 44 && close.height >= 44,
+      allTouchTargets: touchTargets.length > 0 && touchTargets.every((target) => target.width >= 44 && target.height >= 44),
     };
   });
-  expect(panelMetrics).toEqual({ panelInside: true, assignmentTarget: true, closeTarget: true });
+  expect(panelMetrics).toEqual({
+    panelInside: true,
+    assignmentTarget: true,
+    closeTarget: true,
+    allTouchTargets: true,
+  });
   await page.screenshot({ path: 'test-results/ilota-crew-management.png' });
   await closeCrew(page);
 });
@@ -268,11 +304,15 @@ test('les ouvriers restent sur les îles et empruntent les ponts, même après r
   });
   await waitForGame(page);
   await openCrew(page);
+  const card = page.locator('.worker-card').filter({ hasText: 'Milo' });
+  await card.getByRole('button', { name: /sélectionner Milo/i }).click();
   const before = (await diagnostics(page)).workerNavigation[0]!;
-  await assignWorker(page, 'Milo', 'cristal');
+  await page.locator('.job-crystal').click();
   await expect.poll(async () => (await diagnostics(page)).workerTasks).toBe('crystal');
   const after = (await diagnostics(page)).workerNavigation[0]!;
-  expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThan(1.2);
+  // Le renard continue à marcher pendant l’interaction tactile (~0,8 s),
+  // mais un saut inter-îles mesurerait au minimum une dizaine d’unités.
+  expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThan(3.2);
   expect(after.routeBridges).toEqual(expect.arrayContaining([0, 1, 2]));
   await closeCrew(page);
   for (let sample = 0; sample < 8; sample += 1) {
@@ -280,6 +320,46 @@ test('les ouvriers restent sur les îles et empruntent les ponts, même après r
     expect((await diagnostics(page)).workersOnWalkable).toBe(true);
   }
   expect((await diagnostics(page)).workerNavigation[0]!.bridgesUsed).toEqual(expect.arrayContaining([0, 1, 2]));
+});
+
+test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'stone', level: 1 }],
+  });
+  await waitForGame(page);
+  await expect.poll(async () => (await diagnostics(page)).lastWorkerHarvest, { timeout: 15_000 })
+    .not.toBeNull();
+  const mined = (await diagnostics(page)).lastWorkerHarvest!;
+  const node = (await diagnostics(page)).resourceNodes.find((candidate) => candidate.id === mined.nodeId)!;
+  expect(mined.gathered).toBe(2);
+  expect(node.amount).toBe(node.capacity - 2);
+});
+
+test('un renard vide réellement son filon puis choisit une autre cible naïve', async ({ page }) => {
+  test.setTimeout(35_000);
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    foundryBuilt: true,
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'stone', level: 3 }],
+    skills: ['trail_sense', 'master_builders'],
+  });
+  await waitForGame(page);
+  await expect.poll(async () => (await diagnostics(page)).lastWorkerHarvest, { timeout: 15_000 })
+    .not.toBeNull();
+  const mined = (await diagnostics(page)).lastWorkerHarvest!;
+  const depletedNode = (await diagnostics(page)).resourceNodes.find((node) => node.id === mined.nodeId)!;
+  expect(mined).toMatchObject({ workerId: 'worker-1', kind: 'stone', remaining: 0, island: 0 });
+  expect(mined.gathered).toBe(depletedNode.capacity);
+  expect(depletedNode.amount).toBe(0);
+
+  await expect.poll(async () => {
+    const worker = (await diagnostics(page)).workerNavigation[0]!;
+    return worker.routeChoices > 1 && worker.targetNode !== mined.nodeId;
+  }, { timeout: 15_000 }).toBe(true);
+  expect((await diagnostics(page)).workersOnWalkable).toBe(true);
 });
 
 test('fait naître le graphe hexagonal puis atteint l’auto-régulation profonde', async ({ page }) => {
@@ -329,7 +409,7 @@ test('achète plusieurs rangs de postes dont le prix augmente', async ({ page })
   await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(82);
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   await openCrew(page);
-  await expect(page.locator('#crew-capacity')).toContainText('0 / 5 postes');
+  await expect(page.locator('#crew-capacity')).toContainText('0 / 5 terriers');
 });
 
 test('l’auto-régulation envoie réellement un renard vers la ressource en pénurie', async ({ page }) => {

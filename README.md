@@ -6,7 +6,9 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 
 - cinq chapitres, quatre ponts réellement traversables et des îles invisibles qui émergent à leur ouverture ;
 - arbres et minerais de tailles variées qui rétrécissent à chaque coup, disparaissent au dernier et réapparaissent ensuite ;
+- filons réellement consommés par les livraisons des ouvriers, avec repousse pondérée et ressources interdites selon l’île ;
 - quatre métiers réassignables : bois, pierre, cuivre et cristal ;
+- terrier lumineux en deux gestes (choisir un renard, toucher un métier), taux d’apparition visibles et célébrations de recrutement/niveau ;
 - neuf postes par les bâtiments, jusqu’à sept postes supplémentaires par les savoirs, et trois niveaux de rendement ;
 - camp, atelier, fonderie et observatoire fondés sur de vrais modèles 3D CC0 ;
 - arbre de savoir hexagonal à 26 nœuds, chemins croisés, cinq rangs d’effectif et trois sommets de méta distincts ;
@@ -14,6 +16,7 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - commandes tactiles, interface paysage et installation PWA hors ligne.
 
 Le contrat complet de campagne se trouve dans [docs/campaign-progression.md](./docs/campaign-progression.md).
+La matrice de retour visuel et tactile se trouve dans [docs/feedback-matrix.md](./docs/feedback-matrix.md).
 
 ## Jouer localement
 

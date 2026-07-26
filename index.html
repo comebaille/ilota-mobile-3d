@@ -53,20 +53,21 @@
         <div class="crew-sheet">
           <header class="crew-header">
             <div>
-              <p class="kicker">GESTION DE L’ARCHIPEL</p>
-              <h2 id="crew-title">Tes travailleurs</h2>
+              <p class="kicker">TERRIER DES BÂTISSEURS</p>
+              <h2 id="crew-title">Place tes renards</h2>
             </div>
             <button id="crew-close-button" class="icon-button" type="button" aria-label="Fermer la gestion de l’équipe">×</button>
           </header>
           <div class="crew-summary">
             <strong id="crew-capacity">0 / 0 postes</strong>
-            <span id="crew-help">Recrute un renard puis choisis son métier.</span>
+            <span id="crew-help" role="status">1. Choisis un renard · 2. Touche son métier.</span>
           </div>
-          <div id="worker-list" class="worker-list" aria-live="polite"></div>
+          <div id="job-docks" class="job-docks" role="group" aria-label="Métiers et ressources disponibles"></div>
+          <div id="worker-list" class="worker-list" aria-label="Terrier des renards"></div>
           <footer class="crew-footer">
             <button id="recruit-button" class="primary-button recruit-button" type="button">
-              <span>RECRUTER UN RENARD</span>
-              <small id="recruit-cost">4 bois · 2 pierre</small>
+              <span class="recruit-portrait" aria-hidden="true">🦊</span>
+              <span class="recruit-copy"><strong>APPELER UN RENARD</strong><small id="recruit-cost">4 bois · 2 pierre</small></span>
             </button>
           </footer>
         </div>

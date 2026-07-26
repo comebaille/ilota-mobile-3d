@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BRIDGE_GEOMETRIES, isPointOnWalkableNetwork, planRoute } from './pathfinding';
+import {
+  BRIDGE_GEOMETRIES,
+  chooseUninformedResourceIndex,
+  isPointOnWalkableNetwork,
+  planRoute,
+} from './pathfinding';
 
 describe('navigation des travailleurs', () => {
   it('refuse de traverser l’eau lorsque le pont manque', () => {
@@ -26,5 +31,16 @@ describe('navigation des travailleurs', () => {
     expect(route!.bridgeIndices).toContain(0);
     expect(route!.points[0]).toEqual(bridge.start);
     expect(Math.hypot(route!.points[0]!.x - midpoint.x, route!.points[0]!.z - midpoint.z)).toBeLessThan(6);
+  });
+
+  it('choisit des filons variés sans utiliser leur distance avant le talent', () => {
+    const choices = Array.from({ length: 18 }, (_, cycle) =>
+      chooseUninformedResourceIndex('worker-1', cycle, 7));
+    expect(choices.every((choice) => choice >= 0 && choice < 7)).toBe(true);
+    expect(new Set(choices).size).toBeGreaterThan(3);
+    expect(chooseUninformedResourceIndex('worker-1', 4, 7)).toBe(
+      chooseUninformedResourceIndex('worker-1', 4, 7),
+    );
+    expect(chooseUninformedResourceIndex('worker-1', 4, 0)).toBe(-1);
   });
 });

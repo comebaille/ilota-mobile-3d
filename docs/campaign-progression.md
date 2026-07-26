@@ -49,11 +49,35 @@ La Nouvelle Marée :
 ## Navigation et intelligence des ouvriers
 
 - Une livraison est créditée uniquement lorsque le travailleur revient physiquement à un dépôt.
+- La quantité chargée est retirée immédiatement du filon ; deux renards ne peuvent donc pas récolter deux fois la même réserve.
+- Un filon à zéro rétrécit, disparaît, déclenche sa repousse et force tous les renards qui le visaient encore à choisir une nouvelle cible.
 - Un trajet inter-îles est une route de points : terre, entrée du pont, sortie du pont, puis terre.
 - Une réaffectation repart de la position actuelle ; elle ne téléporte jamais le travailleur.
-- Sans Routes calculées, l’affectation reste stable et prévisible.
+- Sans Routes calculées, le renard choisit volontairement un filon au hasard parmi tous ceux de son métier accessibles par les ponts. Il ne compare aucune distance, même si la cible se trouve cinq îles plus loin.
 - Avec Routes calculées, chaque renard compare les couples gisement / dépôt accessibles et choisit la distance totale minimale.
 - Avec Auto-régulation active, le jeu évalue le prochain coût, les stocks, les métiers non couverts et la production présente. La réaction passe de 8 à 5 secondes avec Relèves coordonnées, puis à deux changements toutes les 3 secondes avec Esprit collectif.
+
+## Écologie des ressources
+
+À chaque repousse, le type du point de ressource est tiré avec le profil de son île. Un taux de 0 % est une interdiction absolue. Des minimums de sécurité empêchent également une série de tirages de supprimer toutes les ressources nécessaires à la progression.
+
+| Île | Bois | Pierre | Cuivre | Cristal |
+|---|---:|---:|---:|---:|
+| Marées | 55 % | 45 % | interdit | interdit |
+| Pins | 60 % | 40 % | interdit | interdit |
+| Cuivrée | 15 % | 20 % | 65 % | interdit |
+| Cristal | 10 % | 15 % | 25 % | 50 % |
+| Couronne | 25 % | 25 % | 25 % | 25 % |
+
+Les placements initiaux restent garantis pour éviter un départ bloqué ; ces taux prennent effet lors des repousses successives.
+
+## Terrier des bâtisseurs
+
+- Affectation en deux gestes : sélectionner une carte de renard, puis toucher une grande cible de métier.
+- Chaque métier affiche le nombre de renards et les taux des îles actuellement émergées.
+- Le métier actif est indiqué par un contour, un fond, une icône et du texte, jamais par la couleur seule.
+- Un recrutement fait surgir le renard dans l’interface et dans le monde ; une amélioration produit un cartouche `LEVEL UP`, un halo et une impulsion 3D.
+- Les cibles principales mesurent au moins 44 px et les mouvements respectent `prefers-reduced-motion`.
 
 ## Révélation de l’archipel
 
@@ -87,5 +111,7 @@ La Nouvelle Marée :
 - Des tests unitaires contrôlent les prérequis croisés, les coûts de rang, la conservation au rebirth et l’auto-régulation.
 - Le graphe de navigation refuse une île sans pont et inclut les deux extrémités de chaque pont utilisé.
 - Un test navigateur réaffecte un ouvrier en mouvement, confirme l’absence de téléportation et échantillonne sa présence sur le réseau marchable.
+- Un test navigateur confirme qu’un ouvrier vide le filon ciblé, en transporte au plus la quantité restante, puis choisit une autre cible.
+- Des tests unitaires vérifient que chaque profil totalise 100 % et qu’aucun cuivre ou cristal ne peut repousser sur les deux premières îles.
 - Un test navigateur fait apparaître les trois voies depuis le nœud gratuit, atteint l’auto-régulation profonde et achète deux rangs d’effectif.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.

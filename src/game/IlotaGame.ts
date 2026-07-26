@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AssetLibrary, findAnimation } from './assets';
+import { AssetLibrary, findAnimation, type NatureKind } from './assets';
 import {
   Economy,
   RESOURCE_ICONS,
@@ -34,11 +34,18 @@ import {
   type WorkerState,
 } from './economy';
 import { InputController } from './input';
-import { isPointOnWalkableNetwork, planRoute, type PlannedRoute } from './pathfinding';
+import {
+  chooseUninformedResourceIndex,
+  isPointOnWalkableNetwork,
+  planRoute,
+  type PlannedRoute,
+} from './pathfinding';
 import {
   BRIDGES,
   CACHES,
+  findIslandIndexForPoint,
   ISLANDS,
+  pickResourceKindForIsland,
   RESOURCE_SPAWNS,
   STRUCTURES,
   type BridgeDefinition,
@@ -49,8 +56,11 @@ import {
 import { GameUI } from '../ui/GameUI';
 
 interface ResourceNode {
+  readonly id: string;
   kind: ResourceKind;
   root: THREE.Group;
+  readonly islandIndex: number;
+  visualCycle: number;
   amount: number;
   readonly capacity: number;
   readonly baseScale: number;
@@ -76,6 +86,10 @@ interface WorkerEntity {
   bridgesUsed: Set<number>;
   target: ResourceNode | null;
   hub: THREE.Vector3;
+  cargo: number;
+  routeChoices: number;
+  arrivalTimer: number;
+  levelUpTimer: number;
 }
 
 interface BridgeEntity {
@@ -164,15 +178,39 @@ interface Diagnostics {
     routeBridges: number[];
     bridgesUsed: number[];
     routeDistance: number;
+    routeChoices: number;
+    targetNode: string;
+    targetIsland: number;
+    cargo: number;
+  }>;
+  resourceNodes: Array<{
+    id: string;
+    kind: ResourceKind;
+    island: number;
+    amount: number;
+    capacity: number;
   }>;
   player: { x: number; z: number };
   facingAlignment: number;
   lastHarvest: { kind: ResourceKind; remaining: number; capacity: number; scale: number } | null;
+  lastWorkerHarvest: {
+    workerId: string;
+    nodeId: string;
+    kind: ResourceKind;
+    gathered: number;
+    remaining: number;
+    island: number;
+  } | null;
   fps: number;
 }
 
 const SAVE_KEY = 'ilota-save-v1';
 const HIDDEN_ISLAND_Y = -8.5;
+const WORKER_FEEL = {
+  arrivalSeconds: 0.95,
+  levelUpSeconds: 1.15,
+  depositPauseSeconds: 0.55,
+} as const;
 
 const PALETTE = {
   sea: 0x164f56,
@@ -244,6 +282,7 @@ export class IlotaGame {
   private managementOpen = false;
   private interaction: Interaction | null = null;
   private lastHarvestedNode: ResourceNode | null = null;
+  private lastWorkerHarvest: Diagnostics['lastWorkerHarvest'] = null;
   private harvestCooldown = 0;
   private worldTime = 0;
   private saveCooldown = 0;
@@ -310,9 +349,11 @@ export class IlotaGame {
       emergingIsland: '',
       workersOnWalkable: true,
       workerNavigation: [],
+      resourceNodes: [],
       player: { x: this.player.position.x, z: this.player.position.z },
       facingAlignment: 1,
       lastHarvest: null,
+      lastWorkerHarvest: null,
       fps: 60,
     };
     this.ui.update(progress);
@@ -411,7 +452,10 @@ export class IlotaGame {
       } else this.showMissing(recruitCost);
       return;
     }
-    this.spawnWorker(worker);
+    this.spawnWorker(worker, true);
+    this.ui.celebrateRecruit(worker.id);
+    const entity = this.workers.find((candidate) => candidate.id === worker.id);
+    if (entity) this.spawnParticles(entity.root.position.clone().setY(0.75), worker.task, 12);
     this.ui.toast(`${worker.name} rejoint l’équipe et récolte : ${RESOURCE_LABELS[worker.task]}.`);
     this.changed();
   }
@@ -435,8 +479,15 @@ export class IlotaGame {
     }
     const state = this.economy.progress.workers.find((worker) => worker.id === workerId);
     const entity = this.workers.find((worker) => worker.id === workerId);
-    if (state && entity) this.syncWorker(entity, state, false);
-    if (state) this.ui.toast(`${state.name} passe niveau ${state.level} · rendement amélioré !`);
+    if (state && entity) {
+      entity.levelUpTimer = WORKER_FEEL.levelUpSeconds;
+      this.syncWorker(entity, state, false);
+      this.spawnParticles(entity.root.position.clone().setY(0.9), state.task, 10 + state.level * 3);
+    }
+    if (state) {
+      this.ui.celebrateLevelUp(state.id, state.level);
+      this.ui.toast(`${state.name} passe niveau ${state.level} · rendement amélioré !`);
+    }
     this.changed();
   }
 
@@ -720,19 +771,20 @@ export class IlotaGame {
   }
 
   private createResources(): void {
-    RESOURCE_SPAWNS.forEach((spawn) => {
+    RESOURCE_SPAWNS.forEach((spawn, index) => {
       const root = new THREE.Group();
-      const asset = spawn.kind === 'wood' || spawn.kind === 'stone'
-        ? this.assets.createNature(spawn.model ?? (spawn.kind === 'wood' ? 'treeA' : 'rock'))
-        : this.createMineralCluster(spawn.kind);
+      const asset = this.createResourceVisual(spawn.kind, index, spawn.model);
       root.add(asset);
       root.position.set(spawn.x, 0, spawn.z);
       root.scale.setScalar(spawn.scale);
       root.rotation.y = (spawn.x * 1.73 + spawn.z * 0.91) % (Math.PI * 2);
       this.addToIsland(root, spawn.x, spawn.z);
       this.resources.push({
+        id: `resource-${index + 1}`,
         kind: spawn.kind,
         root,
+        islandIndex: findIslandIndexForPoint(spawn.x, spawn.z),
+        visualCycle: index,
         amount: spawn.capacity,
         capacity: spawn.capacity,
         baseScale: spawn.scale,
@@ -742,6 +794,26 @@ export class IlotaGame {
         pulse: 0,
       });
     });
+  }
+
+  private createResourceVisual(kind: ResourceKind, visualCycle: number, preferredModel?: NatureKind): THREE.Object3D {
+    if (kind === 'wood') return this.assets.createNature(preferredModel ?? (visualCycle % 2 === 0 ? 'treeA' : 'treeB'));
+    if (kind === 'stone') return this.assets.createNature('rock');
+    return this.createMineralCluster(kind);
+  }
+
+  private rerollResourceNode(node: ResourceNode): void {
+    const counts: Partial<Record<ResourceKind, number>> = {};
+    this.resources.forEach((candidate) => {
+      if (candidate === node || candidate.islandIndex !== node.islandIndex) return;
+      counts[candidate.kind] = (counts[candidate.kind] ?? 0) + 1;
+    });
+    const nextKind = pickResourceKindForIsland(node.islandIndex, Math.random(), counts);
+    node.visualCycle += 1;
+    if (nextKind === node.kind && nextKind !== 'wood') return;
+    node.kind = nextKind;
+    node.root.clear();
+    node.root.add(this.createResourceVisual(nextKind, node.visualCycle));
   }
 
   private createMineralCluster(kind: 'copper' | 'crystal'): THREE.Group {
@@ -970,7 +1042,7 @@ export class IlotaGame {
     this.changed();
   }
 
-  private spawnWorker(state: WorkerState): void {
+  private spawnWorker(state: WorkerState, withArrival = false): void {
     if (this.workers.some((worker) => worker.id === state.id)) return;
     const { root: model, clips } = this.assets.createFox(0.82);
     const root = new THREE.Group();
@@ -1005,17 +1077,23 @@ export class IlotaGame {
       bridgesUsed: new Set<number>(),
       target: null,
       hub: vec(0, 1),
+      cargo: 0,
+      routeChoices: 0,
+      arrivalTimer: withArrival ? WORKER_FEEL.arrivalSeconds : 0,
+      levelUpTimer: 0,
     };
     this.workers.push(entity);
     this.syncWorker(entity, state, true);
   }
 
   private syncWorker(entity: WorkerEntity, state: WorkerState, reroute: boolean): void {
+    const changedTask = entity.task !== state.task;
     entity.task = state.task;
     entity.level = state.level;
+    if (changedTask) entity.cargo = 0;
     entity.marker.material.color.setHex(RESOURCE_COLORS[state.task]);
     entity.marker.scale.setScalar(0.9 + state.level * 0.12);
-    entity.root.scale.setScalar(0.9 + state.level * 0.055);
+    entity.root.scale.setScalar(entity.arrivalTimer > 0 ? 0.04 : 0.9 + state.level * 0.055);
     if (reroute) this.planWorkerCycle(entity, state);
   }
 
@@ -1054,7 +1132,8 @@ export class IlotaGame {
 
   private planWorkerCycle(entity: WorkerEntity, state: WorkerState): void {
     const start = entity.root.position;
-    const matchingResources = this.resources.filter((node) => node.kind === state.task);
+    const matchingResources = this.resources.filter((node) =>
+      node.kind === state.task && node.amount > 0 && node.root.visible);
     const reachable = matchingResources
       .map((node) => ({ node, outbound: this.planFrom(start, node.root.position) }))
       .filter((candidate): candidate is { node: ResourceNode; outbound: PlannedRoute } => Boolean(candidate.outbound));
@@ -1067,8 +1146,9 @@ export class IlotaGame {
       return;
     }
 
-    const workerIndex = Math.max(0, this.economy.progress.workers.findIndex((worker) => worker.id === state.id));
-    let selected = reachable[workerIndex % reachable.length]!;
+    entity.routeChoices += 1;
+    const uninformedIndex = chooseUninformedResourceIndex(entity.id, entity.routeChoices, reachable.length);
+    let selected = reachable[Math.max(0, uninformedIndex)] ?? reachable[0]!;
     let selectedHub = this.defaultWorkerHub(state.task);
 
     if (hasSkill(this.economy.progress, 'optimal_routes')) {
@@ -1188,6 +1268,7 @@ export class IlotaGame {
         node.root.scale.setScalar(node.currentScale);
         if (node.currentScale < 0.025) node.root.visible = false;
         if (node.respawn <= 0) {
+          this.rerollResourceNode(node);
           node.amount = node.capacity;
           node.currentScale = Math.max(0.04, node.baseScale * 0.08);
           node.root.scale.setScalar(node.currentScale);
@@ -1235,6 +1316,31 @@ export class IlotaGame {
       const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
       if (!state) return;
       if (state.task !== entity.task || state.level !== entity.level) this.syncWorker(entity, state, state.task !== entity.task);
+      const baseScale = 0.9 + state.level * 0.055;
+      if (entity.arrivalTimer > 0) {
+        entity.arrivalTimer = Math.max(0, entity.arrivalTimer - delta);
+        const progress = 1 - entity.arrivalTimer / WORKER_FEEL.arrivalSeconds;
+        const shifted = progress - 1;
+        const overshoot = 1 + 2.70158 * shifted ** 3 + 1.70158 * shifted ** 2;
+        entity.root.scale.setScalar(baseScale * Math.max(0.04, overshoot));
+      } else if (entity.levelUpTimer > 0) {
+        entity.levelUpTimer = Math.max(0, entity.levelUpTimer - delta);
+        const progress = 1 - entity.levelUpTimer / WORKER_FEEL.levelUpSeconds;
+        entity.root.scale.setScalar(baseScale * (1 + Math.sin(progress * Math.PI) * 0.2));
+        entity.marker.material.emissive.setHex(RESOURCE_COLORS[state.task]);
+        entity.marker.material.emissiveIntensity = Math.sin(progress * Math.PI) * 1.8;
+      } else {
+        entity.root.scale.setScalar(baseScale);
+        entity.marker.material.emissiveIntensity = 0;
+      }
+
+      if ((entity.phase === 'toResource' || entity.phase === 'gathering')
+        && (!entity.target || entity.target.amount <= 0 || entity.target.kind !== state.task)) {
+        entity.target = null;
+        entity.cargo = 0;
+        this.planWorkerCycle(entity, state);
+      }
+
       if (entity.phase === 'toResource') {
         if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
           entity.phase = 'gathering';
@@ -1243,6 +1349,22 @@ export class IlotaGame {
       } else if (entity.phase === 'gathering') {
         entity.phaseTimer -= delta;
         if (entity.phaseTimer <= 0) {
+          const target = entity.target;
+          if (!target || target.amount <= 0 || target.kind !== state.task) {
+            entity.target = null;
+            entity.cargo = 0;
+            this.planWorkerCycle(entity, state);
+            return;
+          }
+          const requested = getWorkerYield(state.level, this.economy.progress);
+          entity.cargo = this.consumeResourceNode(target, requested, entity.id);
+          if (entity.cargo <= 0) {
+            entity.target = null;
+            this.planWorkerCycle(entity, state);
+            return;
+          }
+          const height = target.kind === 'wood' ? 1.4 : target.kind === 'crystal' ? 1 : 0.7;
+          this.spawnParticles(target.root.position.clone().setY(height), target.kind, 5 + state.level * 2);
           const returning = this.planFrom(entity.root.position, entity.hub);
           if (returning) this.applyWorkerRoute(entity, returning, 'toHub');
           else {
@@ -1252,18 +1374,26 @@ export class IlotaGame {
         }
       } else if (entity.phase === 'toHub') {
         if (this.advanceWorker(entity, getWorkerTravelSpeed(state.level, this.economy.progress), delta)) {
-          const amount = getWorkerYield(state.level, this.economy.progress);
-          this.economy.add(state.task, amount);
-          this.economy.recordDelivery();
+          if (entity.cargo > 0) {
+            this.economy.add(state.task, entity.cargo);
+            this.economy.recordDelivery();
+          }
+          entity.cargo = 0;
           this.ui.update(this.economy.progress);
           this.spawnParticles(entity.hub.clone().setY(0.8), state.task, 4 + state.level * 2);
           this.save();
           entity.phase = 'depositing';
-          entity.phaseTimer = 0.55;
+          entity.phaseTimer = WORKER_FEEL.depositPauseSeconds;
         }
       } else {
         entity.phaseTimer -= delta;
-        if (entity.phaseTimer <= 0) this.planWorkerCycle(entity, state);
+        if (entity.phaseTimer <= 0) {
+          if (entity.cargo > 0) {
+            const returning = this.planFrom(entity.root.position, entity.hub);
+            if (returning) this.applyWorkerRoute(entity, returning, 'toHub');
+            else entity.phaseTimer = 1;
+          } else this.planWorkerCycle(entity, state);
+        }
       }
       entity.root.rotation.z = entity.phase === 'gathering'
         ? Math.sin(this.worldTime * 11 + entity.root.id) * 0.06
@@ -1438,9 +1568,7 @@ export class IlotaGame {
 
   private harvest(node: ResourceNode): void {
     if (node.amount <= 0) return;
-    node.amount -= 1;
-    node.pulse = 0.22;
-    this.lastHarvestedNode = node;
+    this.consumeResourceNode(node, 1);
     this.economy.add(node.kind, getManualYield(this.economy.progress, node.kind));
     const height = node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
     this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
@@ -1450,6 +1578,26 @@ export class IlotaGame {
     }
     this.ui.update(this.economy.progress);
     this.save();
+  }
+
+  private consumeResourceNode(node: ResourceNode, requested: number, workerId?: string): number {
+    if (node.amount <= 0 || requested <= 0) return 0;
+    const gathered = Math.min(node.amount, Math.max(1, Math.floor(requested)));
+    node.amount -= gathered;
+    node.pulse = 0.22;
+    this.lastHarvestedNode = node;
+    if (node.amount <= 0) node.respawn = node.respawnSeconds * getRespawnMultiplier(this.economy.progress);
+    if (workerId) {
+      this.lastWorkerHarvest = {
+        workerId,
+        nodeId: node.id,
+        kind: node.kind,
+        gathered,
+        remaining: node.amount,
+        island: node.islandIndex,
+      };
+    }
+    return gathered;
   }
 
   private showMissing(cost: Cost): void {
@@ -1625,6 +1773,17 @@ export class IlotaGame {
       routeBridges: [...worker.routeBridgeIndices],
       bridgesUsed: [...worker.bridgesUsed].sort((a, b) => a - b),
       routeDistance: Number(worker.routeDistance.toFixed(2)),
+      routeChoices: worker.routeChoices,
+      targetNode: worker.target?.id ?? '',
+      targetIsland: worker.target?.islandIndex ?? -1,
+      cargo: worker.cargo,
+    }));
+    this.diagnostics.resourceNodes = this.resources.map((node) => ({
+      id: node.id,
+      kind: node.kind,
+      island: node.islandIndex,
+      amount: node.amount,
+      capacity: node.capacity,
     }));
     this.diagnostics.player.x = Number(this.player.position.x.toFixed(2));
     this.diagnostics.player.z = Number(this.player.position.z.toFixed(2));
@@ -1638,6 +1797,7 @@ export class IlotaGame {
       capacity: this.lastHarvestedNode.capacity,
       scale: Number(this.lastHarvestedNode.currentScale.toFixed(3)),
     } : null;
+    this.diagnostics.lastWorkerHarvest = this.lastWorkerHarvest;
     this.diagnostics.fps = Math.round(this.fpsAverage);
   }
 

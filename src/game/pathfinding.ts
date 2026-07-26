@@ -24,6 +24,24 @@ interface StartCandidate {
 
 const distance = (a: Point2, b: Point2): number => Math.hypot(a.x - b.x, a.z - b.z);
 
+/**
+ * Choix volontairement naïf : avant le talent Routes optimales, un renard ne
+ * compare aucune distance. La suite reste déterministe pour rendre les parties
+ * et les tests reproductibles, mais paraît aléatoire au joueur.
+ */
+export const chooseUninformedResourceIndex = (workerId: string, cycle: number, count: number): number => {
+  if (count <= 0) return -1;
+  let hash = 2166136261;
+  for (let index = 0; index < workerId.length; index += 1) {
+    hash ^= workerId.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  hash ^= Math.imul(cycle + 1, 0x9e3779b1);
+  hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+  hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+  return ((hash ^ (hash >>> 16)) >>> 0) % count;
+};
+
 const distanceToSegment = (point: Point2, start: Point2, end: Point2): number => {
   const dx = end.x - start.x;
   const dz = end.z - start.z;

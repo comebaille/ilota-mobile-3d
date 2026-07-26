@@ -38,10 +38,29 @@ interface IlotaWindow extends Window {
       routeBridges: number[];
       bridgesUsed: number[];
       routeDistance: number;
+      routeChoices: number;
+      targetNode: string;
+      targetIsland: number;
+      cargo: number;
+    }>;
+    resourceNodes: Array<{
+      id: string;
+      kind: string;
+      island: number;
+      amount: number;
+      capacity: number;
     }>;
     player: { x: number; z: number };
     facingAlignment: number;
     lastHarvest: { kind: string; remaining: number; capacity: number; scale: number } | null;
+    lastWorkerHarvest: {
+      workerId: string;
+      nodeId: string;
+      kind: string;
+      gathered: number;
+      remaining: number;
+      island: number;
+    } | null;
     fps: number;
   };
 }
