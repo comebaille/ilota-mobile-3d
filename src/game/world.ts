@@ -1,7 +1,6 @@
 import {
   RESOURCE_KINDS,
   type Cost,
-  type ProjectId,
   type ResourceKind,
   type StructureKind,
 } from './economy';
@@ -35,24 +34,10 @@ export interface StructureDefinition extends Point2 {
   color: number;
 }
 
-export type ProjectModelKind =
-  | 'timberReserve'
-  | 'towingPaths'
-  | 'sharedWarehouse'
-  | 'communalSawmill'
-  | 'shoreWalls'
-  | 'ordersOffice'
-  | 'copperWinches'
-  | 'haulingRails'
-  | 'maintenanceYard'
-  | 'crystalBeacons'
-  | 'prismaticReservoir'
-  | 'unityLighthouse';
-
-export interface ProjectSiteDefinition extends Point2 {
-  id: ProjectId;
+export interface ProjectHallDefinition extends Point2 {
   islandIndex: 1 | 2 | 3 | 4;
-  model: ProjectModelKind;
+  tier: 1 | 2 | 3 | 4;
+  name: string;
   radius: number;
   color: number;
   rotation: number;
@@ -175,26 +160,14 @@ export const WAREHOUSES: readonly WarehouseDefinition[] = [
 ];
 
 /**
- * Chaque Grand Travail possède désormais son propre chantier dans le monde.
- * Les positions laissent un couloir central lisible entre les bâtiments,
- * les ressources et les ponts.
+ * Une seule Maison des Travaux par île. Le bâtiment reste identique et ses
+ * trois sceaux indiquent physiquement l'avancement des trois projets locaux.
  */
-export const PROJECT_SITES: readonly ProjectSiteDefinition[] = [
-  { id: 'timber_reserve', islandIndex: 1, model: 'timberReserve', x: -3.5, z: -20.7, radius: 0.82, color: 0xd89a4c, rotation: -0.35 },
-  { id: 'towing_paths', islandIndex: 1, model: 'towingPaths', x: 5.7, z: -23.2, radius: 0.82, color: 0x6fa082, rotation: 0.7 },
-  { id: 'shared_warehouse', islandIndex: 1, model: 'sharedWarehouse', x: 3.2, z: -33, radius: 0.82, color: 0xcaa35d, rotation: 0.25 },
-
-  { id: 'communal_sawmill', islandIndex: 2, model: 'communalSawmill', x: 13, z: -39.7, radius: 0.84, color: 0xd79a4b, rotation: -0.2 },
-  { id: 'shore_walls', islandIndex: 2, model: 'shoreWalls', x: 23.2, z: -44, radius: 0.84, color: 0x8f9f77, rotation: 0.8 },
-  { id: 'orders_office', islandIndex: 2, model: 'ordersOffice', x: 12, z: -54, radius: 0.84, color: 0xbc7448, rotation: -0.6 },
-
-  { id: 'copper_winches', islandIndex: 3, model: 'copperWinches', x: -3, z: -61.2, radius: 0.84, color: 0xc3764b, rotation: 0.25 },
-  { id: 'hauling_rails', islandIndex: 3, model: 'haulingRails', x: -8, z: -67, radius: 0.84, color: 0x719a91, rotation: -0.75 },
-  { id: 'maintenance_yard', islandIndex: 3, model: 'maintenanceYard', x: 2.5, z: -76.5, radius: 0.84, color: 0x9a8fae, rotation: 0.55 },
-
-  { id: 'crystal_beacons', islandIndex: 4, model: 'crystalBeacons', x: 15, z: -83.8, radius: 0.86, color: 0xbab4ed, rotation: 0.1 },
-  { id: 'prismatic_reservoir', islandIndex: 4, model: 'prismaticReservoir', x: 8, z: -94.8, radius: 0.86, color: 0x8e8ec4, rotation: -0.5 },
-  { id: 'unity_lighthouse', islandIndex: 4, model: 'unityLighthouse', x: 22, z: -94.8, radius: 0.9, color: 0xf2b958, rotation: 0.55 },
+export const PROJECT_HALLS: readonly ProjectHallDefinition[] = [
+  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: -4.5, z: -27, radius: 1.35, color: 0xd89a4c, rotation: -0.35 },
+  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 12.2, z: -40.8, radius: 1.35, color: 0xc97a4a, rotation: -0.2 },
+  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: -4.2, z: -75.5, radius: 1.35, color: 0x9a8fc4, rotation: 0.3 },
+  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 15, z: -83.5, radius: 1.35, color: 0xf2b958, rotation: 0.1 },
 ];
 
 export const CACHES: readonly CacheDefinition[] = [

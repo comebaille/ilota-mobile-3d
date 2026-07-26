@@ -141,12 +141,14 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Des tests unitaires vérifient que chaque profil totalise 100 % et qu’aucun cuivre ou cristal ne peut repousser sur les deux premières îles.
 - Un test navigateur fait apparaître les trois voies depuis le nœud gratuit, confirme que le futur reste absent, atteint l’auto-régulation, vérifie l’inspecteur avant achat et simule un pincement tactile.
 - Un test navigateur affiche seize renards, fait défiler la nurserie, ouvre la dernière fiche et confirme que la formation n’y est pas achetable.
-- Un test navigateur achève les douze Grands Travaux directement sur leurs sites physiques avant d’autoriser le Cœur.
+- Un test navigateur achève les douze Grands Travaux depuis les quatre Maisons physiques, une par île, avant d’autoriser le Cœur.
 - Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
-- La sauvegarde courante est en v6 ; les sauvegardes v1 à v5 migrent avec un dépôt central déjà validé afin de préserver leur progression.
+- La sauvegarde courante est en v7 ; les sauvegardes v1 à v6 migrent sans perdre leur progression. Les notifications automatiques de pouvoirs sont coupées par défaut après migration.
 - Un test navigateur confirme que le héros garde sa récolte sur le dos, que le stock reste à zéro, puis que les unités sont créditées une à une à leur arrivée dans le dépôt.
 - Un test navigateur échantillonne une cargaison ouvrière de deux unités et vérifie `2 → 1 → 0` sur le dos comme dans le stock.
 - Un test navigateur active les phases Technique et Exploration et contrôle leurs effets de bord d’écran.
 - Un test navigateur confirme que trois maîtres mineurs dotés de Conscience absolue réservent trois filons distincts.
 - Un test navigateur déclenche la Nouvelle Marée, observe la phase cinématique, puis vérifie la persistance du Savoir et des talents après rechargement.
+- Un test navigateur confirme qu’un pont déjà payé clôt définitivement l’objectif de son ancienne île, même lorsque les réserves ont été dépensées.
+- Un test navigateur vérifie que seize unités forment une pile verticale au-dessus du renard et que le Savoir reste visible avant l’Autel.

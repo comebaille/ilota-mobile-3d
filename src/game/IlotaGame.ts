@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AssetLibrary, findAnimation, type NatureKind } from './assets';
 import {
   Economy,
+  ISLAND_PROJECTS,
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
@@ -59,14 +60,14 @@ import {
   findIslandIndexForPoint,
   ISLANDS,
   pickResourceKindForIsland,
-  PROJECT_SITES,
+  PROJECT_HALLS,
   RESOURCE_SPAWNS,
   STRUCTURES,
   WAREHOUSES,
   type BridgeDefinition,
   type CacheDefinition,
   type IslandDefinition,
-  type ProjectSiteDefinition,
+  type ProjectHallDefinition,
   type StructureDefinition,
   type WarehouseDefinition,
 } from './world';
@@ -138,10 +139,10 @@ interface WarehouseEntity {
 }
 
 interface ProjectEntity {
-  definition: ProjectSiteDefinition;
-  pad: THREE.Group;
+  definition: ProjectHallDefinition;
   building: THREE.Group;
   status: THREE.Sprite;
+  seals: THREE.Group[];
 }
 
 interface CacheEntity {
@@ -195,7 +196,7 @@ type Interaction =
   | { type: 'resource'; node: ResourceNode }
   | { type: 'structure'; entity: StructureEntity }
   | { type: 'warehouse'; entity: WarehouseEntity }
-  | { type: 'project'; entity: ProjectEntity }
+  | { type: 'projects'; entity: ProjectEntity }
   | { type: 'bridge'; entity: BridgeEntity }
   | { type: 'cache'; entity: CacheEntity }
   | { type: 'heart' };
@@ -226,9 +227,13 @@ interface Diagnostics {
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
+  powerNotifications: boolean;
+  powerVfx: boolean;
   projects: number;
+  projectHalls: number;
   warehouses: number;
   playerCargo: number;
+  playerCargoStackHeight: number;
   currentIsland: number;
   assemblingBuildings: number;
   visibleIslands: number;
@@ -247,6 +252,7 @@ interface Diagnostics {
     targetIsland: number;
     cargo: number;
     cargoVisuals: number;
+    cargoStackHeight: number;
     animation: string;
   }>;
   resourceNodes: Array<{
@@ -431,9 +437,13 @@ export class IlotaGame {
       rebirths: progress.rebirths,
       skills: progress.skills.join(','),
       autoRegulation: progress.autoRegulation,
+      powerNotifications: progress.powerNotifications,
+      powerVfx: progress.powerVfx,
       projects: getCompletedProjectCount(progress),
+      projectHalls: this.projects.length,
       warehouses: progress.warehousesBuilt.filter(Boolean).length,
       playerCargo: getPlayerCargoTotal(progress),
+      playerCargoStackHeight: 0,
       currentIsland: 0,
       assemblingBuildings: 0,
       visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
@@ -517,6 +527,8 @@ export class IlotaGame {
       onAutoToggle: (enabled) => this.toggleAutoRegulation(enabled),
       onIndustryToggle: (enabled) => this.toggleIndustrySurge(enabled),
       onExplorationToggle: (enabled) => this.toggleExplorationFlow(enabled),
+      onPowerNotificationsToggle: (enabled) => this.togglePowerNotifications(enabled),
+      onPowerVfxToggle: (enabled) => this.togglePowerVfx(enabled),
     });
     this.ui.bindProjectHandlers({
       onOpenChange,
@@ -593,7 +605,9 @@ export class IlotaGame {
   private toggleAutoRegulation(enabled: boolean): void {
     if (!this.economy.setAutoRegulation(enabled)) return;
     this.autoRegulationCooldown = 0.4;
-    this.ui.toast(enabled ? 'Auto-régulation active · l’équipe surveille les pénuries.' : 'Auto-régulation désactivée.');
+    if (this.economy.progress.powerNotifications) {
+      this.ui.toast(enabled ? 'Auto-régulation active · l’équipe surveille les pénuries.' : 'Auto-régulation désactivée.');
+    }
     this.changed();
   }
 
@@ -601,9 +615,11 @@ export class IlotaGame {
     if (!this.economy.setIndustrySurge(enabled)) return;
     this.industrySurgeCooldown = enabled ? 0.35 : 2.5;
     if (!enabled) this.industrySurgeRemaining = 0;
-    this.ui.toast(enabled
-      ? 'Surcharge tellurique armée · elle réagira à la prochaine pénurie.'
-      : 'Surcharge tellurique désactivée.');
+    if (this.economy.progress.powerNotifications) {
+      this.ui.toast(enabled
+        ? 'Surcharge tellurique armée · elle réagira à la prochaine pénurie.'
+        : 'Surcharge tellurique désactivée.');
+    }
     this.changed();
   }
 
@@ -611,9 +627,22 @@ export class IlotaGame {
     if (!this.economy.setExplorationFlow(enabled)) return;
     this.explorationFlowCooldown = enabled ? 0.35 : 4;
     if (!enabled) this.explorationFlowRemaining = 0;
-    this.ui.toast(enabled
-      ? 'Courant de Marée armé · les cargaisons appelleront le prochain élan.'
-      : 'Courant de Marée désactivé.');
+    if (this.economy.progress.powerNotifications) {
+      this.ui.toast(enabled
+        ? 'Courant de Marée armé · les cargaisons appelleront le prochain élan.'
+        : 'Courant de Marée désactivé.');
+    }
+    this.changed();
+  }
+
+  private togglePowerNotifications(enabled: boolean): void {
+    this.economy.setPowerNotifications(enabled);
+    this.changed();
+  }
+
+  private togglePowerVfx(enabled: boolean): void {
+    this.economy.setPowerVfx(enabled);
+    if (!enabled) this.ui.setPowerEffects(false, this.industrySurgeKind, 0, false, 0);
     this.changed();
   }
 
@@ -625,10 +654,17 @@ export class IlotaGame {
       this.showMissing(projectCost);
       return;
     }
-    const entity = this.projects.find((candidate) => candidate.definition.id === project);
+    const entity = this.projects.find((candidate) =>
+      candidate.definition.islandIndex === definition.islandIndex);
     if (entity) {
-      entity.building.visible = true;
-      this.startBuildingAssembly(entity.building);
+      const localProjects = ISLAND_PROJECTS.filter((candidate) =>
+        candidate.islandIndex === definition.islandIndex);
+      const sealIndex = localProjects.findIndex((candidate) => candidate.id === project);
+      const seal = entity.seals[sealIndex];
+      if (seal) {
+        seal.visible = true;
+        this.startBuildingAssembly(seal);
+      }
     }
     this.spawnParticles(
       entity?.building.getWorldPosition(new THREE.Vector3()).setY(1.1) ?? this.player.position.clone().setY(1.1),
@@ -726,7 +762,7 @@ export class IlotaGame {
     BRIDGES.forEach((bridge, index) => this.createBridge(bridge, index));
     WAREHOUSES.forEach((definition) => this.createWarehouse(definition));
     STRUCTURES.forEach((definition) => this.createStructure(definition));
-    PROJECT_SITES.forEach((definition) => this.createProjectSite(definition));
+    PROJECT_HALLS.forEach((definition) => this.createProjectHall(definition));
     this.createHeart();
     this.createResources();
     this.createCaches();
@@ -934,54 +970,58 @@ export class IlotaGame {
     this.structures.set(definition.kind, { definition, pad, building, status });
   }
 
-  private createProjectSite(definition: ProjectSiteDefinition): void {
-    const project = getProjectDefinition(definition.id);
-    if (!project) return;
-    const pad = new THREE.Group();
-    pad.position.set(definition.x, 0.05, definition.z);
-    pad.add(this.createBuildPad(definition.radius, definition.color));
-    this.addToIsland(pad, definition.x, definition.z);
-
+  private createProjectHall(definition: ProjectHallDefinition): void {
     const building = new THREE.Group();
     building.position.set(definition.x, 0, definition.z);
     const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.08, 1.18, 0.2, 10),
+      new THREE.CylinderGeometry(1.42, 1.54, 0.24, 10),
       new THREE.MeshStandardMaterial({ color: 0x806548, roughness: 0.94, flatShading: true }),
     );
-    platform.position.y = 0.1;
+    platform.position.y = 0.12;
     platform.receiveShadow = true;
     building.add(platform);
-    const model = this.assets.createBuilding(
-      definition.model,
-      definition.id === 'unity_lighthouse' ? 2.95 : definition.id === 'communal_sawmill' ? 2.4 : 2.15,
-    );
-    model.position.y = 0.2;
+    // Une silhouette unique et immédiatement reconnaissable sur les quatre îles.
+    const model = this.assets.createBuilding('timberReserve', 2.55);
+    model.position.y = 0.24;
     model.rotation.y = definition.rotation;
     building.add(model);
-    const emblem = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.22),
-      new THREE.MeshStandardMaterial({
-        color: definition.color,
-        emissive: definition.color,
-        emissiveIntensity: 0.55,
-        roughness: 0.32,
-      }),
-    );
-    emblem.position.y = definition.id === 'unity_lighthouse' ? 3.28 : 2.55;
-    emblem.userData.structureGlow = true;
-    building.add(emblem);
+    const seals: THREE.Group[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      const seal = new THREE.Group();
+      const pedestal = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.16, 0.2, 0.18, 8),
+        new THREE.MeshStandardMaterial({ color: 0x684a35, roughness: 0.88, flatShading: true }),
+      );
+      pedestal.position.y = 0.09;
+      const gem = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.2),
+        new THREE.MeshStandardMaterial({
+          color: definition.color,
+          emissive: definition.color,
+          emissiveIntensity: 0.7,
+          roughness: 0.3,
+        }),
+      );
+      gem.position.y = 0.34;
+      gem.userData.structureGlow = true;
+      seal.position.set((index - 1) * 0.52, 0.25, 1.28);
+      seal.add(pedestal, gem);
+      seal.visible = false;
+      building.add(seal);
+      seals.push(seal);
+    }
     building.visible = false;
     this.addToIsland(building, definition.x, definition.z);
 
     const status = this.createWorldLabel(
-      `${project.icon} CHANTIER ${project.tier} · ${project.name.toUpperCase()}`,
+      `⌂ MAISON DES TRAVAUX · 0/3`,
       definition.color,
       4.6,
     );
-    status.position.set(definition.x, definition.id === 'unity_lighthouse' ? 3.85 : 3.05, definition.z);
+    status.position.set(definition.x, 3.45, definition.z);
     status.visible = false;
     this.addToIsland(status, definition.x, definition.z);
-    this.projects.push({ definition, pad, building, status });
+    this.projects.push({ definition, building, status, seals });
   }
 
   private createWorldLabel(text: string, accent: number, width = 4.8): THREE.Sprite {
@@ -1351,7 +1391,9 @@ export class IlotaGame {
     const { root, clips } = this.assets.createFox(1.35);
     this.playerModel = root;
     this.player.add(root);
-    this.playerCargoRack.position.set(0, 0.78, -0.18);
+    // Le premier objet commence au-dessus de l'échine : aucune cargaison ne
+    // doit traverser le modèle du renard.
+    this.playerCargoRack.position.set(0, 0.96, -0.12);
     this.playerCargoRack.name = 'cargaison:joueur';
     this.player.add(this.playerCargoRack);
     this.player.position.set(0, 0, 4.25);
@@ -1425,19 +1467,21 @@ export class IlotaGame {
       }
     });
     this.projects.forEach((entity) => {
-      const project = getProjectDefinition(entity.definition.id);
-      if (!project) return;
-      const built = hasProject(progress, entity.definition.id);
-      const visible = isProjectVisible(progress, project);
-      entity.building.visible = built;
-      entity.pad.visible = visible && !built;
-      entity.status.visible = visible;
+      const tierProjects = ISLAND_PROJECTS.filter((project) => project.islandIndex === entity.definition.islandIndex);
+      const completed = tierProjects.filter((project) => hasProject(progress, project.id)).length;
+      const accessible = Boolean(progress.bridgesBuilt[entity.definition.islandIndex - 1]);
+      const unlocked = tierProjects.some((project) => isProjectVisible(progress, project));
+      entity.building.visible = accessible;
+      entity.status.visible = accessible;
+      entity.seals.forEach((seal, index) => { seal.visible = index < completed; });
       this.setWorldLabel(
         entity.status,
-        built
-          ? `✓ ${project.name.toUpperCase()}`
-          : `${project.icon} CHANTIER ${project.tier} · ${project.name.toUpperCase()}`,
-        entity.definition.color,
+        completed >= 3
+          ? `✓ MAISON DES TRAVAUX · 3/3`
+          : unlocked
+            ? `⌂ MAISON DES TRAVAUX · ${completed}/3`
+            : `⌂ MAISON DES TRAVAUX · FERMÉE`,
+        unlocked ? entity.definition.color : 0x80918b,
       );
     });
     this.bridges.forEach((entity) => {
@@ -1552,7 +1596,7 @@ export class IlotaGame {
     marker.rotation.x = Math.PI / 2;
     root.add(marker);
     const cargoRack = new THREE.Group();
-    cargoRack.position.set(0, 0.63, -0.12);
+    cargoRack.position.set(0, 0.7, -0.08);
     cargoRack.name = `cargaison:${state.id}`;
     root.add(cargoRack);
     this.scene.add(root);
@@ -1970,7 +2014,7 @@ export class IlotaGame {
         entity.phaseTimer -= delta;
         if (entity.cargo > 0 && entity.root.position.distanceToSquared(entity.hub) <= 1.8 * 1.8) {
           if (entity.phaseTimer <= 0) {
-            const origin = entity.cargoRack.getWorldPosition(new THREE.Vector3()).setY(0.78);
+            const origin = this.getCargoStackTop(entity.cargoRack);
             const target = entity.hub.clone().setY(0.42);
             entity.cargo -= 1;
             this.spawnCargoDrop(origin, target, entity.cargoKind, () => {
@@ -2012,7 +2056,9 @@ export class IlotaGame {
       if (this.industrySurgeCooldown <= 0) {
         this.industrySurgeKind = getPriorityShortage(progress);
         this.industrySurgeRemaining = 10;
-        this.ui.toast(`Surcharge tellurique · la repousse de ${RESOURCE_LABELS[this.industrySurgeKind]} est doublée !`);
+        if (progress.powerNotifications) {
+          this.ui.toast(`Surcharge tellurique · la repousse de ${RESOURCE_LABELS[this.industrySurgeKind]} est doublée !`);
+        }
       }
     }
 
@@ -2028,7 +2074,9 @@ export class IlotaGame {
       if (transportActive) this.explorationFlowCooldown -= delta;
       if (transportActive && this.explorationFlowCooldown <= 0) {
         this.explorationFlowRemaining = 10;
-        this.ui.toast('Courant de Marée · les cargaisons filent deux fois plus vite !');
+        if (progress.powerNotifications) {
+          this.ui.toast('Courant de Marée · les cargaisons filent deux fois plus vite !');
+        }
       }
     }
 
@@ -2064,7 +2112,9 @@ export class IlotaGame {
       if (state && entity) this.syncWorker(entity, state, true);
     });
     const names = moves.map((move) => this.economy.progress.workers.find((worker) => worker.id === move.workerId)?.name).filter(Boolean);
-    this.ui.toast(`Auto-régulation · ${names.join(' et ')} rééquilibrent l’équipe.`);
+    if (this.economy.progress.powerNotifications) {
+      this.ui.toast(`Auto-régulation · ${names.join(' et ')} rééquilibrent l’équipe.`);
+    }
     this.changed();
   }
 
@@ -2082,10 +2132,10 @@ export class IlotaGame {
       if (target.visible && near(target.position, entity.definition.radius + 1.15)) return { type: 'structure', entity };
     }
     for (const entity of this.projects) {
-      const built = hasProject(this.economy.progress, entity.definition.id);
-      if (built) continue;
-      const target = built ? entity.building : entity.pad;
-      if (target.visible && near(target.position, entity.definition.radius + 1.05)) return { type: 'project', entity };
+      if (
+        entity.building.visible
+        && near(entity.building.position, entity.definition.radius + 1.15)
+      ) return { type: 'projects', entity };
     }
     for (const entity of this.bridges) {
       if (entity.pad.visible && near(entity.pad.position, 2.15)) return { type: 'bridge', entity };
@@ -2191,17 +2241,22 @@ export class IlotaGame {
       }
       return;
     }
-    if (interaction.type === 'project') {
-      const definition = getProjectDefinition(interaction.entity.definition.id);
-      if (!definition) return;
-      const built = hasProject(this.economy.progress, definition.id);
-      const projectCost = getProjectCost(this.economy.progress, definition);
+    if (interaction.type === 'projects') {
+      const { islandIndex, name } = interaction.entity.definition;
+      const projects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
+      const completed = projects.filter((project) => hasProject(this.economy.progress, project.id)).length;
+      const unlocked = projects.some((project) => isProjectVisible(this.economy.progress, project));
+      const requirement = projects[0]?.requiresStructure;
       this.ui.setContext(
-        built ? `${definition.name} · achevé` : `${definition.name} · Grand Travail`,
-        built ? 'ACHEVÉ' : 'BÂTIR',
-        built ? '✓' : definition.icon,
-        !built && this.economy.canAfford(projectCost),
-        built ? definition.effect : `${definition.effect} · ${formatCost(projectCost)} · +${definition.knowledge} Savoir`,
+        `${name} · ${completed}/3`,
+        unlocked ? 'CONSULTER' : 'FERMÉ',
+        completed >= 3 ? '✓' : '⌂',
+        unlocked,
+        unlocked
+          ? 'Entre pour choisir, lire puis financer l’un des trois Travaux de cette île.'
+          : requirement
+            ? `${STRUCTURE_COPY[requirement].built} pour ouvrir cette Maison.`
+            : 'Le prochain palier de Travaux est encore verrouillé.',
       );
       return;
     }
@@ -2347,14 +2402,17 @@ export class IlotaGame {
       } else this.showMissing(getStructureCost(this.economy.progress, kind));
       return;
     }
-    if (this.interaction.type === 'project') {
-      const id = this.interaction.entity.definition.id;
-      if (hasProject(this.economy.progress, id)) {
-        const definition = getProjectDefinition(id);
-        if (definition) this.ui.toast(`${definition.name} · ${definition.effect}`);
-        return;
+    if (this.interaction.type === 'projects') {
+      const { islandIndex } = this.interaction.entity.definition;
+      const projects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
+      if (projects.some((project) => isProjectVisible(this.economy.progress, project))) {
+        this.ui.showProjects(islandIndex);
+      } else {
+        const requirement = projects[0]?.requiresStructure;
+        this.ui.toast(requirement
+          ? `${STRUCTURE_COPY[requirement].built} avant de consulter les Travaux.`
+          : 'Cette Maison des Travaux est encore fermée.');
       }
-      this.buildProject(id);
       return;
     }
     if (this.interaction.type === 'bridge') {
@@ -2465,16 +2523,16 @@ export class IlotaGame {
     });
     let piece: THREE.Mesh;
     if (kind === 'wood') {
-      piece = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.34, 7), material);
+      piece = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.42, 7), material);
       piece.rotation.z = Math.PI / 2;
     } else if (kind === 'stone') {
-      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), material);
+      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.17, 0), material);
     } else if (kind === 'copper') {
-      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.115, 0), material);
+      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.165, 0), material);
       piece.scale.y = 0.82;
     } else {
-      piece = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), material);
-      piece.scale.y = 1.35;
+      piece = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), material);
+      piece.scale.y = 1.3;
     }
     piece.rotation.y = index * 1.17;
     piece.castShadow = true;
@@ -2499,14 +2557,16 @@ export class IlotaGame {
     this.clearCargoRack(rack);
     kinds.slice(0, PLAYER_CARGO_CAPACITY).forEach((kind, index) => {
       const piece = this.createCargoPiece(kind, index);
-      const column = index % 4;
-      const row = Math.floor(index / 4);
+      // Une vraie pile verticale, unité par unité, au lieu d'une grille qui
+      // pénétrait dans le dos. Le léger décalage garde les 16 pièces lisibles.
+      const sway = index % 2 === 0 ? -1 : 1;
       piece.position.set(
-        (column - 1.5) * 0.145,
-        row * 0.115,
-        ((index + row) % 2 ? -1 : 1) * 0.075,
+        sway * (0.03 + (index % 3) * 0.012),
+        0.07 + index * 0.18,
+        ((index % 3) - 1) * 0.026,
       );
-      piece.rotation.x += (column - 1.5) * 0.08;
+      piece.rotation.x += sway * 0.045;
+      piece.rotation.y += index % 2 === 0 ? 0 : Math.PI / 2;
       rack.add(piece);
     });
   }
@@ -2525,6 +2585,13 @@ export class IlotaGame {
       entity.cargoRack,
       Array.from({ length: Math.min(PLAYER_CARGO_CAPACITY, entity.cargo) }, () => entity.cargoKind),
     );
+  }
+
+  private getCargoStackTop(rack: THREE.Group): THREE.Vector3 {
+    const topPiece = rack.children[rack.children.length - 1];
+    return topPiece
+      ? topPiece.getWorldPosition(new THREE.Vector3())
+      : rack.getWorldPosition(new THREE.Vector3());
   }
 
   private spawnCargoDrop(
@@ -2586,7 +2653,7 @@ export class IlotaGame {
       this.save();
       return;
     }
-    const origin = this.playerCargoRack.getWorldPosition(new THREE.Vector3()).setY(0.92);
+    const origin = this.getCargoStackTop(this.playerCargoRack);
     const target = vec(deposit.warehouse.definition.x, deposit.warehouse.definition.z + 1.05).setY(0.42);
     if (this.economy.unloadPlayerCargo(kind, 1) > 0) {
       this.spawnCargoDrop(origin, target, kind, () => {
@@ -2866,15 +2933,26 @@ export class IlotaGame {
     this.diagnostics.rebirths = progress.rebirths;
     this.diagnostics.skills = progress.skills.join(',');
     this.diagnostics.autoRegulation = progress.autoRegulation;
+    this.diagnostics.powerNotifications = progress.powerNotifications;
+    this.diagnostics.powerVfx = progress.powerVfx;
     this.diagnostics.projects = getCompletedProjectCount(progress);
+    this.diagnostics.projectHalls = this.projects.length;
     this.diagnostics.warehouses = progress.warehousesBuilt.filter(Boolean).length;
     this.diagnostics.playerCargo = getPlayerCargoTotal(progress);
+    this.diagnostics.playerCargoStackHeight = this.playerCargoRack.children.length > 1
+      ? Number((
+        this.playerCargoRack.children[this.playerCargoRack.children.length - 1]!.position.y
+        - this.playerCargoRack.children[0]!.position.y
+      ).toFixed(2))
+      : 0;
     this.diagnostics.currentIsland = findIslandIndexForPoint(this.player.position.x, this.player.position.z);
     this.diagnostics.assemblingBuildings = [
       ...this.structures.values(),
       ...this.warehouses,
       ...this.projects,
-    ].filter((entity) => Boolean(entity.building.userData.assembling)).length;
+    ].filter((entity) => Boolean(entity.building.userData.assembling)).length
+      + this.projects.reduce((total, entity) =>
+        total + entity.seals.filter((seal) => Boolean(seal.userData.assembling)).length, 0);
     this.diagnostics.visibleIslands = this.islands.filter((island) => island.root.position.y > -0.2).length;
     this.diagnostics.emergingIsland = this.islandEmergence?.entity.definition.id ?? '';
     this.diagnostics.workersOnWalkable = this.workers.every((worker) => isPointOnWalkableNetwork(
@@ -2894,6 +2972,12 @@ export class IlotaGame {
       targetIsland: worker.target?.islandIndex ?? -1,
       cargo: worker.cargo,
       cargoVisuals: worker.cargoRack.children.length,
+      cargoStackHeight: worker.cargoRack.children.length > 1
+        ? Number((
+          worker.cargoRack.children[worker.cargoRack.children.length - 1]!.position.y
+          - worker.cargoRack.children[0]!.position.y
+        ).toFixed(2))
+        : 0,
       animation: worker.currentAction,
     }));
     this.diagnostics.resourceNodes = this.resources.map((node) => ({

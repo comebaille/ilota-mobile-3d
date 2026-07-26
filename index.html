@@ -27,11 +27,12 @@
         <button id="projects-button" class="projects-button" type="button" aria-label="Ouvrir les Grands Travaux" hidden>
           <span>⌂</span><strong>TRAVAUX</strong><small id="projects-button-count">0/12</small>
         </button>
-        <div class="resources" aria-label="Ressources">
+        <div class="resources" aria-label="Ressources et Savoir">
           <div class="resource-chip wood"><span class="resource-icon">▰</span><span id="wood-count">0</span><small>bois</small></div>
           <div class="resource-chip stone"><span class="resource-icon">◆</span><span id="stone-count">0</span><small>pierre</small></div>
           <div class="resource-chip copper"><span class="resource-icon">⬟</span><span id="copper-count">0</span><small>cuivre</small></div>
           <div class="resource-chip crystal"><span class="resource-icon">✦</span><span id="crystal-count">0</span><small>cristal</small></div>
+          <div class="resource-chip knowledge"><span class="resource-icon">✧</span><span id="knowledge-count">0</span><small>savoir</small></div>
         </div>
         <div id="cargo-meter" class="cargo-meter" aria-label="Cargaison portée">
           <span aria-hidden="true">⌂</span><small>SUR TON DOS</small><strong id="cargo-count">0 / 16</strong>
@@ -106,7 +107,7 @@
         <div class="projects-sheet">
           <header class="crew-header projects-header">
             <div>
-              <p class="kicker">12 PROJETS · 4 ÎLES · 4 RESSOURCES</p>
+              <p id="projects-kicker" class="kicker">3 TRAVAUX · UNE MAISON</p>
               <h2 id="projects-title">Grands Travaux</h2>
             </div>
             <button id="projects-close-button" class="icon-button" type="button" aria-label="Fermer les Grands Travaux">×</button>
@@ -156,6 +157,12 @@
                 </button>
                 <button id="exploration-flow-button" class="auto-regulation-button exploration-power-button" type="button" aria-pressed="false" disabled>
                   EXPLORATION · TALENT REQUIS
+                </button>
+                <button id="power-messages-button" class="auto-regulation-button power-setting-button" type="button" aria-pressed="false">
+                  MESSAGES AUTOMATIQUES · NON
+                </button>
+                <button id="power-vfx-button" class="auto-regulation-button power-setting-button" type="button" aria-pressed="true">
+                  EFFETS PLEIN ÉCRAN · OUI
                 </button>
               </div>
             </aside>

@@ -22,12 +22,16 @@ interface IlotaDiagnostics {
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
+  powerNotifications: boolean;
+  powerVfx: boolean;
   industrySurge: boolean;
   industrySurgeKind: string;
   explorationFlow: boolean;
   projects: number;
+  projectHalls: number;
   warehouses: number;
   playerCargo: number;
+  playerCargoStackHeight: number;
   currentIsland: number;
   assemblingBuildings: number;
   visibleIslands: number;
@@ -47,6 +51,7 @@ interface IlotaDiagnostics {
     targetIsland: number;
     cargo: number;
     cargoVisuals: number;
+    cargoStackHeight: number;
     animation: string;
   }>;
   resourceNodes: Array<{ id: string; kind: string; island: number; amount: number; capacity: number }>;
@@ -121,8 +126,10 @@ const createNavigator = (page: Page) => {
     await page.mouse.move(centerX, centerY);
     await page.mouse.down();
     pointerDown = true;
-    for (let step = 0; step < 240; step += 1) {
-      const { player } = await diagnostics(page);
+    for (let step = 0; step < 120; step += 1) {
+      const player = await page.evaluate(() => (
+        window as typeof window & { __ILOTA__: IlotaDiagnostics }
+      ).__ILOTA__.player);
       const dx = targetX - player.x;
       const dz = targetZ - player.z;
       const distance = Math.hypot(dx, dz);
@@ -133,11 +140,14 @@ const createNavigator = (page: Page) => {
       const screenX = 0.828 * dx - 0.561 * dz;
       const screenY = -0.561 * dx - 0.828 * dz;
       const screenLength = Math.max(0.001, Math.hypot(screenX, screenY));
+      const steeringRadius = radius * Math.min(1, Math.max(0.14, distance / 3.5));
       await page.mouse.move(
-        centerX + (screenX / screenLength) * radius,
-        centerY - (screenY / screenLength) * radius,
+        centerX + (screenX / screenLength) * steeringRadius,
+        centerY - (screenY / screenLength) * steeringRadius,
       );
-      await page.waitForTimeout(50);
+      // Laisser le moteur avancer entre deux corrections de cap sans créer
+      // une capture Playwright complète toutes les 50 ms (très coûteuse en WebGL).
+      await new Promise((resolve) => setTimeout(resolve, 240));
     }
     await release();
     const current = (await diagnostics(page)).player;
@@ -187,19 +197,26 @@ const assignWorker = async (page: Page, name: string, task: string): Promise<voi
   await page.locator(`.job-${kind}`).click();
 };
 
-const PROJECT_SITES = [
-  { x: -3.5, z: -20.7, name: 'Réserve de charpente' },
-  { x: 5.7, z: -23.2, name: 'Chemins de halage' },
-  { x: 3.2, z: -33, name: 'Entrepôt partagé' },
-  { x: 13, z: -39.7, name: 'Scierie commune' },
-  { x: 23.2, z: -44, name: 'Murets de rive' },
-  { x: 12, z: -54, name: 'Bureau des plans' },
-  { x: -3, z: -61.2, name: 'Treuils cuivrés' },
-  { x: -8, z: -67, name: 'Rails de débardage' },
-  { x: 2.5, z: -76.5, name: 'Cour de maintenance' },
-  { x: 15, z: -83.8, name: 'Balises cristallines' },
-  { x: 8, z: -94.8, name: 'Réservoir prismatique' },
-  { x: 22, z: -94.8, name: 'Phare de l’unisson' },
+const PROJECT_HALLS = [
+  { x: -4.5, z: -27, name: 'Maison des Travaux des Pins' },
+  { x: 12.2, z: -40.8, name: 'Maison des Travaux Cuivrée' },
+  { x: -4.2, z: -75.5, name: 'Maison des Travaux de Cristal' },
+  { x: 15, z: -83.5, name: 'Maison des Travaux de la Couronne' },
+] as const;
+
+const PROJECT_IDS = [
+  'timber_reserve',
+  'towing_paths',
+  'shared_warehouse',
+  'communal_sawmill',
+  'shore_walls',
+  'orders_office',
+  'copper_winches',
+  'hauling_rails',
+  'maintenance_yard',
+  'crystal_beacons',
+  'prismatic_reservoir',
+  'unity_lighthouse',
 ] as const;
 
 const completeProjectsUntil = async (
@@ -209,12 +226,21 @@ const completeProjectsUntil = async (
 ): Promise<void> => {
   while ((await diagnostics(page)).projects < count) {
     const before = (await diagnostics(page)).projects;
-    const site = PROJECT_SITES[before];
-    if (!site) throw new Error(`Site de projet ${before + 1} introuvable`);
-    await moveTo(site.x, site.z, 0.8);
-    await expect(page.locator('#context-prompt')).toContainText(site.name);
-    await page.locator('#action-button').tap();
+    const hall = PROJECT_HALLS[Math.floor(before / 3)];
+    const projectId = PROJECT_IDS[before];
+    if (!hall || !projectId) throw new Error(`Travail ${before + 1} introuvable`);
+    if (await page.locator('#projects-panel').isHidden()) {
+      await moveTo(hall.x, hall.z, 0.9);
+      await expect(page.locator('#context-prompt')).toContainText(hall.name);
+      await page.locator('#action-button').tap();
+      await expect(page.locator('#projects-panel')).toBeVisible();
+    }
+    await page.locator(`button[data-project="${projectId}"]`).click();
     await expect.poll(async () => (await diagnostics(page)).projects).toBe(before + 1);
+    if ((before + 1) % 3 === 0 || before + 1 >= count) {
+      await page.getByRole('button', { name: /fermer les Grands Travaux/i }).click();
+      await expect(page.locator('#projects-panel')).toBeHidden();
+    }
   }
 };
 
@@ -231,6 +257,7 @@ const buySkill = async (page: Page, name: RegExp): Promise<void> => {
 };
 
 test('la première marée explique puis assemble le dépôt physique avant toute économie', async ({ page }) => {
+  test.setTimeout(45_000);
   await page.goto('./');
   await page.waitForFunction(() => Boolean((window as typeof window & { __ILOTA__?: { ready: boolean } }).__ILOTA__?.ready));
   await page.getByRole('button', { name: /commencer/i }).click();
@@ -261,6 +288,50 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(0);
   await expect.poll(async () => (await diagnostics(page)).wood).toBe(1);
+});
+
+test('le Savoir reste visible et une ancienne île ne rouvre jamais ses objectifs payés', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    version: 7,
+    wood: 0,
+    stone: 0,
+    copper: 0,
+    crystal: 0,
+    knowledge: 7,
+    warehousesBuilt: [true, false, false, false, false],
+    playerCargo: { wood: 0, stone: 0, copper: 0, crystal: 0 },
+    bridgesBuilt: [true, false, false, false],
+    powerNotifications: false,
+    powerVfx: true,
+    tutorialSeen: ['welcome', 'warehouse-central', 'island-goals', 'bridge-guidance'],
+  });
+  await waitForGame(page);
+  await expect(page.locator('#knowledge-count')).toHaveText('7');
+  await expect(page.locator('#island-goal')).toBeHidden();
+  const state = await diagnostics(page);
+  expect(state.projectHalls).toBe(4);
+  expect(state.knowledge).toBe(7);
+});
+
+test('seize ressources forment une tour verticale au-dessus du dos', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    version: 7,
+    wood: 0,
+    stone: 0,
+    copper: 0,
+    crystal: 0,
+    warehousesBuilt: [true, false, false, false, false],
+    playerCargo: { wood: 0, stone: 16, copper: 0, crystal: 0 },
+    powerNotifications: false,
+    powerVfx: true,
+    tutorialSeen: ['welcome', 'warehouse-central'],
+  });
+  await waitForGame(page);
+  await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(16);
+  await expect.poll(async () => (await diagnostics(page)).playerCargoStackHeight).toBeGreaterThan(2);
+  await page.screenshot({ path: 'test-results/ilota-vertical-cargo-stack.png' });
 });
 
 test('le tutoriel neuf explique la nurserie puis le panneau d’objectifs', async ({ page }) => {
@@ -350,7 +421,7 @@ test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone
       controlsInside: controls.width <= innerWidth && controls.height <= innerHeight,
       actionInside: action.right <= innerWidth && action.bottom <= innerHeight && action.left >= 0 && action.top >= 0,
       joystickInside: joystick.right <= innerWidth && joystick.bottom <= innerHeight && joystick.left >= 0 && joystick.top >= 0,
-      chipsInside: chips.length === 4 && chips.every((chip) => chip.left >= 0 && chip.right <= innerWidth),
+      chipsInside: chips.length === 5 && chips.every((chip) => chip.left >= 0 && chip.right <= innerWidth),
       topHudSeparated: menu.right + 3 <= objective.left && objective.right + 3 <= resourceBox.left,
       resourceLabelsVisible: resourceLabels.every((label) =>
         label.scrollWidth <= label.clientWidth + 1
@@ -467,7 +538,7 @@ test('la nurserie garde 16 renards lisibles et ouvre une vraie fiche de niveau',
   await page.screenshot({ path: 'test-results/ilota-nursery-16-foxes.png' });
 });
 
-test('les Grands Travaux sont douze chantiers physiques assemblés sur les îles', async ({ page }) => {
+test('une Maison identique présente et assemble les trois Travaux de chaque île', async ({ page }) => {
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -484,7 +555,7 @@ test('les Grands Travaux sont douze chantiers physiques assemblés sur les îles
   await expect.poll(async () => (await diagnostics(page)).assemblingBuildings, { timeout: 4_000 }).toBe(0);
   await expect(page.locator('#projects-panel')).toBeHidden();
   await expect(page.locator('#island-goal')).toContainText('3/5');
-  await expect(page.locator('#island-goal')).toContainText('Bâtir les 3 chantiers des Pins');
+  await expect(page.locator('#island-goal')).toContainText('Achever les 3 Travaux à la Maison des Pins');
   await page.screenshot({ path: 'test-results/ilota-grand-works.png' });
 });
 
@@ -577,6 +648,7 @@ test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée'
     const worker = (await diagnostics(page)).workerNavigation[0]!;
     return worker.cargo > 0 ? `${worker.cargo}:${worker.cargoVisuals}` : '';
   }).toBe('2:2');
+  expect((await diagnostics(page)).workerNavigation[0]!.cargoStackHeight).toBeGreaterThan(0.15);
   expect((await diagnostics(page)).stone).toBe(0);
 
   const depositSamples = await page.evaluate(async () => {
@@ -632,6 +704,14 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   });
   await waitForGame(page);
   await openTalents(page);
+  await expect(page.locator('#power-messages-button')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#power-vfx-button')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#power-messages-button').click();
+  await expect.poll(async () => (await diagnostics(page)).powerNotifications).toBe(true);
+  await page.locator('#power-messages-button').click();
+  await expect.poll(async () => (await diagnostics(page)).powerNotifications).toBe(false);
+  await page.locator('#power-vfx-button').click();
+  await expect.poll(async () => (await diagnostics(page)).powerVfx).toBe(false);
   await expect(page.locator('.skill-hex')).toHaveCount(1);
   await expect(page.getByRole('button', { name: /routes calculées/i })).toHaveCount(0);
   await page.getByRole('button', { name: /voir démarrer/i }).click();
@@ -654,8 +734,10 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   await buySkill(page, /voir auto-régulation/i);
   await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(8);
   await expect.poll(async () => (await diagnostics(page)).skills).toContain('auto_regulation');
+  await page.waitForTimeout(2_200);
   await page.getByRole('button', { name: /activer l’auto-régulation/i }).click();
   await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
   await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
   const widthBeforePinch = await page.locator('.skill-map-stage').evaluate((stage) => stage.getBoundingClientRect().width);
   await page.locator('#skill-branches').evaluate((target) => {

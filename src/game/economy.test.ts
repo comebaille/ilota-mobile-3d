@@ -38,7 +38,7 @@ const completeProjectsUntil = (economy: Economy, targetCount: number): void => {
   });
 };
 
-describe('Economy v6', () => {
+describe('Economy v7', () => {
   it('récolte quatre ressources sans produire de valeur négative', () => {
     const economy = new Economy();
     economy.add('wood', 3);
@@ -137,7 +137,7 @@ describe('Economy v6', () => {
     expect(restored.progress.workers[0]).toMatchObject({ id: worker.id, task: 'stone', level: 2 });
   });
 
-  it('migre la petite campagne v1 vers le premier pont de la v6', () => {
+  it('migre la petite campagne v1 vers le premier pont de la v7', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 1,
       wood: 17,
@@ -150,7 +150,7 @@ describe('Economy v6', () => {
       completed: true,
       elapsedSeconds: 42,
     }));
-    expect(restored.progress).toMatchObject({ version: 6, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress).toMatchObject({ version: 7, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
     expect(restored.progress.warehousesBuilt).toEqual([true, false, false, false, false]);
     expect(restored.progress.projectsCompleted).toEqual([]);
     expect(restored.progress.bridgesBuilt).toEqual([true, false, false, false]);
@@ -179,7 +179,7 @@ describe('Economy v6', () => {
       completed: true,
       elapsedSeconds: 600,
     }));
-    expect(restored.progress).toMatchObject({ version: 6, completed: true, knowledge: 10, rebirths: 0 });
+    expect(restored.progress).toMatchObject({ version: 7, completed: true, knowledge: 10, rebirths: 0 });
     expect(restored.progress.cycleMilestones).toHaveLength(9);
   });
 
@@ -196,7 +196,7 @@ describe('Economy v6', () => {
       skillRanks: { trail_sense: 1 },
     }));
     expect(restored.progress).toMatchObject({
-      version: 6,
+      version: 7,
       wood: 73,
       stone: 51,
       campBuilt: true,
@@ -204,6 +204,27 @@ describe('Economy v6', () => {
       projectsCompleted: [],
     });
     expect(restored.progress.skills).toEqual(expect.arrayContaining(['awakening', 'insight_gateway', 'trail_sense']));
+  });
+
+  it('migre la v6 en coupant le spam sans supprimer les effets visuels', () => {
+    const restored = Economy.restore(JSON.stringify({
+      version: 6,
+      knowledge: 9,
+      skills: ['auto_regulation'],
+      autoRegulation: true,
+      bridgesBuilt: [true, false, false, false],
+      projectsCompleted: [],
+      warehousesBuilt: [true, false, false, false, false],
+      playerCargo: { wood: 0, stone: 0, copper: 0, crystal: 0 },
+      tutorialSeen: [],
+    }));
+    expect(restored.progress).toMatchObject({
+      version: 7,
+      knowledge: 9,
+      autoRegulation: true,
+      powerNotifications: false,
+      powerVfx: true,
+    });
   });
 
   it('fait respecter les prérequis de l’arbre Intelligence', () => {
@@ -311,6 +332,20 @@ describe('Economy v6', () => {
     expect(after.completed).toBe(true);
   });
 
+  it('garde une île définitivement terminée après paiement de son pont', () => {
+    const economy = new Economy({
+      wood: 0,
+      stone: 0,
+      campBuilt: true,
+      bridgesBuilt: [true, false, false, false],
+      workers: [],
+    });
+    const oldIsland = getIslandGoal(economy.progress, 0);
+    expect(oldIsland.completed).toBe(true);
+    expect(oldIsland.items.every((item) => item.done)).toBe(true);
+    expect(oldIsland.items.find((item) => item.id === 'reserves')?.done).toBe(true);
+  });
+
   it('migre les anciens talents v3 dans le nouveau graphe sans les perdre', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 3,
@@ -318,7 +353,7 @@ describe('Economy v6', () => {
       skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
       autoRegulation: true,
     }));
-    expect(restored.progress.version).toBe(6);
+    expect(restored.progress.version).toBe(7);
     expect(restored.progress.skills).toEqual(expect.arrayContaining([
       'awakening',
       'insight_gateway',
@@ -394,13 +429,16 @@ describe('Economy v6', () => {
       completed: true,
       knowledge: 10,
       skills: ['tide_stride', 'cache_instinct', 'frugal_plans', 'tidal_memory'],
+      powerNotifications: true,
+      powerVfx: false,
       wood: 91,
       workers: [{ id: 'worker-1', name: 'Milo', task: 'wood', level: 2 }],
     });
     const reward = economy.rebirth();
     expect(reward).toBe(3);
-    expect(economy.progress).toMatchObject({ version: 6, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
+    expect(economy.progress).toMatchObject({ version: 7, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
     expect(economy.progress.skills).toContain('tidal_memory');
+    expect(economy.progress).toMatchObject({ powerNotifications: true, powerVfx: false });
     expect(economy.progress.workers).toEqual([]);
     expect(getCycleMultiplier(economy.progress)).toBeCloseTo(1.22);
     expect(getBridgeCost(economy.progress, 0)!.wood).toBeGreaterThan(22);

@@ -62,7 +62,7 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 6;
+  version: 7;
   wood: number;
   stone: number;
   copper: number;
@@ -84,6 +84,8 @@ export interface IslandProgress {
   autoRegulation: boolean;
   industrySurge: boolean;
   explorationFlow: boolean;
+  powerNotifications: boolean;
+  powerVfx: boolean;
   rebirths: number;
   cycleMilestones: string[];
   lifetimeDeliveries: number;
@@ -91,8 +93,15 @@ export interface IslandProgress {
   tutorialSeen: string[];
 }
 
-interface VersionFiveProgress extends Omit<
+interface VersionSixProgress extends Omit<
   IslandProgress,
+  'version' | 'powerNotifications' | 'powerVfx'
+> {
+  version: 6;
+}
+
+interface VersionFiveProgress extends Omit<
+  VersionSixProgress,
   'version' | 'playerCargo' | 'warehousesBuilt' | 'industrySurge' | 'explorationFlow' | 'tutorialSeen'
 > {
   version: 5;
@@ -340,7 +349,7 @@ const WORKER_NAMES = [
 ];
 
 const freshProgress = (): IslandProgress => ({
-  version: 6,
+  version: 7,
   wood: 0,
   stone: 0,
   copper: 0,
@@ -362,6 +371,8 @@ const freshProgress = (): IslandProgress => ({
   autoRegulation: false,
   industrySurge: false,
   explorationFlow: false,
+  powerNotifications: false,
+  powerVfx: true,
   rebirths: 0,
   cycleMilestones: [],
   lifetimeDeliveries: 0,
@@ -711,7 +722,12 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
   const totalLevels = getTotalWorkerLevels(progress);
   const hasTask = (task: ResourceKind): boolean => progress.workers.some((worker) => worker.task === task);
   const bridgeCost = islandIndex < 4 ? getBridgeCost(progress, islandIndex) : getFinalCost(progress);
-  const reservesReady = bridgeCost ? canPay(progress, bridgeCost) : false;
+  const passageAlreadyCompleted = islandIndex < 4
+    ? Boolean(progress.bridgesBuilt[islandIndex])
+    : progress.completed;
+  // Une réserve payée pour un pont ne doit jamais redevenir « manquante » :
+  // le paiement du passage est la preuve persistante que l'objectif est clos.
+  const reservesReady = passageAlreadyCompleted || (bridgeCost ? canPay(progress, bridgeCost) : false);
   let destination = 'Cœur de l’Archipel';
   let items: IslandGoalItem[] = [];
 
@@ -733,7 +749,7 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
         { id: 'workshop', label: 'Construire l’Atelier des Pins', done: progress.workshopBuilt },
         { id: 'workers', label: 'Réunir 4 renards', done: progress.workers.length >= 4 },
         { id: 'level', label: 'Former 1 renard niveau 2', done: progress.workers.some((worker) => worker.level >= 2) },
-        { id: 'projects', label: 'Bâtir les 3 chantiers des Pins', done: completedProjects >= 3 },
+        { id: 'projects', label: 'Achever les 3 Travaux à la Maison des Pins', done: completedProjects >= 3 },
         { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
       ];
       break;
@@ -769,11 +785,15 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
       ];
   }
 
+  if (passageAlreadyCompleted) {
+    items = items.map((item) => ({ ...item, done: true }));
+  }
+
   return {
     islandIndex,
     title: islandIndex < 4 ? `OBJECTIF · CAP SUR ${destination.toUpperCase()}` : 'OBJECTIF FINAL · LE CŒUR',
     destination,
-    completed: items.every((item) => item.done),
+    completed: passageAlreadyCompleted || items.every((item) => item.done),
     items,
   };
 };
@@ -960,7 +980,7 @@ export class Economy {
     this.progress = {
       ...fresh,
       ...initial,
-      version: 6,
+      version: 7,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
@@ -982,6 +1002,8 @@ export class Economy {
       autoRegulation: skills.includes('auto_regulation') && Boolean(initial?.autoRegulation),
       industrySurge: skills.includes('endless_engine') && Boolean(initial?.industrySurge),
       explorationFlow: skills.includes('ocean_legacy') && Boolean(initial?.explorationFlow),
+      powerNotifications: Boolean(initial?.powerNotifications),
+      powerVfx: initial?.powerVfx !== false,
       rebirths: nonNegativeInteger(initial?.rebirths),
       cycleMilestones: Array.isArray(initial?.cycleMilestones) ? [...new Set(initial.cycleMilestones.filter((id): id is string => typeof id === 'string'))] : [],
       lifetimeDeliveries: nonNegativeInteger(initial?.lifetimeDeliveries),
@@ -1215,6 +1237,14 @@ export class Economy {
     return true;
   }
 
+  setPowerNotifications(enabled: boolean): void {
+    this.progress.powerNotifications = enabled;
+  }
+
+  setPowerVfx(enabled: boolean): void {
+    this.progress.powerVfx = enabled;
+  }
+
   autoRegulate(): AssignmentMove | null {
     if (!this.progress.autoRegulation || !hasSkill(this.progress, 'auto_regulation')) return null;
     const move = chooseAutoRegulationMove(this.progress);
@@ -1235,6 +1265,8 @@ export class Economy {
     const autoRegulation = this.progress.autoRegulation && skills.includes('auto_regulation');
     const industrySurge = this.progress.industrySurge && skills.includes('endless_engine');
     const explorationFlow = this.progress.explorationFlow && skills.includes('ocean_legacy');
+    const powerNotifications = this.progress.powerNotifications;
+    const powerVfx = this.progress.powerVfx;
     const rebirths = this.progress.rebirths + 1;
     const lifetimeDeliveries = this.progress.lifetimeDeliveries;
     const tutorialSeen = [...this.progress.tutorialSeen];
@@ -1263,6 +1295,8 @@ export class Economy {
       autoRegulation,
       industrySurge,
       explorationFlow,
+      powerNotifications,
+      powerVfx,
       rebirths,
       lifetimeDeliveries,
       tutorialSeen,
@@ -1281,8 +1315,19 @@ export class Economy {
   static restore(raw: string | null): Economy {
     if (!raw) return new Economy();
     try {
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 6) return new Economy(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 7) return new Economy(value as Partial<IslandProgress>);
+      if (value.version === 6) {
+        const previous = value as VersionSixProgress;
+        const { version: _previousVersion, ...migrated } = previous;
+        return new Economy({
+          ...migrated,
+          // Les notifications automatiques sont volontairement silencieuses
+          // après migration pour supprimer immédiatement le spam existant.
+          powerNotifications: false,
+          powerVfx: true,
+        });
+      }
       if (value.version === 5) {
         const previous = value as VersionFiveProgress;
         const { version: _previousVersion, ...migrated } = previous;

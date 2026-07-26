@@ -35,7 +35,9 @@ const BUILDING_PATHS: Record<BuildingKind, string> = {
   workshop: 'assets/third-party/kaykit-buildings/building_lumbermill_green.gltf',
   foundry: 'assets/third-party/kaykit-buildings/building_blacksmith_red.gltf',
   observatory: 'assets/third-party/kaykit-buildings/building_tower_B_blue.gltf',
-  storage: 'assets/third-party/kaykit-buildings/building_grain.gltf',
+  // building_grain est volontairement évité ici : son emprise très plate,
+  // normalisée par la hauteur, produisait une gigantesque dalle « fromage ».
+  storage: 'assets/third-party/kaykit-buildings/building_home_A_yellow.gltf',
   timberReserve: 'assets/third-party/kaykit-buildings/building_market_yellow.gltf',
   towingPaths: 'assets/third-party/kaykit-buildings/building_tower_base_green.gltf',
   sharedWarehouse: 'assets/third-party/kaykit-buildings/building_home_A_yellow.gltf',

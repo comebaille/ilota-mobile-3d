@@ -9,7 +9,7 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - cinq chapitres, quatre ponts réellement traversables et des îles invisibles qui émergent à leur ouverture ;
 - arbres et minerais de tailles variées qui rétrécissent à chaque coup, disparaissent au dernier et réapparaissent ensuite ;
 - filons réellement consommés par les ouvriers, avec repousse pondérée et ressources interdites selon l’île ;
-- cargaisons 3D visibles sur le dos du héros et des travailleurs, plafonnées à seize unités, puis déchargées une à une avant de créditer le stock ;
+- cargaisons 3D empilées verticalement au-dessus du dos du héros et des travailleurs, plafonnées à seize unités, puis déchargées une à une depuis le sommet avant de créditer le stock ;
 - cinq dépôts physiques : le central est le premier bâtiment gratuit, puis un nouveau dépôt local devient constructible à chaque Nouvelle Marée ;
 - vrais trajets logistiques : sans dépôt local, un renard éloigné retraverse tous les ponts jusqu’au hangar construit le plus proche ;
 - quatre métiers réassignables : bois, pierre, cuivre et cristal ;
@@ -17,13 +17,14 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - nurserie lumineuse et scrollable : le niveau reste écrit sur chaque renard, un toucher ouvre sa fiche, mais les formations ne sont possibles que dans le bon bâtiment ;
 - neuf postes par les bâtiments, dix postes supplémentaires via projets et savoirs, et trois niveaux de rendement ;
 - vraie nurserie, dépôts, atelier, fonderie et Autel du Savoir fondés sur des modèles 3D CC0, assemblés pièce par pièce lors de leur construction ;
-- douze Grands Travaux devenus douze petits bâtiments distincts répartis sur quatre îles agrandies ;
-- panneau d’objectif à droite : chaque condition est explicitement cochée, puis des flèches 3D guident jusqu’au pont ;
+- douze Grands Travaux regroupés dans quatre Maisons des Travaux identiques : un seul bâtiment par île présente ses trois projets et allume trois sceaux d’avancement ;
+- panneau d’objectif à droite : chaque condition est explicitement cochée, le panneau disparaît définitivement dès que son pont est payé, puis des flèches 3D guident jusqu’au passage ;
 - tutoriel contextuel réservé aux sauvegardes neuves : dépôt, cargaison, nurserie, objectifs, formations, talents et Nouvelle Marée ;
 - arbre hexagonal à 26 nœuds : futur invisible, doubles prérequis stricts, pincement tactile, trois sommets et convergence finale très coûteuse ;
 - sélection d’un savoir sans achat automatique : une grande fiche explique l’effet, le prix et les prérequis avant confirmation ;
 - menu de Marée avec reprise, remise à zéro confirmée et Nouvelle Marée grisée tant que l’acte actuel n’est pas terminé ;
-- trois pouvoirs de sommet activables : Auto-régulation, Surcharge tellurique de repousse et Courant de Marée pour les cargaisons ;
+- compteur de Savoir toujours visible, même avant la construction de l’Autel ;
+- trois pouvoirs de sommet activables : Auto-régulation, Surcharge tellurique de repousse et Courant de Marée pour les cargaisons, avec messages automatiques et effets plein écran désactivables séparément ;
 - pouvoir final **Conscience absolue** : réservation intelligente des filons, +4 postes, bonus économiques, héritage à 55 % et synchronisation des trois voies ;
 - cinématique de rebirth : îles englouties de la dernière à la première, ponts brisés et héros ressortant de la nurserie ;
 - caches optionnelles, sauvegarde locale et migration des versions antérieures ;

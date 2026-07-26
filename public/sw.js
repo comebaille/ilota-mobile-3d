@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v8-visible-logistics';
+const CACHE = 'ilota-v9-project-halls';
 const CORE = [
   './',
   './index.html',
@@ -13,8 +13,6 @@ const CORE = [
   './assets/third-party/nature/Grass2.glb',
   './assets/third-party/kaykit-buildings/building_home_B_green.gltf',
   './assets/third-party/kaykit-buildings/building_home_B_green.bin',
-  './assets/third-party/kaykit-buildings/building_grain.gltf',
-  './assets/third-party/kaykit-buildings/building_grain.bin',
   './assets/third-party/kaykit-buildings/building_lumbermill_green.gltf',
   './assets/third-party/kaykit-buildings/building_lumbermill_green.bin',
   './assets/third-party/kaykit-buildings/building_blacksmith_red.gltf',

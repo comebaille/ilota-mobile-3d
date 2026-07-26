@@ -153,6 +153,11 @@ button:focus-visible {
   background: #c6bff1;
 }
 
+.resource-chip.knowledge .resource-icon {
+  color: #35515c;
+  background: #8fd7cf;
+}
+
 .resource-chip > span:nth-child(2) {
   min-width: 0;
   align-self: end;
@@ -398,19 +403,21 @@ button:focus-visible {
 .toast {
   position: absolute;
   z-index: 12;
-  top: 48%;
+  right: auto;
+  bottom: max(10px, env(safe-area-inset-bottom));
   left: 50%;
-  max-width: 65vw;
-  padding: 10px 16px;
-  transform: translate(-50%, -40%) scale(0.95);
+  max-width: 46vw;
+  padding: 5px 10px;
+  transform: translate(-50%, 8px) scale(0.97);
   opacity: 0;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 16px;
+  border-radius: 10px;
   color: var(--cream);
-  background: rgba(17, 51, 42, 0.9);
-  box-shadow: var(--shadow);
-  font-size: 13px;
-  font-weight: 850;
+  background: rgba(17, 51, 42, 0.86);
+  box-shadow: 0 5px 16px rgba(8, 27, 24, 0.24);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
   text-align: center;
   pointer-events: none;
   transition: opacity 180ms ease, transform 180ms ease;
@@ -418,7 +425,7 @@ button:focus-visible {
 
 .toast.show {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translate(-50%, 0) scale(1);
 }
 
 .crew-panel,
@@ -2874,6 +2881,70 @@ button:focus-visible {
   .talent-sheet,
   .projects-sheet {
     width: 100%;
+  }
+}
+
+/* v0.9 — cinquième compteur permanent et réglages de pouvoirs compacts. */
+.power-setting-button:not(:disabled) {
+  border-color: rgba(143, 215, 207, 0.55);
+  color: #d7fffa;
+  background: rgba(27, 79, 74, 0.5);
+}
+
+@media (max-width: 700px) and (orientation: landscape) {
+  .resources {
+    gap: 3px;
+  }
+
+  .resource-chip {
+    flex-basis: 61px;
+    width: 61px;
+    min-width: 61px;
+    grid-template-columns: 18px minmax(0, 1fr);
+    column-gap: 3px;
+    padding-inline: 4px;
+  }
+
+  .resource-chip .resource-icon {
+    width: 18px;
+    font-size: 14px;
+  }
+
+  .resource-chip > span:nth-child(2) {
+    font-size: 12.5px;
+  }
+
+  .resource-chip small {
+    font-size: 6.5px;
+    letter-spacing: 0.015em;
+  }
+}
+
+@media (max-width: 600px) and (orientation: landscape) {
+  .resource-chip {
+    flex-basis: 52px;
+    width: 52px;
+    min-width: 52px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    padding-inline: 3px;
+  }
+
+  .resource-chip .resource-icon {
+    width: 16px;
+    font-size: 12px;
+  }
+
+  .resource-chip > span:nth-child(2) {
+    font-size: 11px;
+  }
+
+  .resource-chip small {
+    font-size: 5.8px;
+  }
+
+  .objective {
+    left: 100px;
+    width: min(170px, 30vw);
   }
 }
 

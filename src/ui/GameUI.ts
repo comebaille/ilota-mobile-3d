@@ -55,6 +55,8 @@ interface TalentHandlers {
   onAutoToggle: (enabled: boolean) => void;
   onIndustryToggle: (enabled: boolean) => void;
   onExplorationToggle: (enabled: boolean) => void;
+  onPowerNotificationsToggle: (enabled: boolean) => void;
+  onPowerVfxToggle: (enabled: boolean) => void;
 }
 
 interface ProjectHandlers {
@@ -118,6 +120,7 @@ export class GameUI {
     copper: byId<HTMLElement>('copper-count'),
     crystal: byId<HTMLElement>('crystal-count'),
   };
+  private readonly knowledgeCount = byId<HTMLElement>('knowledge-count');
   private readonly cargoMeter = byId<HTMLElement>('cargo-meter');
   private readonly cargoCount = byId<HTMLElement>('cargo-count');
   private readonly objectiveEyebrow = byId<HTMLElement>('objective-eyebrow');
@@ -154,6 +157,7 @@ export class GameUI {
   private readonly projectsCloseButton = byId<HTMLButtonElement>('projects-close-button');
   private readonly projectsProgress = byId<HTMLElement>('projects-progress');
   private readonly projectsHelp = byId<HTMLElement>('projects-help');
+  private readonly projectsKicker = byId<HTMLElement>('projects-kicker');
   private readonly projectTiers = byId<HTMLElement>('project-tiers');
   private readonly talentButton = byId<HTMLButtonElement>('talent-button');
   private readonly talentButtonCount = byId<HTMLElement>('talent-button-count');
@@ -174,6 +178,8 @@ export class GameUI {
   private readonly autoRegulationButton = byId<HTMLButtonElement>('auto-regulation-button');
   private readonly industrySurgeButton = byId<HTMLButtonElement>('industry-surge-button');
   private readonly explorationFlowButton = byId<HTMLButtonElement>('exploration-flow-button');
+  private readonly powerMessagesButton = byId<HTMLButtonElement>('power-messages-button');
+  private readonly powerVfxButton = byId<HTMLButtonElement>('power-vfx-button');
   private readonly menuButton = byId<HTMLButtonElement>('menu-button');
   private readonly menuPanel = byId<HTMLElement>('menu-panel');
   private readonly menuCloseButton = byId<HTMLButtonElement>('menu-close-button');
@@ -219,6 +225,7 @@ export class GameUI {
   private menuTideArmed = false;
   private menuTimer = 0;
   private lastGoalKey = '';
+  private projectIslandIndex: 1 | 2 | 3 | 4 | null = null;
   private tutorialCloseHandler: (() => void) | null = null;
   private lastLevelUpKey = '';
 
@@ -269,7 +276,13 @@ export class GameUI {
       }
       this.crewHandlers?.onAssign(worker.id, target.dataset.task as ResourceKind);
     });
-    this.projectsButton.addEventListener('click', () => this.showProjects());
+    this.projectsButton.addEventListener('click', () => {
+      if (!this.latestProgress) return;
+      const nextIsland = ISLAND_PROJECTS.find((project) =>
+        isProjectVisible(this.latestProgress!, project)
+        && !hasProject(this.latestProgress!, project.id))?.islandIndex;
+      if (nextIsland) this.showProjects(nextIsland);
+    });
     this.projectsCloseButton.addEventListener('click', () => this.hideProjects());
     this.projectsPanel.addEventListener('pointerdown', (event) => {
       if (event.target === this.projectsPanel) this.hideProjects();
@@ -323,6 +336,14 @@ export class GameUI {
     this.explorationFlowButton.addEventListener('click', () => {
       if (!this.latestProgress) return;
       this.talentHandlers?.onExplorationToggle(!this.latestProgress.explorationFlow);
+    });
+    this.powerMessagesButton.addEventListener('click', () => {
+      if (!this.latestProgress) return;
+      this.talentHandlers?.onPowerNotificationsToggle(!this.latestProgress.powerNotifications);
+    });
+    this.powerVfxButton.addEventListener('click', () => {
+      if (!this.latestProgress) return;
+      this.talentHandlers?.onPowerVfxToggle(!this.latestProgress.powerVfx);
     });
     this.tutorialContinueButton.addEventListener('click', () => {
       this.tutorialPanel.hidden = true;
@@ -429,8 +450,11 @@ export class GameUI {
     this.menuButton.focus({ preventScroll: true });
   }
 
-  showProjects(): void {
-    if (!this.latestProgress?.workshopBuilt) return;
+  showProjects(islandIndex: 1 | 2 | 3 | 4): void {
+    if (!this.latestProgress) return;
+    const localProjects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
+    if (!localProjects.some((project) => isProjectVisible(this.latestProgress!, project))) return;
+    this.projectIslandIndex = islandIndex;
     this.projectsPanel.hidden = false;
     this.renderProjects(this.latestProgress);
     this.projectHandlers?.onOpenChange(true);
@@ -441,7 +465,7 @@ export class GameUI {
     if (this.projectsPanel.hidden) return;
     this.projectsPanel.hidden = true;
     this.projectHandlers?.onOpenChange(false);
-    this.projectsButton.focus({ preventScroll: true });
+    this.menuButton.focus({ preventScroll: true });
   }
 
   showTalents(): void {
@@ -570,9 +594,12 @@ export class GameUI {
     explorationActive: boolean,
     explorationRemaining: number,
   ): void {
-    this.powerVfx.classList.toggle('industry-active', industryActive);
-    this.powerVfx.classList.toggle('exploration-active', explorationActive);
-    this.powerVfxLabel.textContent = industryActive
+    const visualEnabled = this.latestProgress?.powerVfx !== false;
+    this.powerVfx.classList.toggle('industry-active', visualEnabled && industryActive);
+    this.powerVfx.classList.toggle('exploration-active', visualEnabled && explorationActive);
+    this.powerVfxLabel.textContent = !visualEnabled
+      ? ''
+      : industryActive
       ? `ϟ SURCHARGE · ${RESOURCE_LABELS[industryKind].toUpperCase()} · ${Math.ceil(industryRemaining)} s`
       : explorationActive
         ? `≋ COURANT DE MARÉE · ${Math.ceil(explorationRemaining)} s`
@@ -597,6 +624,7 @@ export class GameUI {
   update(progress: IslandProgress): void {
     this.latestProgress = progress;
     RESOURCE_KINDS.forEach((kind) => { this.resourceCounts[kind].textContent = String(progress[kind]); });
+    this.knowledgeCount.textContent = String(progress.knowledge);
     this.updateCargo(
       RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0),
       PLAYER_CARGO_CAPACITY,
@@ -828,35 +856,34 @@ export class GameUI {
   }
 
   private renderProjects(progress: IslandProgress): void {
-    const completed = getCompletedProjectCount(progress);
-    this.projectsProgress.textContent = `${completed} / ${ISLAND_PROJECTS.length} achevés · +${progress.cycleMilestones.filter((id) => id.startsWith('project:')).length} jalons`;
-    this.projectsHelp.textContent = completed < 3
-      ? 'Achève les 3 travaux des Pins pour ouvrir le pont Cuivré.'
-      : completed < 6
-        ? 'Les 3 travaux Cuivrés ouvriront la route des Cristaux.'
-        : completed < 9
-          ? 'Équipe l’île de Cristal avant de rejoindre la Couronne.'
-          : completed < ISLAND_PROJECTS.length
-            ? 'Les trois derniers travaux synchroniseront le Cœur.'
-            : 'Réseau complet · les quatre ressources alimentent désormais tout l’archipel.';
-
+    const islandIndex = this.projectIslandIndex;
+    if (!islandIndex) return;
+    const island = ISLANDS[islandIndex];
+    const localProjects = ISLAND_PROJECTS.filter((definition) =>
+      definition.islandIndex === islandIndex
+      && isProjectVisible(progress, definition));
+    const localCompleted = localProjects.filter((definition) => hasProject(progress, definition.id)).length;
+    const totalCompleted = getCompletedProjectCount(progress);
+    this.projectsKicker.textContent = `${island?.name.toUpperCase() ?? 'ÎLE'} · UNE MAISON · TROIS TRAVAUX`;
+    this.projectsProgress.textContent = `${localCompleted} / 3 achevés ici · ${totalCompleted} / ${ISLAND_PROJECTS.length} dans l’archipel`;
+    this.projectsHelp.textContent = localCompleted >= 3
+      ? 'Maison complète · ce palier restera définitivement validé.'
+      : `Choisis un Travail, lis son effet et finance-le ici. Encore ${3 - localCompleted} à achever.`;
     this.projectTiers.replaceChildren();
-    const visibleProjects = ISLAND_PROJECTS.filter((definition) => isProjectVisible(progress, definition));
-    if (!visibleProjects.length) {
+    if (!localProjects.length) {
       const empty = element('div', 'projects-empty');
-      empty.innerHTML = '<span aria-hidden="true">⌂</span><strong>Aucun chantier révélé</strong><small>Fais émerger l’île suivante et construis son bâtiment.</small>';
+      empty.innerHTML = '<span aria-hidden="true">⌂</span><strong>Maison encore fermée</strong><small>Construis le bâtiment principal de cette île pour révéler ses trois Travaux.</small>';
       this.projectTiers.append(empty);
       return;
     }
 
-    const visibleTiers = [...new Set(visibleProjects.map((definition) => definition.tier))];
+    const visibleTiers = [...new Set(localProjects.map((definition) => definition.tier))];
     visibleTiers.forEach((tier) => {
-      const tierProjects = visibleProjects.filter((definition) => definition.tier === tier);
-      const island = ISLANDS[tierProjects[0]?.islandIndex ?? 0];
+      const tierProjects = localProjects.filter((definition) => definition.tier === tier);
       const section = element('section', 'project-tier');
       const heading = element('header', 'project-tier-heading');
       const title = element('strong');
-      title.textContent = island?.name ?? `Palier ${tier}`;
+      title.textContent = `Les trois Travaux · palier ${tier}`;
       const count = element('small');
       const completedInTier = tierProjects.filter((definition) => hasProject(progress, definition.id)).length;
       count.textContent = `${completedInTier}/${tierProjects.length}`;
@@ -1022,6 +1049,15 @@ export class GameUI {
       : progress.explorationFlow
         ? 'EXPLORATION · COURANT ARMÉ'
         : 'EXPLORATION · ACTIVER LE COURANT';
+
+    this.powerMessagesButton.setAttribute('aria-pressed', String(progress.powerNotifications));
+    this.powerMessagesButton.textContent = progress.powerNotifications
+      ? 'MESSAGES AUTOMATIQUES · OUI'
+      : 'MESSAGES AUTOMATIQUES · NON';
+    this.powerVfxButton.setAttribute('aria-pressed', String(progress.powerVfx));
+    this.powerVfxButton.textContent = progress.powerVfx
+      ? 'EFFETS PLEIN ÉCRAN · OUI'
+      : 'EFFETS PLEIN ÉCRAN · NON';
     this.renderSkillInspector(progress);
   }
 
@@ -1162,6 +1198,14 @@ export class GameUI {
   updateIslandGoal(islandIndex: number): IslandGoal | null {
     if (!this.latestProgress) return null;
     const goal = getIslandGoal(this.latestProgress, islandIndex);
+    const passageAlreadyCompleted = islandIndex < 4
+      ? Boolean(this.latestProgress.bridgesBuilt[islandIndex])
+      : this.latestProgress.completed;
+    if (passageAlreadyCompleted) {
+      this.islandGoal.hidden = true;
+      this.lastGoalKey = '';
+      return goal;
+    }
     const key = JSON.stringify([
       islandIndex,
       goal.completed,

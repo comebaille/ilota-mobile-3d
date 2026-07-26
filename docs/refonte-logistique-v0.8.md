@@ -1,4 +1,4 @@
-# Ilota v0.8 — Refonte logistique et Nouvelles Marées
+# Ilota v0.8–v0.9 — Refonte logistique et Nouvelles Marées
 
 ## Intention
 
@@ -129,14 +129,22 @@ qu’une seule fois, à la fin de l’animation.
 
 - Agrandir sensiblement les cinq îles sans augmenter artificiellement le nombre de
   filons.
-- Espacer le bâtiment principal, les trois Grands Travaux et les ressources.
+- Espacer le bâtiment principal, la Maison des Travaux et les ressources.
 - Remplacer la tente centrale par un vrai bâtiment de nurserie.
 - Garder les bâtiments principaux imposants.
-- Donner à chacun des douze Grands Travaux un modèle cohérent avec sa fonction,
-  plus petit qu’un bâtiment principal.
+- Regrouper les trois Grands Travaux de chaque île dans une seule Maison des
+  Travaux, avec le même modèle 3D sur les quatre îles.
+- Afficher trois sceaux physiques sur cette Maison pour matérialiser les projets
+  déjà achevés sans ajouter trois bâtiments supplémentaires.
 - Tous les bâtiments continuent à se construire par assemblage visible de leurs
   pièces.
 - Déplacer le panneau d’objectifs d’île à droite, sous les compteurs de ressources.
+- Masquer définitivement ce panneau dès que le pont de l’île a été payé : les
+  ressources dépensées ne peuvent pas rouvrir un objectif historique.
+- Garder le nombre de Savoirs visible dans le HUD avant même l’ouverture de
+  l’Autel.
+- Permettre de couper séparément les notifications automatiques de pouvoirs et
+  leurs effets plein écran.
 - Autoriser les textes utiles à revenir sur deux lignes au lieu de les tronquer.
 - Afficher les labels 3D importants devant le décor et adapter leur taille.
 - Quand tous les objectifs d’une île sont validés, faire apparaître une suite de
@@ -150,7 +158,8 @@ qu’une seule fois, à la fin de l’animation.
   durant la première Marée.
 - Après une Nouvelle Marée, le dépôt de l’île 2 peut être construit et devient la
   destination locale la plus proche.
-- Une cargaison de seize unités affiche et décharge seize objets distincts.
+- Une cargaison de seize unités forme une pile verticale au-dessus du dos et
+  décharge seize objets distincts depuis son sommet.
 - Aucun renard ne patine plus de 0,25 seconde lorsqu’une cible disparaît.
 - Une amélioration de niveau affiche exactement une célébration.
 - Les trois pouvoirs de sommet peuvent être activés et désactivés.
