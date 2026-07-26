@@ -8,6 +8,7 @@ import {
   formatCost,
   getCompletedProjectCount,
   getCycleMultiplier,
+  getIslandGoal,
   getObjective,
   getPriorityShortage,
   getProjectCost,
@@ -27,6 +28,7 @@ import {
   projectPrerequisitesMet,
   skillPrerequisitesMet,
   type IslandProgress,
+  type IslandGoal,
   type ProjectId,
   type ResourceKind,
   type SkillBranch,
@@ -56,6 +58,14 @@ interface ProjectHandlers {
   onOpenChange: (open: boolean) => void;
   onBuild: (project: ProjectId) => void;
 }
+
+interface MenuHandlers {
+  onOpenChange: (open: boolean) => void;
+  onNewTide: () => void;
+  onReset: () => void;
+}
+
+export type CrewMode = 'nursery' | 'workshop' | 'foundry';
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -109,6 +119,13 @@ export class GameUI {
   private readonly objectiveTitle = byId<HTMLElement>('objective-title');
   private readonly objectiveDetail = byId<HTMLElement>('objective-detail');
   private readonly contextPrompt = byId<HTMLElement>('context-prompt');
+  private readonly contextTitle = byId<HTMLElement>('context-title');
+  private readonly contextDetail = byId<HTMLElement>('context-detail');
+  private readonly islandGoal = byId<HTMLElement>('island-goal');
+  private readonly islandGoalIsland = byId<HTMLElement>('island-goal-island');
+  private readonly islandGoalTitle = byId<HTMLElement>('island-goal-title');
+  private readonly islandGoalCount = byId<HTMLElement>('island-goal-count');
+  private readonly islandGoalList = byId<HTMLElement>('island-goal-list');
   private readonly toastElement = byId<HTMLElement>('toast');
   private readonly fatalError = byId<HTMLElement>('fatal-error');
   private readonly installButton = byId<HTMLButtonElement>('install-button');
@@ -116,6 +133,8 @@ export class GameUI {
   private readonly crewButtonCount = byId<HTMLElement>('crew-button-count');
   private readonly crewPanel = byId<HTMLElement>('crew-panel');
   private readonly crewCloseButton = byId<HTMLButtonElement>('crew-close-button');
+  private readonly crewKicker = byId<HTMLElement>('crew-kicker');
+  private readonly crewTitle = byId<HTMLElement>('crew-title');
   private readonly crewCapacity = byId<HTMLElement>('crew-capacity');
   private readonly crewHelp = byId<HTMLElement>('crew-help');
   private readonly jobDocks = byId<HTMLElement>('job-docks');
@@ -123,6 +142,7 @@ export class GameUI {
   private readonly workerDetail = byId<HTMLElement>('worker-detail');
   private readonly recruitButton = byId<HTMLButtonElement>('recruit-button');
   private readonly recruitCost = byId<HTMLElement>('recruit-cost');
+  private readonly crewFooter = byId<HTMLElement>('crew-footer');
   private readonly projectsButton = byId<HTMLButtonElement>('projects-button');
   private readonly projectsButtonCount = byId<HTMLElement>('projects-button-count');
   private readonly projectsPanel = byId<HTMLElement>('projects-panel');
@@ -139,25 +159,47 @@ export class GameUI {
   private readonly forecastText = byId<HTMLElement>('forecast-text');
   private readonly skillBranches = byId<HTMLElement>('skill-branches');
   private readonly talentKicker = byId<HTMLElement>('talent-kicker');
-  private readonly skillZoomOut = byId<HTMLButtonElement>('skill-zoom-out');
-  private readonly skillZoomIn = byId<HTMLButtonElement>('skill-zoom-in');
-  private readonly skillZoomFit = byId<HTMLButtonElement>('skill-zoom-fit');
-  private readonly skillZoomRange = byId<HTMLInputElement>('skill-zoom-range');
-  private readonly skillZoomValue = byId<HTMLOutputElement>('skill-zoom-value');
+  private readonly skillInspector = byId<HTMLElement>('skill-inspector');
+  private readonly skillInspectorIcon = byId<HTMLElement>('skill-inspector-icon');
+  private readonly skillInspectorBranch = byId<HTMLElement>('skill-inspector-branch');
+  private readonly skillInspectorName = byId<HTMLElement>('skill-inspector-name');
+  private readonly skillInspectorDetail = byId<HTMLElement>('skill-inspector-detail');
+  private readonly skillInspectorStatus = byId<HTMLElement>('skill-inspector-status');
+  private readonly skillBuyButton = byId<HTMLButtonElement>('skill-buy-button');
   private readonly autoRegulationButton = byId<HTMLButtonElement>('auto-regulation-button');
+  private readonly menuButton = byId<HTMLButtonElement>('menu-button');
+  private readonly menuPanel = byId<HTMLElement>('menu-panel');
+  private readonly menuCloseButton = byId<HTMLButtonElement>('menu-close-button');
+  private readonly menuResumeButton = byId<HTMLButtonElement>('menu-resume-button');
+  private readonly menuTideButton = byId<HTMLButtonElement>('menu-tide-button');
+  private readonly menuTideHelp = byId<HTMLElement>('menu-tide-help');
+  private readonly menuResetButton = byId<HTMLButtonElement>('menu-reset-button');
+  private readonly menuStatus = byId<HTMLElement>('menu-status');
   private toastTimer = 0;
   private installPrompt: InstallPrompt | null = null;
   private crewHandlers: CrewHandlers | null = null;
   private talentHandlers: TalentHandlers | null = null;
   private projectHandlers: ProjectHandlers | null = null;
+  private menuHandlers: MenuHandlers | null = null;
   private latestProgress: IslandProgress | null = null;
   private selectedSkill: SkillId | null = null;
   private selectedWorkerId: string | null = null;
+  private crewMode: CrewMode = 'nursery';
   private newRecruitWorkerId: string | null = null;
   private levelUpWorker: { id: string; level: number } | null = null;
   private recruitAnimationTimer = 0;
   private levelUpAnimationTimer = 0;
   private skillZoom = 0.7;
+  private readonly skillPointers = new Map<number, { x: number; y: number }>();
+  private skillGesture:
+    | { type: 'pan'; x: number; y: number; scrollLeft: number; scrollTop: number }
+    | { type: 'pinch'; distance: number; zoom: number; midpointX: number; midpointY: number; scrollLeft: number; scrollTop: number }
+    | null = null;
+  private skillSuppressClick = false;
+  private menuResetArmed = false;
+  private menuTideArmed = false;
+  private menuTimer = 0;
+  private lastGoalKey = '';
 
   constructor() {
     window.addEventListener('beforeinstallprompt', (event) => {
@@ -173,7 +215,7 @@ export class GameUI {
       this.installButton.hidden = true;
     });
 
-    this.crewButton.addEventListener('click', () => this.showCrew());
+    this.crewButton.addEventListener('click', () => this.showCrew('nursery'));
     this.crewCloseButton.addEventListener('click', () => this.hideCrew());
     this.crewPanel.addEventListener('pointerdown', (event) => {
       if (event.target === this.crewPanel) this.hideCrew();
@@ -222,22 +264,32 @@ export class GameUI {
       if (event.target === this.talentPanel) this.hideTalents();
     });
     this.skillBranches.addEventListener('click', (event) => {
+      if (this.skillSuppressClick) {
+        this.skillSuppressClick = false;
+        return;
+      }
       const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-skill]') : null;
       if (!target?.dataset.skill) return;
       this.selectedSkill = target.dataset.skill as SkillId;
-      const definition = SKILL_DEFINITIONS.find((skill) => skill.id === this.selectedSkill);
-      if (definition) this.forecastText.textContent = `${definition.name} · ${definition.detail}`;
-      if (target.dataset.unlockable !== 'true') return;
-      this.talentHandlers?.onUnlock(this.selectedSkill);
+      if (this.latestProgress) {
+        this.renderTalents(this.latestProgress);
+        this.skillInspector.classList.remove('skill-inspector-pulse');
+        window.requestAnimationFrame(() => this.skillInspector.classList.add('skill-inspector-pulse'));
+      }
     });
-    this.skillZoomOut.addEventListener('click', () => this.setSkillZoom(this.skillZoom - 0.1));
-    this.skillZoomIn.addEventListener('click', () => this.setSkillZoom(this.skillZoom + 0.1));
-    this.skillZoomFit.addEventListener('click', () => this.fitSkillTree());
-    this.skillZoomRange.addEventListener('input', () => this.setSkillZoom(Number(this.skillZoomRange.value) / 100));
+    this.skillBuyButton.addEventListener('click', () => {
+      if (!this.selectedSkill || this.skillBuyButton.disabled) return;
+      this.skillBuyButton.classList.remove('confirming');
+      window.requestAnimationFrame(() => this.skillBuyButton.classList.add('confirming'));
+      this.talentHandlers?.onUnlock(this.selectedSkill!);
+    });
+    this.skillBranches.addEventListener('pointerdown', (event) => this.beginSkillPointer(event));
+    this.skillBranches.addEventListener('pointermove', (event) => this.moveSkillPointer(event));
+    this.skillBranches.addEventListener('pointerup', (event) => this.endSkillPointer(event));
+    this.skillBranches.addEventListener('pointercancel', (event) => this.endSkillPointer(event));
     this.skillBranches.addEventListener('wheel', (event) => {
-      if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
-      this.setSkillZoom(this.skillZoom + (event.deltaY < 0 ? 0.08 : -0.08));
+      this.setSkillZoom(this.skillZoom + (event.deltaY < 0 ? 0.08 : -0.08), event.clientX, event.clientY);
     }, { passive: false });
     this.autoRegulationButton.addEventListener('click', () => {
       if (!this.latestProgress) return;
@@ -248,7 +300,17 @@ export class GameUI {
       if (!this.crewPanel.hidden) this.hideCrew();
       else if (!this.projectsPanel.hidden) this.hideProjects();
       else if (!this.talentPanel.hidden) this.hideTalents();
+      else if (!this.menuPanel.hidden) this.hideMenu();
     });
+
+    this.menuButton.addEventListener('click', () => this.showMenu());
+    this.menuCloseButton.addEventListener('click', () => this.hideMenu());
+    this.menuResumeButton.addEventListener('click', () => this.hideMenu());
+    this.menuPanel.addEventListener('pointerdown', (event) => {
+      if (event.target === this.menuPanel) this.hideMenu();
+    });
+    this.menuTideButton.addEventListener('click', () => this.confirmMenuTide());
+    this.menuResetButton.addEventListener('click', () => this.confirmMenuReset());
   }
 
   bindCrewHandlers(handlers: CrewHandlers): void {
@@ -261,6 +323,10 @@ export class GameUI {
 
   bindProjectHandlers(handlers: ProjectHandlers): void {
     this.projectHandlers = handlers;
+  }
+
+  bindMenuHandlers(handlers: MenuHandlers): void {
+    this.menuHandlers = handlers;
   }
 
   celebrateRecruit(workerId: string): void {
@@ -297,8 +363,19 @@ export class GameUI {
     return !this.projectsPanel.hidden;
   }
 
-  showCrew(): void {
+  get isMenuOpen(): boolean {
+    return !this.menuPanel.hidden;
+  }
+
+  get activeCrewMode(): CrewMode {
+    return this.crewMode;
+  }
+
+  showCrew(mode: CrewMode = 'nursery'): void {
     if (!this.latestProgress?.campBuilt) return;
+    if (mode === 'workshop' && !this.latestProgress.workshopBuilt) return;
+    if (mode === 'foundry' && !this.latestProgress.foundryBuilt) return;
+    this.crewMode = mode;
     this.crewPanel.hidden = false;
     this.renderCrew(this.latestProgress);
     this.crewHandlers?.onOpenChange(true);
@@ -309,7 +386,7 @@ export class GameUI {
     if (this.crewPanel.hidden) return;
     this.crewPanel.hidden = true;
     this.crewHandlers?.onOpenChange(false);
-    this.crewButton.focus({ preventScroll: true });
+    this.menuButton.focus({ preventScroll: true });
   }
 
   showProjects(): void {
@@ -328,7 +405,7 @@ export class GameUI {
   }
 
   showTalents(): void {
-    if (!this.latestProgress) return;
+    if (!this.latestProgress?.observatoryBuilt) return;
     this.talentPanel.hidden = false;
     this.renderTalents(this.latestProgress);
     this.talentHandlers?.onOpenChange(true);
@@ -339,7 +416,81 @@ export class GameUI {
     if (this.talentPanel.hidden) return;
     this.talentPanel.hidden = true;
     this.talentHandlers?.onOpenChange(false);
-    this.talentButton.focus({ preventScroll: true });
+    this.menuButton.focus({ preventScroll: true });
+  }
+
+  showMenu(): void {
+    if (!this.latestProgress || !this.startScreen.hidden || !this.loadingScreen.hidden) return;
+    this.hideCrew();
+    this.hideProjects();
+    this.hideTalents();
+    this.resetMenuConfirmations();
+    this.renderMenu(this.latestProgress);
+    this.menuPanel.hidden = false;
+    this.menuHandlers?.onOpenChange(true);
+    window.setTimeout(() => this.menuResumeButton.focus(), 0);
+  }
+
+  hideMenu(): void {
+    if (this.menuPanel.hidden) return;
+    this.menuPanel.hidden = true;
+    this.resetMenuConfirmations();
+    this.menuHandlers?.onOpenChange(false);
+    this.menuButton.focus({ preventScroll: true });
+  }
+
+  private renderMenu(progress: IslandProgress): void {
+    const objective = getObjective(progress);
+    this.menuStatus.textContent = progress.completed
+      ? `Acte terminé · ${progress.workers.length} renards · ${progress.knowledge} Savoir disponible.`
+      : `${objective.eyebrow} · ${objective.title}.`;
+    this.menuTideButton.disabled = !progress.completed;
+    this.menuTideHelp.textContent = progress.completed
+      ? `Recommencer en gardant l’arbre et gagner +${getRebirthReward(progress)} Savoir.`
+      : 'Termine et éveille le Cœur de l’acte actuel pour la débloquer.';
+  }
+
+  private confirmMenuTide(): void {
+    if (!this.latestProgress?.completed || this.menuTideButton.disabled) return;
+    if (this.menuTideArmed) {
+      window.clearTimeout(this.menuTimer);
+      this.menuHandlers?.onNewTide();
+      return;
+    }
+    this.menuTideArmed = true;
+    this.menuTideButton.classList.add('armed');
+    this.menuTideButton.querySelector('strong')!.textContent = 'CONFIRMER LA NOUVELLE MARÉE';
+    this.menuTideHelp.textContent = 'L’archipel et l’équipe repartent de zéro · les savoirs restent.';
+    this.menuTimer = window.setTimeout(() => {
+      this.menuTideArmed = false;
+      this.renderMenu(this.latestProgress!);
+      this.menuTideButton.classList.remove('armed');
+      this.menuTideButton.querySelector('strong')!.textContent = 'NOUVELLE MARÉE';
+    }, 4500);
+  }
+
+  private confirmMenuReset(): void {
+    if (this.menuResetArmed) {
+      window.clearTimeout(this.menuTimer);
+      this.menuHandlers?.onReset();
+      return;
+    }
+    this.menuResetArmed = true;
+    this.menuResetButton.classList.add('armed');
+    this.menuResetButton.textContent = 'CONFIRMER · TOUT EFFACER';
+    this.toast('Attention : cette action efface aussi les Savoirs et les Nouvelles Marées.');
+    this.menuTimer = window.setTimeout(() => this.resetMenuConfirmations(), 4500);
+  }
+
+  private resetMenuConfirmations(): void {
+    window.clearTimeout(this.menuTimer);
+    this.menuResetArmed = false;
+    this.menuTideArmed = false;
+    this.menuResetButton.classList.remove('armed');
+    this.menuResetButton.textContent = 'RÉINITIALISER LA PROGRESSION';
+    this.menuTideButton.classList.remove('armed');
+    this.menuTideButton.querySelector('strong')!.textContent = 'NOUVELLE MARÉE';
+    if (this.latestProgress) this.renderMenu(this.latestProgress);
   }
 
   setLoading(progress: number, label: string): void {
@@ -367,43 +518,62 @@ export class GameUI {
     this.objectiveDetail.textContent = objective.detail;
 
     const capacity = getWorkerCapacity(progress);
-    this.crewButton.hidden = !progress.campBuilt;
+    this.crewButton.hidden = true;
     this.crewButtonCount.textContent = `${progress.workers.length}/${capacity}`;
     this.crewButton.setAttribute('aria-label', `Gérer l’équipe, ${progress.workers.length} travailleurs sur ${capacity}`);
     const completedProjects = getCompletedProjectCount(progress);
-    this.projectsButton.hidden = !progress.workshopBuilt;
+    this.projectsButton.hidden = true;
     this.projectsButtonCount.textContent = `${completedProjects}/${ISLAND_PROJECTS.length}`;
     this.projectsButton.setAttribute('aria-label', `Ouvrir les Grands Travaux, ${completedProjects} sur ${ISLAND_PROJECTS.length} achevés`);
+    this.talentButton.hidden = true;
     this.talentButtonCount.textContent = String(progress.knowledge);
     this.talentButton.setAttribute('aria-label', `Ouvrir l’arbre de talents, ${progress.knowledge} points de Savoir disponibles`);
     if (!this.crewPanel.hidden) this.renderCrew(progress);
     if (!this.projectsPanel.hidden) this.renderProjects(progress);
     if (!this.talentPanel.hidden) this.renderTalents(progress);
+    if (!this.menuPanel.hidden) this.renderMenu(progress);
   }
 
   private renderCrew(progress: IslandProgress): void {
     const capacity = getWorkerCapacity(progress);
     const levelCap = getWorkerLevelCap(progress);
     const unlockedTasks = getUnlockedWorkerTasks(progress);
+    const nursery = this.crewMode === 'nursery';
+    const workshop = this.crewMode === 'workshop';
+    this.crewPanel.dataset.mode = this.crewMode;
+    this.crewKicker.textContent = nursery
+      ? 'NURSERIE DE L’ÎLOT CENTRAL'
+      : workshop ? 'ATELIER DES PINS · FORMATION' : 'FONDERIE CUIVRÉE · MAÎTRISE';
+    this.crewTitle.textContent = nursery
+      ? 'Recrute et place tes renards'
+      : workshop ? 'Former au niveau 2' : 'Former au niveau 3';
     let selectedWorker = progress.workers.find((worker) => worker.id === this.selectedWorkerId);
     if (!selectedWorker && progress.workers[0]) {
       this.selectedWorkerId = progress.workers[0].id;
       selectedWorker = progress.workers[0];
     } else if (this.selectedWorkerId && !selectedWorker) this.selectedWorkerId = null;
-    this.crewCapacity.textContent = `${progress.workers.length} / ${capacity} terriers · niveau max ${levelCap}`;
-    this.crewHelp.textContent = selectedWorker
-      ? `${selectedWorker.name} sélectionné · touche un grand métier ci-dessous pour le déplacer.`
-      : progress.autoRegulation
-        ? `Auto-régulation active · priorité actuelle : ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
-        : '1. Choisis une carte de renard · 2. Touche un métier.';
+    this.crewCapacity.textContent = nursery
+      ? `${progress.workers.length} / ${capacity} renards disponibles`
+      : `${progress.workers.filter((worker) => workshop ? worker.level >= 2 : worker.level >= 3).length} formés · cible niveau ${workshop ? 2 : 3}`;
+    this.crewHelp.textContent = nursery
+      ? selectedWorker
+        ? `${selectedWorker.name} · choisis son métier. Niveau 2 : atelier · niveau 3 : fonderie.`
+        : progress.autoRegulation
+          ? `Auto-régulation active · priorité actuelle : ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
+          : '1. Choisis un renard · 2. Touche un métier.'
+      : selectedWorker
+        ? `${selectedWorker.name} sélectionné · lis sa fiche puis confirme sa formation.`
+        : 'Choisis un renard pour ouvrir sa fiche de formation.';
 
     const recruitCost = getRecruitCost(progress);
     this.recruitCost.textContent = progress.workers.length >= capacity ? 'CAPACITÉ ATTEINTE' : formatCost(recruitCost);
     this.recruitButton.disabled = progress.workers.length >= capacity || !canAfford(progress, recruitCost);
+    this.crewFooter.hidden = !nursery;
+    this.jobDocks.hidden = !nursery;
 
     const accessibleIslandCount = Math.min(ISLANDS.length, progress.bridgesBuilt.filter(Boolean).length + 1);
     this.jobDocks.replaceChildren();
-    RESOURCE_KINDS.forEach((task) => {
+    if (nursery) RESOURCE_KINDS.forEach((task) => {
       const assigned = progress.workers.filter((worker) => worker.task === task).length;
       const enabled = unlockedTasks.includes(task);
       const accessibleProfiles = RESOURCE_SPAWN_PROFILES.slice(0, accessibleIslandCount);
@@ -540,7 +710,20 @@ export class GameUI {
     upgrade.type = 'button';
     upgrade.dataset.action = 'upgrade';
     upgrade.dataset.workerId = worker.id;
-    if (worker.level >= 3) {
+    if (this.crewMode === 'nursery') {
+      upgrade.textContent = worker.level >= 3
+        ? 'NIVEAU 3 · MAÎTRE'
+        : worker.level === 2
+          ? 'NIVEAU 2 · FONDERIE POUR CONTINUER'
+          : 'NIVEAU 1 · ATELIER DES PINS POUR LE FORMER';
+      upgrade.disabled = true;
+    } else if (this.crewMode === 'workshop' && worker.level >= 2) {
+      upgrade.textContent = worker.level === 3 ? 'DÉJÀ MAÎTRE · NIVEAU 3' : 'FORMATION TERMINÉE · NIVEAU 2';
+      upgrade.disabled = true;
+    } else if (this.crewMode === 'foundry' && worker.level < 2) {
+      upgrade.textContent = 'NIVEAU 2 REQUIS · VA À L’ATELIER DES PINS';
+      upgrade.disabled = true;
+    } else if (worker.level >= 3) {
       upgrade.textContent = 'NIVEAU 3 · MAXIMUM';
       upgrade.disabled = true;
     } else if (worker.level >= levelCap) {
@@ -548,7 +731,7 @@ export class GameUI {
       upgrade.disabled = true;
     } else {
       const upgradeCost = getUpgradeCost(worker, progress);
-      upgrade.textContent = `LEVEL UP · NIV ${worker.level + 1} · ${formatCost(upgradeCost)}`;
+      upgrade.textContent = `CONFIRMER · NIVEAU ${worker.level + 1} · ${formatCost(upgradeCost)}`;
       upgrade.setAttribute('aria-label', `Améliorer ${worker.name} au niveau ${worker.level + 1}, coût ${formatCost(upgradeCost)}`);
       upgrade.disabled = !canAfford(progress, upgradeCost);
     }
@@ -638,14 +821,14 @@ export class GameUI {
     const previouslyRendered = Boolean(this.skillBranches.querySelector('.skill-map-canvas'));
     this.talentKnowledge.textContent = `${progress.knowledge} Savoir disponible${progress.knowledge > 1 ? 's' : ''}`;
     this.tideCount.textContent = `Marée ${progress.rebirths + 1} · exigence ×${getCycleMultiplier(progress).toFixed(2)}`;
-    const selectedDefinition = SKILL_DEFINITIONS.find((definition) => definition.id === this.selectedSkill);
-    this.forecastText.textContent = selectedDefinition
-      ? `${selectedDefinition.name} · ${selectedDefinition.detail}`
-      : hasSkill(progress, 'forecasting')
-        ? `Prévision : la prochaine pénurie sera le ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
-        : 'Touchez un hexagone pour lire son effet · Prévisions révélera aussi le prochain manque.';
     this.skillBranches.replaceChildren();
     const visibleSkills = SKILL_DEFINITIONS.filter((definition) => isSkillVisible(progress, definition));
+    if (!this.selectedSkill || !visibleSkills.some((skill) => skill.id === this.selectedSkill)) {
+      this.selectedSkill = visibleSkills[0]?.id ?? null;
+    }
+    this.forecastText.textContent = hasSkill(progress, 'forecasting')
+      ? `Prévision : prochain manque probable, ${RESOURCE_LABELS[getPriorityShortage(progress)]} · pince pour zoomer.`
+      : 'Touche un hexagone pour lire son pouvoir · pince à deux doigts pour zoomer.';
     this.talentKicker.textContent = `${visibleSkills.length}/${SKILL_DEFINITIONS.length} HEXAGONES DÉCOUVERTS · FUTUR MASQUÉ`;
     const stage = element('div', 'skill-map-stage');
     stage.style.width = `${1160 * this.skillZoom}px`;
@@ -693,20 +876,21 @@ export class GameUI {
       const priceValue = getSkillCost(progress, skill);
       const available = prerequisiteMet && progress.knowledge >= priceValue && !maxed;
       const locked = !available;
-      const button = element('button', `skill-hex branch-${skill.branch}${unlocked ? ' unlocked' : ''}${available ? ' available' : ''}${locked ? ' locked' : ''}${skill.maxRank ? ' repeatable' : ''}${skill.id === 'archipelago_consciousness' ? ' final-skill' : ''}`);
+      const selected = skill.id === this.selectedSkill;
+      const button = element('button', `skill-hex branch-${skill.branch}${unlocked ? ' unlocked' : ''}${available ? ' available' : ''}${locked ? ' locked' : ''}${selected ? ' selected' : ''}${skill.maxRank ? ' repeatable' : ''}${skill.id === 'archipelago_consciousness' ? ' final-skill' : ''}`);
       button.type = 'button';
       button.dataset.skill = skill.id;
       button.dataset.rank = String(rank);
       button.dataset.unlockable = String(available);
       button.style.left = `${skill.x}px`;
       button.style.top = `${skill.y}px`;
-      button.setAttribute('aria-disabled', String(locked));
+      button.setAttribute('aria-pressed', String(selected));
       const rankCopy = skill.maxRank ? `, rang ${rank} sur ${maximum}` : '';
       button.setAttribute(
         'aria-label',
         maxed
-          ? `${skill.name}${rankCopy}, acquis. ${skill.detail}`
-          : `Débloquer ${skill.name}${skill.maxRank ? ` rang ${rank + 1}` : ''} pour ${priceValue} Savoir. ${skill.detail}`,
+          ? `Voir ${skill.name}${rankCopy}, acquis. ${skill.detail}`
+          : `Voir ${skill.name}${skill.maxRank ? ` rang ${rank + 1}` : ''}, prix ${priceValue} Savoir. ${skill.detail}`,
       );
       button.title = skill.detail;
 
@@ -723,8 +907,6 @@ export class GameUI {
     });
     stage.append(canvas);
     this.skillBranches.append(stage);
-    this.skillZoomRange.value = String(Math.round(this.skillZoom * 100));
-    this.skillZoomValue.value = `${Math.round(this.skillZoom * 100)} %`;
     window.requestAnimationFrame(() => {
       this.skillBranches.scrollLeft = previouslyRendered
         ? previousScrollLeft
@@ -740,14 +922,62 @@ export class GameUI {
       : progress.autoRegulation
         ? 'AUTO-RÉGULATION ACTIVE'
         : 'ACTIVER L’AUTO-RÉGULATION';
+    this.renderSkillInspector(progress);
   }
 
-  private setSkillZoom(value: number): void {
-    const next = Math.min(1.3, Math.max(0.1, value));
+  private renderSkillInspector(progress: IslandProgress): void {
+    const definition = SKILL_DEFINITIONS.find((skill) => skill.id === this.selectedSkill);
+    if (!definition) return;
+    const rank = getSkillRank(progress, definition.id);
+    const maximum = definition.maxRank ?? 1;
+    const maxed = rank >= maximum;
+    const prerequisites = skillPrerequisitesMet(progress, definition);
+    const price = getSkillCost(progress, definition);
+    const affordable = progress.knowledge >= price;
+    const branch = definition.branch === 'core'
+      ? 'ORIGINE'
+      : definition.branch === 'hybrid'
+        ? 'CONVERGENCE'
+        : SKILL_BRANCH_LABELS[definition.branch].name.toUpperCase();
+    const requiredNames = (definition.requires ?? [])
+      .filter((id) => !hasSkill(progress, id))
+      .map((id) => SKILL_DEFINITIONS.find((skill) => skill.id === id)?.name)
+      .filter(Boolean);
+
+    this.skillInspector.dataset.branch = definition.branch;
+    this.skillInspectorIcon.textContent = definition.icon;
+    this.skillInspectorBranch.textContent = `${branch} · PALIER ${definition.tier}`;
+    this.skillInspectorName.textContent = definition.name;
+    this.skillInspectorDetail.textContent = definition.detail;
+    this.skillInspectorStatus.textContent = maxed
+      ? definition.maxRank ? `RANG MAXIMUM ${rank}/${maximum}` : 'SAVOIR ACQUIS'
+      : !prerequisites
+        ? `REQUIS · ${requiredNames.join(' + ')}`
+        : !affordable
+          ? `IL MANQUE ${price - progress.knowledge} SAVOIR`
+          : `PRÊT · COÛT ${price} SAVOIR`;
+    this.skillBuyButton.disabled = maxed || !prerequisites || !affordable;
+    this.skillBuyButton.textContent = maxed
+      ? 'DÉJÀ ACQUIS'
+      : !prerequisites
+        ? 'PRÉREQUIS NON ACQUIS'
+        : !affordable
+          ? `${price} SAVOIR REQUIS`
+          : `CONFIRMER · ${definition.maxRank ? `RANG ${rank + 1}` : 'ACHETER'} · ${price} SAVOIR`;
+    this.skillBuyButton.setAttribute('aria-label', this.skillBuyButton.disabled
+      ? this.skillInspectorStatus.textContent ?? ''
+      : `Confirmer l’achat de ${definition.name} pour ${price} Savoir`);
+  }
+
+  private setSkillZoom(value: number, anchorClientX?: number, anchorClientY?: number): void {
+    const next = Math.min(1.35, Math.max(0.18, value));
     const previous = this.skillZoom;
     if (Math.abs(next - previous) < 0.001) return;
-    const contentCenterX = (this.skillBranches.scrollLeft + this.skillBranches.clientWidth / 2) / previous;
-    const contentCenterY = (this.skillBranches.scrollTop + this.skillBranches.clientHeight / 2) / previous;
+    const rect = this.skillBranches.getBoundingClientRect();
+    const anchorX = anchorClientX === undefined ? this.skillBranches.clientWidth / 2 : anchorClientX - rect.left;
+    const anchorY = anchorClientY === undefined ? this.skillBranches.clientHeight / 2 : anchorClientY - rect.top;
+    const contentX = (this.skillBranches.scrollLeft + anchorX) / previous;
+    const contentY = (this.skillBranches.scrollTop + anchorY) / previous;
     this.skillZoom = next;
     const stage = this.skillBranches.querySelector<HTMLElement>('.skill-map-stage');
     const canvas = this.skillBranches.querySelector<HTMLElement>('.skill-map-canvas');
@@ -756,36 +986,127 @@ export class GameUI {
       stage.style.height = `${1250 * next}px`;
       canvas.style.transform = `scale(${next})`;
       window.requestAnimationFrame(() => {
-        this.skillBranches.scrollLeft = Math.max(0, contentCenterX * next - this.skillBranches.clientWidth / 2);
-        this.skillBranches.scrollTop = Math.max(0, contentCenterY * next - this.skillBranches.clientHeight / 2);
+        this.skillBranches.scrollLeft = Math.max(0, contentX * next - anchorX);
+        this.skillBranches.scrollTop = Math.max(0, contentY * next - anchorY);
       });
     }
-    this.skillZoomRange.value = String(Math.round(next * 100));
-    this.skillZoomValue.value = `${Math.round(next * 100)} %`;
   }
 
-  private fitSkillTree(): void {
-    const horizontal = (this.skillBranches.clientWidth - 10) / 1160;
-    const vertical = (this.skillBranches.clientHeight - 10) / 1250;
-    const fit = Math.floor(Math.min(horizontal, vertical) * 20) / 20;
-    this.setSkillZoom(Math.max(0.1, fit));
-    window.requestAnimationFrame(() => {
-      this.skillBranches.scrollLeft = Math.max(0, (1160 * this.skillZoom - this.skillBranches.clientWidth) / 2);
-      this.skillBranches.scrollTop = 0;
+  private beginSkillPointer(event: PointerEvent): void {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    this.skillPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    this.rebaseSkillGesture();
+  }
+
+  private moveSkillPointer(event: PointerEvent): void {
+    if (!this.skillPointers.has(event.pointerId) || !this.skillGesture) return;
+    this.skillPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const pointers = [...this.skillPointers.values()];
+    if (this.skillGesture.type === 'pinch' && pointers.length >= 2) {
+      event.preventDefault();
+      const [first, second] = pointers;
+      if (!first || !second) return;
+      const distance = Math.max(8, Math.hypot(second.x - first.x, second.y - first.y));
+      const midpointX = (first.x + second.x) / 2;
+      const midpointY = (first.y + second.y) / 2;
+      if (Math.abs(distance - this.skillGesture.distance) > 2) this.skillSuppressClick = true;
+      this.setSkillZoom(
+        this.skillGesture.zoom * distance / this.skillGesture.distance,
+        midpointX,
+        midpointY,
+      );
+      return;
+    }
+    if (this.skillGesture.type === 'pan' && pointers.length === 1) {
+      const pointer = pointers[0]!;
+      const dx = pointer.x - this.skillGesture.x;
+      const dy = pointer.y - this.skillGesture.y;
+      if (Math.hypot(dx, dy) > 5) this.skillSuppressClick = true;
+      this.skillBranches.scrollLeft = this.skillGesture.scrollLeft - dx;
+      this.skillBranches.scrollTop = this.skillGesture.scrollTop - dy;
+    }
+  }
+
+  private endSkillPointer(event: PointerEvent): void {
+    if (!this.skillPointers.has(event.pointerId)) return;
+    this.skillPointers.delete(event.pointerId);
+    this.rebaseSkillGesture();
+    if (this.skillSuppressClick) window.setTimeout(() => { this.skillSuppressClick = false; }, 0);
+  }
+
+  private rebaseSkillGesture(): void {
+    const pointers = [...this.skillPointers.values()];
+    if (pointers.length >= 2) {
+      const [first, second] = pointers;
+      if (!first || !second) return;
+      this.skillGesture = {
+        type: 'pinch',
+        distance: Math.max(8, Math.hypot(second.x - first.x, second.y - first.y)),
+        zoom: this.skillZoom,
+        midpointX: (first.x + second.x) / 2,
+        midpointY: (first.y + second.y) / 2,
+        scrollLeft: this.skillBranches.scrollLeft,
+        scrollTop: this.skillBranches.scrollTop,
+      };
+    } else if (pointers[0]) {
+      this.skillGesture = {
+        type: 'pan',
+        x: pointers[0].x,
+        y: pointers[0].y,
+        scrollLeft: this.skillBranches.scrollLeft,
+        scrollTop: this.skillBranches.scrollTop,
+      };
+    } else this.skillGesture = null;
+  }
+
+  updateIslandGoal(islandIndex: number): IslandGoal | null {
+    if (!this.latestProgress) return null;
+    const goal = getIslandGoal(this.latestProgress, islandIndex);
+    const key = JSON.stringify([
+      islandIndex,
+      goal.completed,
+      ...goal.items.map((item) => item.done),
+      ...goal.items.map((item) => item.label),
+    ]);
+    this.islandGoal.hidden = false;
+    if (key === this.lastGoalKey) return goal;
+    this.lastGoalKey = key;
+    const island = ISLANDS[islandIndex];
+    const done = goal.items.filter((item) => item.done).length;
+    this.islandGoal.classList.toggle('completed', goal.completed);
+    this.islandGoalIsland.textContent = island?.name.toUpperCase() ?? 'ARCHIPEL';
+    this.islandGoalTitle.textContent = goal.completed ? 'ÎLE PRÊTE · PASSAGE OUVERT' : goal.title;
+    this.islandGoalCount.textContent = `${done}/${goal.items.length}`;
+    this.islandGoalList.replaceChildren();
+    goal.items.forEach((item) => {
+      const row = element('li', item.done ? 'done' : '');
+      const icon = element('span');
+      icon.textContent = item.done ? '✓' : '○';
+      icon.setAttribute('aria-hidden', 'true');
+      const label = element('span');
+      label.textContent = item.label;
+      const status = element('small');
+      status.textContent = item.done ? 'VALIDÉ' : 'À FAIRE';
+      row.append(icon, label, status);
+      this.islandGoalList.append(row);
     });
+    return goal;
   }
 
-  setContext(text: string, actionLabel = 'RÉCOLTER', icon = '⌁', affordable = true): void {
-    this.contextPrompt.textContent = text;
-    this.contextPrompt.classList.toggle('visible', Boolean(text));
+  setContext(title: string, actionLabel = 'RÉCOLTER', icon = '⌁', affordable = true, detail = ''): void {
+    this.contextTitle.textContent = title;
+    this.contextDetail.textContent = detail;
+    this.contextDetail.hidden = !detail;
+    this.contextPrompt.classList.toggle('visible', Boolean(title));
     this.actionLabel.textContent = actionLabel;
     this.actionIcon.textContent = icon;
     this.actionButton.classList.toggle('disabled', !affordable);
-    this.actionButton.setAttribute('aria-label', `${actionLabel.toLowerCase()} — ${text}`);
+    this.actionButton.setAttribute('aria-label', `${actionLabel.toLowerCase()} — ${title}${detail ? `. ${detail}` : ''}`);
   }
 
   clearContext(): void {
     this.contextPrompt.classList.remove('visible');
+    this.contextDetail.hidden = true;
     this.actionLabel.textContent = 'EXPLORER';
     this.actionIcon.textContent = '⌁';
     this.actionButton.classList.remove('disabled');
@@ -802,6 +1123,7 @@ export class GameUI {
     this.hideCrew();
     this.hideProjects();
     this.hideTalents();
+    this.hideMenu();
     this.victoryWorkers.textContent = String(progress.workers.length);
     const total = Math.floor(progress.elapsedSeconds);
     this.victoryTime.textContent = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;

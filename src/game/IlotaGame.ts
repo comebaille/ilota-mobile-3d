@@ -14,6 +14,7 @@ import {
   getChapter,
   getCompletedProjectCount,
   getFinalCost,
+  getIslandGoal,
   getManualYield,
   getPlayerSpeed,
   getProjectCost,
@@ -28,7 +29,9 @@ import {
   getWorkerGatherSeconds,
   getWorkerTravelSpeed,
   getWorkerYield,
+  hasProject,
   hasSkill,
+  isProjectVisible,
   type Cost,
   type ProjectId,
   type ResourceKind,
@@ -50,11 +53,13 @@ import {
   findIslandIndexForPoint,
   ISLANDS,
   pickResourceKindForIsland,
+  PROJECT_SITES,
   RESOURCE_SPAWNS,
   STRUCTURES,
   type BridgeDefinition,
   type CacheDefinition,
   type IslandDefinition,
+  type ProjectSiteDefinition,
   type StructureDefinition,
 } from './world';
 import { GameUI } from '../ui/GameUI';
@@ -109,6 +114,14 @@ interface StructureEntity {
   definition: StructureDefinition;
   pad: THREE.Group;
   building: THREE.Group;
+  status: THREE.Sprite;
+}
+
+interface ProjectEntity {
+  definition: ProjectSiteDefinition;
+  pad: THREE.Group;
+  building: THREE.Group;
+  status: THREE.Sprite;
 }
 
 interface CacheEntity {
@@ -144,6 +157,7 @@ interface Particle {
 type Interaction =
   | { type: 'resource'; node: ResourceNode }
   | { type: 'structure'; entity: StructureEntity }
+  | { type: 'project'; entity: ProjectEntity }
   | { type: 'bridge'; entity: BridgeEntity }
   | { type: 'cache'; entity: CacheEntity }
   | { type: 'heart' };
@@ -168,11 +182,14 @@ interface Diagnostics {
   crewOpen: boolean;
   projectsOpen: boolean;
   talentOpen: boolean;
+  menuOpen: boolean;
   knowledge: number;
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
   projects: number;
+  currentIsland: number;
+  assemblingBuildings: number;
   visibleIslands: number;
   emergingIsland: string;
   workersOnWalkable: boolean;
@@ -239,10 +256,10 @@ const RESOURCE_COLORS: Record<ResourceKind, number> = {
 };
 
 const STRUCTURE_COPY: Record<StructureKind, { built: string; toast: string }> = {
-  camp: { built: 'Bâtir le camp des Marées', toast: 'Camp construit · trois postes de travailleurs ouverts !' },
-  workshop: { built: 'Construire l’atelier des Pins', toast: 'Atelier terminé · cinq postes et niveau 2 débloqués !' },
-  foundry: { built: 'Construire la fonderie Cuivrée', toast: 'Fonderie allumée · cuivre, sept postes et niveau 3 débloqués !' },
-  observatory: { built: 'Construire l’observatoire de Cristal', toast: 'Observatoire dressé · cristal et neuf postes débloqués !' },
+  camp: { built: 'Bâtir le camp des Marées', toast: 'Nurserie construite · recrutement et métiers disponibles !' },
+  workshop: { built: 'Construire l’atelier des Pins', toast: 'Atelier terminé · formations niveau 2 disponibles !' },
+  foundry: { built: 'Construire la fonderie Cuivrée', toast: 'Fonderie allumée · formations niveau 3 disponibles !' },
+  observatory: { built: 'Construire l’Autel du Savoir', toast: 'Autel éveillé · l’arbre des savoirs est maintenant accessible !' },
 };
 
 const vec = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0, z);
@@ -275,6 +292,7 @@ export class IlotaGame {
   private readonly workers: WorkerEntity[] = [];
   private readonly bridges: BridgeEntity[] = [];
   private readonly structures = new Map<StructureKind, StructureEntity>();
+  private readonly projects: ProjectEntity[] = [];
   private readonly caches: CacheEntity[] = [];
   private readonly particles: Particle[] = [];
   private readonly emergenceRipples: EmergenceRipple[] = [];
@@ -348,11 +366,14 @@ export class IlotaGame {
       crewOpen: false,
       projectsOpen: false,
       talentOpen: false,
+      menuOpen: false,
       knowledge: progress.knowledge,
       rebirths: progress.rebirths,
       skills: progress.skills.join(','),
       autoRegulation: progress.autoRegulation,
       projects: getCompletedProjectCount(progress),
+      currentIsland: 0,
+      assemblingBuildings: 0,
       visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
       emergingIsland: '',
       workersOnWalkable: true,
@@ -424,6 +445,11 @@ export class IlotaGame {
       onOpenChange,
       onBuild: (project) => this.buildProject(project),
     });
+    this.ui.bindMenuHandlers({
+      onOpenChange,
+      onNewTide: () => this.beginNewTide(),
+      onReset: () => this.resetProgress(),
+    });
   }
 
   private unlockSkill(skill: SkillId): void {
@@ -470,16 +496,25 @@ export class IlotaGame {
       this.showMissing(projectCost);
       return;
     }
+    const entity = this.projects.find((candidate) => candidate.definition.id === project);
+    if (entity) {
+      entity.building.visible = true;
+      this.startBuildingAssembly(entity.building);
+    }
     this.spawnParticles(
-      this.player.position.clone().setY(1.1),
+      entity?.building.getWorldPosition(new THREE.Vector3()).setY(1.1) ?? this.player.position.clone().setY(1.1),
       project === 'unity_lighthouse' ? 'crystal' : project === 'copper_winches' ? 'copper' : 'wood',
-      project === 'unity_lighthouse' ? 26 : 14,
+      project === 'unity_lighthouse' ? 32 : 18,
     );
     this.ui.toast(`${definition.name} achevé · ${definition.effect}`);
     this.changed();
   }
 
   private recruitWorker(): void {
+    if (this.ui.activeCrewMode !== 'nursery') {
+      this.ui.toast('Le recrutement se fait uniquement dans la nurserie centrale.');
+      return;
+    }
     const recruitCost = getRecruitCost(this.economy.progress);
     const worker = this.economy.hireWorker();
     if (!worker) {
@@ -497,6 +532,10 @@ export class IlotaGame {
   }
 
   private assignWorker(workerId: string, task: ResourceKind): void {
+    if (this.ui.activeCrewMode !== 'nursery') {
+      this.ui.toast('Les métiers se gèrent depuis la nurserie centrale.');
+      return;
+    }
     if (!this.economy.assignWorker(workerId, task)) return;
     const state = this.economy.progress.workers.find((worker) => worker.id === workerId);
     const entity = this.workers.find((worker) => worker.id === workerId);
@@ -508,6 +547,13 @@ export class IlotaGame {
   private upgradeWorker(workerId: string): void {
     const before = this.economy.progress.workers.find((worker) => worker.id === workerId);
     if (!before) return;
+    const requiredMode = before.level === 1 ? 'workshop' : 'foundry';
+    if (this.ui.activeCrewMode !== requiredMode) {
+      this.ui.toast(before.level === 1
+        ? 'Va dans l’Atelier des Pins pour atteindre le niveau 2.'
+        : 'Va dans la Fonderie Cuivrée pour atteindre le niveau 3.');
+      return;
+    }
     const upgradeCost = getUpgradeCost(before, this.economy.progress);
     if (!this.economy.upgradeWorker(workerId)) {
       this.showMissing(upgradeCost);
@@ -550,6 +596,7 @@ export class IlotaGame {
     ISLANDS.forEach((island, index) => this.createIsland(island, index));
     BRIDGES.forEach((bridge, index) => this.createBridge(bridge, index));
     STRUCTURES.forEach((definition) => this.createStructure(definition));
+    PROJECT_SITES.forEach((definition) => this.createProjectSite(definition));
     this.createHeart();
     this.createResources();
     this.createCaches();
@@ -682,8 +729,145 @@ export class IlotaGame {
     const building = this.createStructureBuilding(definition.kind);
     building.position.set(definition.x, 0, definition.z);
     building.visible = false;
+    const status = this.createWorldLabel(
+      definition.kind === 'camp'
+        ? 'RENARDS 0 / 3'
+        : definition.kind === 'workshop'
+          ? 'FORMATION · NIV 2'
+          : definition.kind === 'foundry'
+            ? 'FORMATION · NIV 3'
+            : 'ARBRE DES SAVOIRS',
+      definition.color,
+    );
+    status.position.set(0, definition.kind === 'observatory' ? 6.55 : definition.kind === 'camp' ? 3.65 : 4.75, 0);
+    building.add(status);
     this.addToIsland(building, definition.x, definition.z);
-    this.structures.set(definition.kind, { definition, pad, building });
+    this.structures.set(definition.kind, { definition, pad, building, status });
+  }
+
+  private createProjectSite(definition: ProjectSiteDefinition): void {
+    const project = getProjectDefinition(definition.id);
+    if (!project) return;
+    const pad = new THREE.Group();
+    pad.position.set(definition.x, 0.05, definition.z);
+    pad.add(this.createBuildPad(definition.radius, definition.color));
+    this.addToIsland(pad, definition.x, definition.z);
+
+    const building = new THREE.Group();
+    building.position.set(definition.x, 0, definition.z);
+    const model = this.createStructureBuilding(definition.model);
+    model.scale.setScalar(definition.id === 'unity_lighthouse' ? 0.7 : 0.56);
+    model.rotation.y = definition.rotation;
+    building.add(model);
+    const emblem = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.22),
+      new THREE.MeshStandardMaterial({
+        color: definition.color,
+        emissive: definition.color,
+        emissiveIntensity: 0.55,
+        roughness: 0.32,
+      }),
+    );
+    emblem.position.y = 2.55;
+    emblem.userData.structureGlow = true;
+    building.add(emblem);
+    building.visible = false;
+    this.addToIsland(building, definition.x, definition.z);
+
+    const status = this.createWorldLabel(
+      `${project.icon} CHANTIER ${project.tier} · ${project.name.toUpperCase()}`,
+      definition.color,
+      4.6,
+    );
+    status.position.set(definition.x, definition.id === 'unity_lighthouse' ? 3.85 : 3.05, definition.z);
+    status.visible = false;
+    this.addToIsland(status, definition.x, definition.z);
+    this.projects.push({ definition, pad, building, status });
+  }
+
+  private createWorldLabel(text: string, accent: number, width = 4.8): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 768;
+    canvas.height = 160;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(width, width / 4.8, 1);
+    sprite.renderOrder = 12;
+    sprite.userData.labelCanvas = canvas;
+    sprite.userData.labelAccent = accent;
+    this.setWorldLabel(sprite, text, accent);
+    return sprite;
+  }
+
+  private setWorldLabel(sprite: THREE.Sprite, text: string, accent = Number(sprite.userData.labelAccent) || PALETTE.gold): void {
+    if (sprite.userData.labelText === text && Number(sprite.userData.labelAccent) === accent) return;
+    const canvas = sprite.userData.labelCanvas as HTMLCanvasElement | undefined;
+    const material = sprite.material as THREE.SpriteMaterial;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context || !material.map) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = 'rgba(17, 49, 41, 0.94)';
+    context.beginPath();
+    context.roundRect(8, 8, canvas.width - 16, canvas.height - 16, 42);
+    context.fill();
+    context.strokeStyle = `#${accent.toString(16).padStart(6, '0')}`;
+    context.lineWidth = 9;
+    context.stroke();
+    let fontSize = 47;
+    context.font = `900 ${fontSize}px system-ui, sans-serif`;
+    while (fontSize > 27 && context.measureText(text).width > canvas.width - 70) {
+      fontSize -= 2;
+      context.font = `900 ${fontSize}px system-ui, sans-serif`;
+    }
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#fff7db';
+    context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+    sprite.userData.labelText = text;
+    sprite.userData.labelAccent = accent;
+    material.map.needsUpdate = true;
+  }
+
+  private startBuildingAssembly(building: THREE.Group): void {
+    const parts: THREE.Mesh[] = [];
+    building.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      if (
+        object.userData.structureGlow
+        || object.userData.observatoryLens
+        || object.userData.observatoryOrbit
+      ) return;
+      if (!object.userData.assemblyBasePosition) {
+        object.userData.assemblyBasePosition = object.position.clone();
+        object.userData.assemblyBaseScale = object.scale.clone();
+      }
+      parts.push(object);
+    });
+    parts.forEach((part, index) => {
+      const basePosition = part.userData.assemblyBasePosition as THREE.Vector3;
+      const baseScale = part.userData.assemblyBaseScale as THREE.Vector3;
+      const angle = index * 2.399963;
+      const distance = 0.72 + (index % 4) * 0.18;
+      const offset = new THREE.Vector3(
+        Math.cos(angle) * distance,
+        0.65 + (index % 5) * 0.18,
+        Math.sin(angle) * distance,
+      );
+      part.userData.assemblyOffset = offset;
+      part.position.copy(basePosition).add(offset);
+      part.scale.copy(baseScale).multiplyScalar(0.025);
+    });
+    building.userData.assemblyParts = parts;
+    building.userData.assemblyElapsed = 0;
+    building.userData.assembling = true;
   }
 
   private createBuildPad(radius: number, color: number): THREE.Group {
@@ -979,6 +1163,29 @@ export class IlotaGame {
         || (kind === 'observatory' && progress.bridgesBuilt[2]);
       entity.building.visible = built;
       entity.pad.visible = accessible && !built;
+      if (kind === 'camp') {
+        this.setWorldLabel(
+          entity.status,
+          `RENARDS ${progress.workers.length} / ${getWorkerCapacity(progress)}`,
+          entity.definition.color,
+        );
+      }
+    });
+    this.projects.forEach((entity) => {
+      const project = getProjectDefinition(entity.definition.id);
+      if (!project) return;
+      const built = hasProject(progress, entity.definition.id);
+      const visible = isProjectVisible(progress, project);
+      entity.building.visible = built;
+      entity.pad.visible = visible && !built;
+      entity.status.visible = visible;
+      this.setWorldLabel(
+        entity.status,
+        built
+          ? `✓ ${project.name.toUpperCase()}`
+          : `${project.icon} CHANTIER ${project.tier} · ${project.name.toUpperCase()}`,
+        entity.definition.color,
+      );
     });
     this.bridges.forEach((entity) => {
       const built = progress.bridgesBuilt[entity.index];
@@ -1236,6 +1443,7 @@ export class IlotaGame {
   private updateGame(delta: number): void {
     this.economy.tick(delta);
     this.input.updateKeyboard();
+    this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
     if (!this.managementOpen) {
       this.updatePlayer(delta);
       this.interaction = this.findInteraction();
@@ -1459,8 +1667,15 @@ export class IlotaGame {
   private findInteraction(): Interaction | null {
     const position = this.player.position;
     const near = (target: THREE.Vector3, distance: number): boolean => position.distanceToSquared(target) <= distance * distance;
-    for (const entity of this.structures.values()) {
-      if (entity.pad.visible && near(entity.pad.position, entity.definition.radius + 1.15)) return { type: 'structure', entity };
+    for (const [kind, entity] of this.structures) {
+      const built = structureBuilt(this.economy.progress, kind);
+      const target = built ? entity.building : entity.pad;
+      if (target.visible && near(target.position, entity.definition.radius + 1.15)) return { type: 'structure', entity };
+    }
+    for (const entity of this.projects) {
+      const built = hasProject(this.economy.progress, entity.definition.id);
+      const target = built ? entity.building : entity.pad;
+      if (target.visible && near(target.position, entity.definition.radius + 1.05)) return { type: 'project', entity };
     }
     for (const entity of this.bridges) {
       if (entity.pad.visible && near(entity.pad.position, 2.15)) return { type: 'bridge', entity };
@@ -1495,7 +1710,45 @@ export class IlotaGame {
     }
     if (interaction.type === 'structure') {
       const { kind } = interaction.entity.definition;
-      this.setCostContext(STRUCTURE_COPY[kind].built, getStructureCost(this.economy.progress, kind), 'BÂTIR', kind === 'camp' ? '⌂' : kind === 'observatory' ? '✦' : '▣');
+      if (!structureBuilt(this.economy.progress, kind)) {
+        this.setCostContext(
+          STRUCTURE_COPY[kind].built,
+          getStructureCost(this.economy.progress, kind),
+          'BÂTIR',
+          kind === 'camp' ? '⌂' : kind === 'observatory' ? '✦' : '▣',
+          'Les pièces s’assembleront ici.',
+        );
+        return;
+      }
+      if (kind === 'camp') {
+        this.ui.setContext(
+          `Nurserie centrale · ${this.economy.progress.workers.length}/${getWorkerCapacity(this.economy.progress)} renards`,
+          'ENTRER',
+          '🦊',
+          true,
+          'Recruter, voir les niveaux et assigner les métiers.',
+        );
+      } else if (kind === 'workshop') {
+        this.ui.setContext('Atelier des Pins · formation niveau 2', 'ENTRER', '⚒', true, 'Sélectionne et forme chaque renard niveau 1.');
+      } else if (kind === 'foundry') {
+        this.ui.setContext('Fonderie Cuivrée · formation niveau 3', 'ENTRER', '⚙', true, 'Les renards niveau 2 peuvent devenir maîtres.');
+      } else {
+        this.ui.setContext('Autel du Savoir · arbre physique', 'MÉDITER', '✦', true, `${this.economy.progress.knowledge} Savoir disponible · lire avant d’acheter.`);
+      }
+      return;
+    }
+    if (interaction.type === 'project') {
+      const definition = getProjectDefinition(interaction.entity.definition.id);
+      if (!definition) return;
+      const built = hasProject(this.economy.progress, definition.id);
+      const projectCost = getProjectCost(this.economy.progress, definition);
+      this.ui.setContext(
+        built ? `${definition.name} · achevé` : `${definition.name} · Grand Travail`,
+        built ? 'ACHEVÉ' : 'BÂTIR',
+        built ? '✓' : definition.icon,
+        !built && this.economy.canAfford(projectCost),
+        built ? definition.effect : `${definition.effect} · ${formatCost(projectCost)} · +${definition.knowledge} Savoir`,
+      );
       return;
     }
     if (interaction.type === 'bridge') {
@@ -1503,26 +1756,38 @@ export class IlotaGame {
       const cost = getBridgeCost(this.economy.progress, index);
       if (!cost) return;
       const requirementMet = this.economy.bridgeRequirementsMet(index);
-      const suffix = requirementMet ? '' : ` · ${formatBridgeRequirement(this.economy.progress, index)}`;
-      this.ui.setContext(`${definition.name} · ${formatCost(cost)}${suffix}`, 'OUVRIR', '═', requirementMet && this.economy.canAfford(cost));
+      const goal = getIslandGoal(this.economy.progress, definition.fromIsland);
+      const done = goal.items.filter((item) => item.done).length;
+      const nextMissing = goal.items.find((item) => !item.done)?.label;
+      this.ui.setContext(
+        `${definition.name} · objectifs ${done}/${goal.items.length}`,
+        'OUVRIR',
+        '═',
+        requirementMet && this.economy.canAfford(cost),
+        requirementMet
+          ? `Passage prêt · ${formatCost(cost)}`
+          : `${nextMissing ?? formatBridgeRequirement(this.economy.progress, index)} · coût ${formatCost(cost)}`,
+      );
       return;
     }
     if (interaction.type === 'cache') {
       this.ui.setContext(`Cache d’exploration · +${formatCost(interaction.entity.definition.reward)}`, 'OUVRIR', '✦');
       return;
     }
-    const ready = Economy.finalRequirementsMet(this.economy.progress);
+    const projectsReady = getCompletedProjectCount(this.economy.progress) >= 12;
+    const ready = Economy.finalRequirementsMet(this.economy.progress) && projectsReady;
     const finalCost = getFinalCost(this.economy.progress);
     this.ui.setContext(
-      ready ? `Éveiller le Cœur · ${formatCost(finalCost)}` : 'Cœur scellé · 8 travailleurs · 4 métiers · 12 niveaux',
+      ready ? 'Éveiller le Cœur de l’Archipel' : 'Cœur scellé · objectif final incomplet',
       'ÉVEILLER',
       '✦',
       ready && this.economy.canAfford(finalCost),
+      ready ? `Offrande · ${formatCost(finalCost)}` : `${getCompletedProjectCount(this.economy.progress)}/12 travaux · 8 renards · 4 métiers · 12 niveaux`,
     );
   }
 
-  private setCostContext(title: string, cost: Cost, label: string, icon: string): void {
-    this.ui.setContext(`${title} · ${formatCost(cost)}`, label, icon, this.economy.canAfford(cost));
+  private setCostContext(title: string, cost: Cost, label: string, icon: string, detail = ''): void {
+    this.ui.setContext(title, label, icon, this.economy.canAfford(cost), `${formatCost(cost)}${detail ? ` · ${detail}` : ''}`);
   }
 
   private handleAction(delta: number): void {
@@ -1541,18 +1806,31 @@ export class IlotaGame {
 
     if (this.interaction.type === 'structure') {
       const { kind } = this.interaction.entity.definition;
+      if (structureBuilt(this.economy.progress, kind)) {
+        if (kind === 'camp') this.ui.showCrew('nursery');
+        else if (kind === 'workshop') this.ui.showCrew('workshop');
+        else if (kind === 'foundry') this.ui.showCrew('foundry');
+        else this.ui.showTalents();
+        return;
+      }
       if (this.economy.buildStructure(kind)) {
         this.interaction.entity.building.visible = true;
-        this.interaction.entity.building.scale.setScalar(0.04);
-        this.interaction.entity.building.position.y = -1.35;
-        this.interaction.entity.building.rotation.y = -0.18;
-        this.interaction.entity.building.userData.growing = true;
-        this.interaction.entity.building.userData.growElapsed = 0;
+        this.startBuildingAssembly(this.interaction.entity.building);
         this.ui.toast(`${STRUCTURE_COPY[kind].toast} · +1 Savoir`);
         const buildOrigin = this.interaction.entity.building.getWorldPosition(new THREE.Vector3());
         this.spawnParticles(buildOrigin.setY(1.2), kind === 'foundry' ? 'copper' : kind === 'observatory' ? 'crystal' : 'wood', 20);
         this.changed();
       } else this.showMissing(getStructureCost(this.economy.progress, kind));
+      return;
+    }
+    if (this.interaction.type === 'project') {
+      const id = this.interaction.entity.definition.id;
+      if (hasProject(this.economy.progress, id)) {
+        const definition = getProjectDefinition(id);
+        if (definition) this.ui.toast(`${definition.name} · ${definition.effect}`);
+        return;
+      }
+      this.buildProject(id);
       return;
     }
     if (this.interaction.type === 'bridge') {
@@ -1713,21 +1991,29 @@ export class IlotaGame {
         const pulse = 1 + Math.sin(this.worldTime * 5.2 + object.id) * 0.09;
         object.scale.setScalar(pulse);
       }
-      if (object.userData.growing) {
-        const elapsed = (Number(object.userData.growElapsed) || 0) + delta;
-        object.userData.growElapsed = elapsed;
-        const ratio = THREE.MathUtils.clamp(elapsed / 1.15, 0, 1);
-        const shifted = ratio - 1;
-        const overshoot = 1 + 2.70158 * shifted * shifted * shifted + 1.70158 * shifted * shifted;
-        const rise = 1 - Math.pow(1 - ratio, 3);
-        object.scale.setScalar(Math.max(0.04, overshoot));
-        object.position.y = THREE.MathUtils.lerp(-1.35, 0, rise);
-        object.rotation.y = THREE.MathUtils.lerp(-0.18, 0, rise);
-        if (ratio >= 1) {
-          object.scale.setScalar(1);
-          object.position.y = 0;
-          object.rotation.y = 0;
-          object.userData.growing = false;
+      if (object.userData.assembling) {
+        const elapsed = (Number(object.userData.assemblyElapsed) || 0) + delta;
+        object.userData.assemblyElapsed = elapsed;
+        const progress = THREE.MathUtils.clamp(elapsed / 1.85, 0, 1);
+        const parts = (object.userData.assemblyParts ?? []) as THREE.Mesh[];
+        const divisor = Math.max(1, parts.length - 1);
+        parts.forEach((part, index) => {
+          const delay = (index / divisor) * 0.62;
+          const local = THREE.MathUtils.clamp((progress - delay) / 0.38, 0, 1);
+          const eased = 1 - Math.pow(1 - local, 3);
+          const pop = eased + Math.sin(eased * Math.PI) * 0.09;
+          const basePosition = part.userData.assemblyBasePosition as THREE.Vector3;
+          const baseScale = part.userData.assemblyBaseScale as THREE.Vector3;
+          const offset = part.userData.assemblyOffset as THREE.Vector3;
+          part.position.copy(basePosition).addScaledVector(offset, 1 - eased);
+          part.scale.copy(baseScale).multiplyScalar(Math.max(0.025, pop));
+        });
+        if (progress >= 1) {
+          parts.forEach((part) => {
+            part.position.copy(part.userData.assemblyBasePosition as THREE.Vector3);
+            part.scale.copy(part.userData.assemblyBaseScale as THREE.Vector3);
+          });
+          object.userData.assembling = false;
         }
       }
       if (object.userData.growingBridge) {
@@ -1792,11 +2078,17 @@ export class IlotaGame {
     this.diagnostics.crewOpen = this.ui.isCrewOpen;
     this.diagnostics.projectsOpen = this.ui.isProjectsOpen;
     this.diagnostics.talentOpen = this.ui.isTalentOpen;
+    this.diagnostics.menuOpen = this.ui.isMenuOpen;
     this.diagnostics.knowledge = progress.knowledge;
     this.diagnostics.rebirths = progress.rebirths;
     this.diagnostics.skills = progress.skills.join(',');
     this.diagnostics.autoRegulation = progress.autoRegulation;
     this.diagnostics.projects = getCompletedProjectCount(progress);
+    this.diagnostics.currentIsland = findIslandIndexForPoint(this.player.position.x, this.player.position.z);
+    this.diagnostics.assemblingBuildings = [
+      ...this.structures.values(),
+      ...this.projects,
+    ].filter((entity) => Boolean(entity.building.userData.assembling)).length;
     this.diagnostics.visibleIslands = this.islands.filter((island) => island.root.position.y > -0.2).length;
     this.diagnostics.emergingIsland = this.islandEmergence?.entity.definition.id ?? '';
     this.diagnostics.workersOnWalkable = this.workers.every((worker) => isPointOnWalkableNetwork(

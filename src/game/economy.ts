@@ -117,6 +117,20 @@ export interface ObjectiveCopy {
   detail: string;
 }
 
+export interface IslandGoalItem {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
+export interface IslandGoal {
+  islandIndex: number;
+  title: string;
+  destination: string;
+  completed: boolean;
+  items: IslandGoalItem[];
+}
+
 export interface SkillDefinition {
   id: SkillId;
   branch: SkillFamily;
@@ -624,6 +638,84 @@ export const formatBridgeRequirement = (progress: IslandProgress, index: number)
   }
 };
 
+const canPay = (progress: IslandProgress, value: Cost): boolean =>
+  RESOURCE_KINDS.every((kind) => progress[kind] >= value[kind]);
+
+/**
+ * Source unique pour le panneau d'objectifs et les pads de pont. Les critères
+ * restent donc toujours identiques à ceux réellement vérifiés par Economy.
+ */
+export const getIslandGoal = (progress: IslandProgress, islandIndex: number): IslandGoal => {
+  const completedProjects = getCompletedProjectCount(progress);
+  const totalLevels = getTotalWorkerLevels(progress);
+  const hasTask = (task: ResourceKind): boolean => progress.workers.some((worker) => worker.task === task);
+  const bridgeCost = islandIndex < 4 ? getBridgeCost(progress, islandIndex) : getFinalCost(progress);
+  const reservesReady = bridgeCost ? canPay(progress, bridgeCost) : false;
+  let destination = 'Cœur de l’Archipel';
+  let items: IslandGoalItem[] = [];
+
+  switch (islandIndex) {
+    case 0:
+      destination = 'Île des Pins';
+      items = [
+        { id: 'camp', label: 'Construire le Camp des Marées', done: progress.campBuilt },
+        { id: 'workers', label: 'Réunir 2 renards', done: progress.workers.length >= 2 },
+        { id: 'wood-job', label: 'Assigner 1 bûcheron', done: hasTask('wood') },
+        { id: 'stone-job', label: 'Assigner 1 mineur', done: hasTask('stone') },
+        { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
+      ];
+      break;
+    case 1:
+      destination = 'Île Cuivrée';
+      items = [
+        { id: 'workshop', label: 'Construire l’Atelier des Pins', done: progress.workshopBuilt },
+        { id: 'workers', label: 'Réunir 4 renards', done: progress.workers.length >= 4 },
+        { id: 'level', label: 'Former 1 renard niveau 2', done: progress.workers.some((worker) => worker.level >= 2) },
+        { id: 'projects', label: 'Bâtir les 3 chantiers des Pins', done: completedProjects >= 3 },
+        { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
+      ];
+      break;
+    case 2:
+      destination = 'Île de Cristal';
+      items = [
+        { id: 'foundry', label: 'Construire la Fonderie Cuivrée', done: progress.foundryBuilt },
+        { id: 'workers', label: 'Réunir 5 renards', done: progress.workers.length >= 5 },
+        { id: 'copper-job', label: 'Assigner 1 cuivrier', done: hasTask('copper') },
+        { id: 'projects', label: 'Achever 6 Grands Travaux', done: completedProjects >= 6 },
+        { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
+      ];
+      break;
+    case 3:
+      destination = 'Île Couronne';
+      items = [
+        { id: 'altar', label: 'Construire l’Autel du Savoir', done: progress.observatoryBuilt },
+        { id: 'workers', label: 'Réunir 7 renards', done: progress.workers.length >= 7 },
+        { id: 'crystal-job', label: 'Assigner 1 cristallier', done: hasTask('crystal') },
+        { id: 'levels', label: 'Atteindre 10 niveaux cumulés', done: totalLevels >= 10 },
+        { id: 'projects', label: 'Achever 9 Grands Travaux', done: completedProjects >= 9 },
+        { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
+      ];
+      break;
+    default:
+      items = [
+        { id: 'workers', label: 'Réunir 8 renards', done: progress.workers.length >= 8 },
+        { id: 'jobs', label: 'Maintenir les 4 métiers', done: RESOURCE_KINDS.every(hasTask) },
+        { id: 'levels', label: 'Atteindre 12 niveaux cumulés', done: totalLevels >= 12 },
+        { id: 'projects', label: 'Achever les 12 Grands Travaux', done: completedProjects >= ISLAND_PROJECTS.length },
+        { id: 'offering', label: `Préparer ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
+        { id: 'heart', label: 'Éveiller le Cœur', done: progress.completed },
+      ];
+  }
+
+  return {
+    islandIndex,
+    title: islandIndex < 4 ? `OBJECTIF · CAP SUR ${destination.toUpperCase()}` : 'OBJECTIF FINAL · LE CŒUR',
+    destination,
+    completed: items.every((item) => item.done),
+    items,
+  };
+};
+
 export const getNextProject = (progress: IslandProgress): IslandProjectDefinition | null =>
   ISLAND_PROJECTS.find((definition) => !hasProject(progress, definition.id) && projectPrerequisitesMet(progress, definition)) ?? null;
 
@@ -711,20 +803,20 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
   const chapter = getChapter(progress);
   const eyebrow = `MARÉE ${progress.rebirths + 1} · CHAPITRE ${chapter}/5`;
   if (!progress.campBuilt) return { chapter, eyebrow, title: 'Bâtis le camp des Marées', detail: `Coût : ${formatCost(getStructureCost(progress, 'camp'))}` };
-  if (progress.workers.length < 2) return { chapter, eyebrow, title: 'Forme ta première équipe', detail: 'Recrute 2 renards et assigne bois + pierre.' };
+  if (progress.workers.length < 2) return { chapter, eyebrow, title: 'Forme ta première équipe', detail: 'Entre dans la nurserie centrale : recrute 2 renards et assigne bois + pierre.' };
   if (!progress.bridgesBuilt[0]) return { chapter, eyebrow, title: 'Ouvre le pont des Pins', detail: `Coût : ${formatCost(getBridgeCost(progress, 0) ?? cost())}` };
   if (!progress.workshopBuilt) return { chapter, eyebrow, title: 'Construis l’atelier des Pins', detail: `Coût : ${formatCost(getStructureCost(progress, 'workshop'))}` };
   if (progress.workers.length < 4) return { chapter, eyebrow, title: 'Agrandis l’équipe à 4', detail: 'L’atelier porte la capacité à 5 travailleurs.' };
-  if (!progress.workers.some((worker) => worker.level >= 2)) return { chapter, eyebrow, title: 'Améliore un travailleur', detail: 'Passe un renard au niveau 2 depuis ÉQUIPE.' };
+  if (!progress.workers.some((worker) => worker.level >= 2)) return { chapter, eyebrow, title: 'Forme un travailleur', detail: 'Entre dans l’Atelier des Pins et passe un renard au niveau 2.' };
   if (getCompletedProjectCount(progress) < 3) return { chapter, eyebrow, title: 'Développe l’île des Pins', detail: `${getCompletedProjectCount(progress)}/3 Grands Travaux avant le pont Cuivré.` };
   if (!progress.bridgesBuilt[1]) return { chapter, eyebrow, title: 'Relie l’île Cuivrée', detail: `Coût : ${formatCost(getBridgeCost(progress, 1) ?? cost())}` };
   if (!progress.foundryBuilt) return { chapter, eyebrow, title: 'Récolte le cuivre et bâtis la fonderie', detail: `Coût : ${formatCost(getStructureCost(progress, 'foundry'))}` };
-  if (!progress.workers.some((worker) => worker.task === 'copper')) return { chapter, eyebrow, title: 'Assigne un cuivrier', detail: 'La fonderie débloque le cuivre et le niveau 3.' };
+  if (!progress.workers.some((worker) => worker.task === 'copper')) return { chapter, eyebrow, title: 'Assigne un cuivrier', detail: 'Retourne à la nurserie ; la fonderie autorise désormais le métier cuivre.' };
   if (progress.workers.length < 5) return { chapter, eyebrow, title: 'Dirige au moins 5 travailleurs', detail: 'Diversifie la production avant la prochaine traversée.' };
   if (getCompletedProjectCount(progress) < 6) return { chapter, eyebrow, title: 'Industrialise l’île Cuivrée', detail: `${getCompletedProjectCount(progress)}/6 Grands Travaux avant les Cristaux.` };
   if (!progress.bridgesBuilt[2]) return { chapter, eyebrow, title: 'Ouvre la voie des Cristaux', detail: `Coût : ${formatCost(getBridgeCost(progress, 2) ?? cost())}` };
-  if (!progress.observatoryBuilt) return { chapter, eyebrow, title: 'Bâtis l’observatoire de Cristal', detail: `Coût : ${formatCost(getStructureCost(progress, 'observatory'))}` };
-  if (!progress.workers.some((worker) => worker.task === 'crystal')) return { chapter, eyebrow, title: 'Forme un cristallier', detail: 'Réassigne un renard depuis le panneau ÉQUIPE.' };
+  if (!progress.observatoryBuilt) return { chapter, eyebrow, title: 'Bâtis l’Autel du Savoir', detail: `Les quatre matières sont requises : ${formatCost(getStructureCost(progress, 'observatory'))}` };
+  if (!progress.workers.some((worker) => worker.task === 'crystal')) return { chapter, eyebrow, title: 'Forme un cristallier', detail: 'Retourne à la nurserie et assigne le métier cristal.' };
   if (progress.workers.length < 7 || getTotalWorkerLevels(progress) < 10) return { chapter, eyebrow, title: 'Prépare l’expédition finale', detail: '7 travailleurs et 10 niveaux cumulés requis.' };
   if (getCompletedProjectCount(progress) < 9) return { chapter, eyebrow, title: 'Équipe l’île de Cristal', detail: `${getCompletedProjectCount(progress)}/9 Grands Travaux avant la Couronne.` };
   if (!progress.bridgesBuilt[3]) return { chapter, eyebrow, title: 'Bâtis le pont de la Couronne', detail: `Coût : ${formatCost(getBridgeCost(progress, 3) ?? cost())}` };

@@ -16,11 +16,14 @@ interface IlotaDiagnostics {
   crewOpen: boolean;
   projectsOpen: boolean;
   talentOpen: boolean;
+  menuOpen: boolean;
   knowledge: number;
   rebirths: number;
   skills: string;
   autoRegulation: boolean;
   projects: number;
+  currentIsland: number;
+  assemblingBuildings: number;
   visibleIslands: number;
   emergingIsland: string;
   workersOnWalkable: boolean;
@@ -130,8 +133,8 @@ const createNavigator = (page: Page) => {
 };
 
 const openCrew = async (page: Page): Promise<void> => {
-  await page.getByRole('button', { name: /gérer l’équipe/i }).click();
-  await expect(page.getByRole('dialog', { name: 'Place tes renards' })).toBeVisible();
+  await page.locator('#crew-button').dispatchEvent('click');
+  await expect(page.locator('#crew-panel')).toBeVisible();
   await expect.poll(async () => (await diagnostics(page)).crewOpen).toBe(true);
 };
 
@@ -170,25 +173,47 @@ const assignWorker = async (page: Page, name: string, task: string): Promise<voi
   await page.locator(`.job-${kind}`).click();
 };
 
-const openProjects = async (page: Page): Promise<void> => {
-  await page.getByRole('button', { name: /ouvrir les Grands Travaux/i }).click();
-  await expect(page.getByRole('dialog', { name: 'Grands Travaux' })).toBeVisible();
-  await expect.poll(async () => (await diagnostics(page)).projectsOpen).toBe(true);
-};
+const PROJECT_SITES = [
+  { x: -0.2, z: -17.2, name: 'Réserve de charpente' },
+  { x: 2.3, z: -21.1, name: 'Chemins de halage' },
+  { x: 0.8, z: -24.1, name: 'Entrepôt partagé' },
+  { x: 12.2, z: -32.2, name: 'Scierie commune' },
+  { x: 16, z: -36, name: 'Murets de rive' },
+  { x: 12.8, z: -39.9, name: 'Bureau des plans' },
+  { x: -1, z: -48.3, name: 'Treuils cuivrés' },
+  { x: -4.3, z: -52.2, name: 'Rails de débardage' },
+  { x: -0.3, z: -55.5, name: 'Cour de maintenance' },
+  { x: 11, z: -63.8, name: 'Balises cristallines' },
+  { x: 8.2, z: -68.6, name: 'Réservoir prismatique' },
+  { x: 13.8, z: -68.6, name: 'Phare de l’unisson' },
+] as const;
 
-const closeProjects = async (page: Page): Promise<void> => {
-  await page.getByRole('button', { name: /fermer les Grands Travaux/i }).click();
-  await expect.poll(async () => (await diagnostics(page)).projectsOpen).toBe(false);
-};
-
-const completeProjectsUntil = async (page: Page, count: number): Promise<void> => {
+const completeProjectsUntil = async (
+  page: Page,
+  count: number,
+  moveTo: ReturnType<typeof createNavigator>['moveTo'],
+): Promise<void> => {
   while ((await diagnostics(page)).projects < count) {
     const before = (await diagnostics(page)).projects;
-    const next = page.locator('.project-card:not(.completed):not(:disabled)').first();
-    await expect(next).toBeVisible();
-    await next.click();
+    const site = PROJECT_SITES[before];
+    if (!site) throw new Error(`Site de projet ${before + 1} introuvable`);
+    await moveTo(site.x, site.z, 0.8);
+    await expect(page.locator('#context-prompt')).toContainText(site.name);
+    await page.locator('#action-button').tap();
     await expect.poll(async () => (await diagnostics(page)).projects).toBe(before + 1);
   }
+};
+
+const openTalents = async (page: Page): Promise<void> => {
+  await page.locator('#talent-button').dispatchEvent('click');
+  await expect(page.getByRole('dialog', { name: 'Arbre des savoirs' })).toBeVisible();
+  await expect.poll(async () => (await diagnostics(page)).talentOpen).toBe(true);
+};
+
+const buySkill = async (page: Page, name: RegExp): Promise<void> => {
+  await page.getByRole('button', { name }).click();
+  await expect(page.locator('#skill-inspector')).toBeVisible();
+  await page.locator('#skill-buy-button').click();
 };
 
 test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone SE paysage', async ({ page }) => {
@@ -246,6 +271,7 @@ test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone
 });
 
 test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau tactile', async ({ page }) => {
+  test.setTimeout(75_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -260,6 +286,14 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   await expect(page.locator('.job-wood')).toContainText('55 · 60 %');
   await expect(page.locator('.job-copper')).toContainText('MÉTIER VERROUILLÉ');
   await assignWorker(page, 'Milo', 'pierre');
+  await closeCrew(page);
+  const { moveTo } = createNavigator(page);
+  await moveTo(0, -10.1, 0.6);
+  await moveTo(0, -14.3, 0.7);
+  await moveTo(-1.7, -21.2, 1.2);
+  await expect(page.locator('#context-prompt')).toContainText('Atelier des Pins');
+  await page.locator('#action-button').tap();
+  await expect(page.getByRole('heading', { name: 'Former au niveau 2' })).toBeVisible();
   await upgradeWorker(page, 'Milo');
   await expect(page.locator('.worker-card').filter({ hasText: 'Milo' }).locator('.level-up-burst')).toContainText('LEVEL UP');
   await expect(page.locator('#worker-detail')).toContainText('Milo');
@@ -267,15 +301,15 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   await expect(page.locator('#worker-detail-burst, .worker-detail-burst')).toContainText('LEVEL UP');
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(4);
   await expect.poll(async () => (await diagnostics(page)).workerTasks.split(',')[0]).toBe('stone');
-  await expect(page.locator('.job-stone')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#worker-detail')).toContainText('pierre');
 
   const panelMetrics = await page.evaluate(() => {
     const panel = document.querySelector<HTMLElement>('.crew-sheet')!.getBoundingClientRect();
-    const assignment = document.querySelector<HTMLButtonElement>('.job-dock')!.getBoundingClientRect();
+    const assignment = document.querySelector<HTMLButtonElement>('.worker-select')!.getBoundingClientRect();
     const close = document.getElementById('crew-close-button')!.getBoundingClientRect();
     const touchTargets = [...document.querySelectorAll<HTMLButtonElement>(
       '.job-dock:not(:disabled), .worker-select, .upgrade-button:not(:disabled), #recruit-button:not(:disabled)',
-    )].map((button) => button.getBoundingClientRect());
+    )].map((button) => button.getBoundingClientRect()).filter((target) => target.width > 0 && target.height > 0);
     return {
       panelInside: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
       assignmentTarget: assignment.width >= 24 && assignment.height >= 36,
@@ -324,14 +358,12 @@ test('la nurserie garde 16 renards lisibles et ouvre une vraie fiche de niveau',
   await lastFox.getByRole('button', { name: /sélectionner Nacre/i }).click();
   await expect(page.locator('#worker-detail')).toContainText('Nacre');
   await expect(page.locator('#worker-detail')).toContainText('NIV 2');
-  const levelsBefore = (await diagnostics(page)).workerLevels;
-  await page.locator('#worker-detail').getByRole('button', { name: /améliorer Nacre au niveau 3/i }).click();
-  await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(levelsBefore + 1);
-  await expect(page.locator('#worker-detail')).toContainText('NIV 3');
+  await expect(page.locator('#worker-detail').getByRole('button')).toBeDisabled();
+  await expect(page.locator('#worker-detail')).toContainText('FONDERIE POUR CONTINUER');
   await page.screenshot({ path: 'test-results/ilota-nursery-16-foxes.png' });
 });
 
-test('les Grands Travaux réemploient les quatre ressources par paliers révélés', async ({ page }) => {
+test('les Grands Travaux sont douze chantiers physiques assemblés sur les îles', async ({ page }) => {
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -340,15 +372,16 @@ test('les Grands Travaux réemploient les quatre ressources par paliers révél�
     bridgesBuilt: [true, false, false, false],
   });
   await waitForGame(page);
-  await openProjects(page);
-  await expect(page.locator('.project-card')).toHaveCount(3);
-  await expect(page.getByText('Réserve de charpente')).toBeVisible();
-  await expect(page.getByText('Scierie commune')).toHaveCount(0);
-  await completeProjectsUntil(page, 3);
-  await expect(page.locator('#projects-progress')).toContainText('3 / 12');
-  await expect(page.getByText('Scierie commune')).toHaveCount(0);
+  const { moveTo } = createNavigator(page);
+  await moveTo(0, -10.1, 0.6);
+  await moveTo(0, -14.3, 0.7);
+  await completeProjectsUntil(page, 3, moveTo);
+  await expect.poll(async () => (await diagnostics(page)).assemblingBuildings).toBeGreaterThan(0);
+  await expect.poll(async () => (await diagnostics(page)).assemblingBuildings, { timeout: 4_000 }).toBe(0);
+  await expect(page.locator('#projects-panel')).toBeHidden();
+  await expect(page.locator('#island-goal')).toContainText('3/5');
+  await expect(page.locator('#island-goal')).toContainText('Bâtir les 3 chantiers des Pins');
   await page.screenshot({ path: 'test-results/ilota-grand-works.png' });
-  await closeProjects(page);
 });
 
 test('affiche l’invitation à tourner le téléphone en portrait', async ({ page }) => {
@@ -356,6 +389,19 @@ test('affiche l’invitation à tourner le téléphone en portrait', async ({ pa
   await page.goto('./');
   await expect(page.locator('.rotate-screen')).toBeVisible();
   await expect(page.getByText('Tourne ton téléphone')).toBeVisible();
+});
+
+test('le menu reprend la partie et grise la Nouvelle Marée tant que l’acte continue', async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await waitForGame(page);
+  await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await expect(page.getByRole('dialog', { name: 'Menu de la Marée' })).toBeVisible();
+  await expect(page.locator('#menu-tide-button')).toBeDisabled();
+  await expect(page.locator('#menu-tide-help')).toContainText('Termine et éveille le Cœur');
+  await expect.poll(async () => (await diagnostics(page)).menuOpen).toBe(true);
+  await page.screenshot({ path: 'test-results/ilota-menu.png' });
+  await page.getByRole('button', { name: 'REPRENDRE' }).click();
+  await expect.poll(async () => (await diagnostics(page)).menuOpen).toBe(false);
 });
 
 test('reprend une sauvegarde v1 au début du deuxième chapitre', async ({ page }) => {
@@ -449,41 +495,61 @@ test('un renard vide réellement son filon puis choisit une autre cible naïve',
 });
 
 test('fait naître le graphe hexagonal puis atteint l’auto-régulation profonde', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     knowledge: 30,
+    observatoryBuilt: true,
   });
   await waitForGame(page);
-  await page.getByRole('button', { name: /ouvrir l’arbre de talents/i }).click();
-  await expect(page.getByRole('dialog', { name: 'Arbre des savoirs' })).toBeVisible();
+  await openTalents(page);
   await expect(page.locator('.skill-hex')).toHaveCount(1);
   await expect(page.getByRole('button', { name: /routes calculées/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /débloquer démarrer/i }).click();
+  await page.getByRole('button', { name: /voir démarrer/i }).click();
+  await expect(page.locator('#skill-inspector-detail')).toContainText('révèle les trois premières voies');
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(30);
+  await expect(page.locator('.skill-hex')).toHaveCount(1);
+  await page.locator('#skill-buy-button').click();
   await expect(page.locator('.skill-hex')).toHaveCount(4);
-  await expect(page.getByRole('button', { name: /débloquer étincelle logique/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /débloquer premier mécanisme/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /débloquer appel du large/i })).toBeVisible();
-  await page.getByRole('button', { name: /débloquer étincelle logique/i }).click();
+  await expect(page.getByRole('button', { name: /voir étincelle logique/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /voir premier mécanisme/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /voir appel du large/i })).toBeVisible();
+  await buySkill(page, /voir étincelle logique/i);
   await expect(page.getByRole('button', { name: /routes calculées/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /débloquer sens des pistes/i }).click();
-  await expect(page.getByRole('button', { name: /débloquer routes calculées/i })).toBeVisible();
-  await page.getByRole('button', { name: /débloquer routes calculées/i }).click();
+  await buySkill(page, /voir sens des pistes/i);
+  await expect(page.getByRole('button', { name: /voir routes calculées/i })).toBeVisible();
+  await buySkill(page, /voir routes calculées/i);
   await expect(page.getByRole('button', { name: /réseau logistique/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /débloquer prévisions/i }).click();
-  await page.getByRole('button', { name: /débloquer relèves coordonnées/i }).click();
-  await page.getByRole('button', { name: /débloquer auto-régulation/i }).click();
+  await buySkill(page, /voir prévisions/i);
+  await buySkill(page, /voir relèves coordonnées/i);
+  await buySkill(page, /voir auto-régulation/i);
   await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(8);
   await expect.poll(async () => (await diagnostics(page)).skills).toContain('auto_regulation');
   await page.getByRole('button', { name: /activer l’auto-régulation/i }).click();
   await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
   await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#skill-zoom-range')).toHaveValue('70');
-  await page.getByRole('button', { name: /afficher une vue d’ensemble/i }).click();
-  await expect(page.locator('#skill-zoom-range')).toHaveValue('10');
+  const widthBeforePinch = await page.locator('.skill-map-stage').evaluate((stage) => stage.getBoundingClientRect().width);
+  await page.locator('#skill-branches').evaluate((target) => {
+    const rect = target.getBoundingClientRect();
+    const send = (type: string, pointerId: number, x: number, y: number) => target.dispatchEvent(new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId,
+      pointerType: 'touch',
+      clientX: rect.left + x,
+      clientY: rect.top + y,
+    }));
+    send('pointerdown', 11, 80, 90);
+    send('pointerdown', 12, 145, 90);
+    send('pointermove', 12, 230, 90);
+    send('pointerup', 12, 230, 90);
+    send('pointerup', 11, 80, 90);
+  });
+  await expect.poll(async () => page.locator('.skill-map-stage').evaluate((stage) => stage.getBoundingClientRect().width))
+    .toBeGreaterThan(widthBeforePinch + 100);
+  await expect(page.locator('.skill-zoom-controls')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
-  await page.getByRole('button', { name: 'Zoomer l’arbre', exact: true }).click();
-  await expect(page.locator('#skill-zoom-range')).toHaveValue('20');
 });
 
 test('les trois sommets seuls révèlent la Conscience absolue', async ({ page }) => {
@@ -491,41 +557,46 @@ test('les trois sommets seuls révèlent la Conscience absolue', async ({ page }
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     knowledge: 30,
+    observatoryBuilt: true,
     skills: ['collective_intelligence', 'endless_engine', 'ocean_legacy'],
   });
   await waitForGame(page);
-  await page.getByRole('button', { name: /ouvrir l’arbre de talents/i }).click();
-  const finalSkill = page.getByRole('button', { name: /débloquer Conscience absolue/i });
+  await openTalents(page);
+  const finalSkill = page.getByRole('button', { name: /voir Conscience absolue/i });
   await expect(finalSkill).toBeVisible();
   await expect(finalSkill).toContainText('30 SAVOIR');
-  await page.getByRole('button', { name: /afficher une vue d’ensemble/i }).click();
-  await page.screenshot({ path: 'test-results/ilota-skill-tree-convergence.png' });
   await finalSkill.click();
+  await expect(page.locator('#skill-inspector-name')).toHaveText('Conscience absolue');
+  await expect.poll(async () => (await diagnostics(page)).skills).not.toContain('archipelago_consciousness');
+  await page.screenshot({ path: 'test-results/ilota-skill-tree-convergence.png' });
+  await page.locator('#skill-buy-button').click();
   await expect.poll(async () => (await diagnostics(page)).skills).toContain('archipelago_consciousness');
   await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
   await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('achète plusieurs rangs de postes dont le prix augmente', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     campBuilt: true,
+    observatoryBuilt: true,
     knowledge: 100,
   });
   await waitForGame(page);
-  await page.getByRole('button', { name: /ouvrir l’arbre de talents/i }).click();
-  await page.getByRole('button', { name: /débloquer démarrer/i }).click();
-  await page.getByRole('button', { name: /débloquer premier mécanisme/i }).click();
-  await page.getByRole('button', { name: /débloquer outils affûtés/i }).click();
-  await page.getByRole('button', { name: /débloquer charrettes renforcées/i }).click();
-  await page.getByRole('button', { name: /débloquer gisements vivants/i }).click();
-  await page.getByRole('button', { name: /débloquer cercle des bâtisseurs rang 1/i }).click();
-  await page.getByRole('button', { name: /débloquer cercle des bâtisseurs rang 2/i }).click();
+  await openTalents(page);
+  await buySkill(page, /voir démarrer/i);
+  await buySkill(page, /voir premier mécanisme/i);
+  await buySkill(page, /voir outils affûtés/i);
+  await buySkill(page, /voir charrettes renforcées/i);
+  await buySkill(page, /voir gisements vivants/i);
+  await buySkill(page, /voir cercle des bâtisseurs.*rang 1/i);
+  await buySkill(page, /voir cercle des bâtisseurs.*rang 2/i);
   await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(82);
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   await openCrew(page);
-  await expect(page.locator('#crew-capacity')).toContainText('0 / 5 terriers');
+  await expect(page.locator('#crew-capacity')).toContainText('0 / 11 renards');
 });
 
 test('l’auto-régulation envoie réellement un renard vers la ressource en pénurie', async ({ page }) => {
@@ -587,7 +658,7 @@ test('une Nouvelle Marée garde les talents et recommence la campagne', async ({
 });
 
 test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), richSave());
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
@@ -596,8 +667,10 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.locator('#context-prompt')).toContainText('camp des Marées');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).campBuilt).toBe(true);
+  await expect.poll(async () => (await diagnostics(page)).assemblingBuildings).toBeGreaterThan(0);
 
-  await openCrew(page);
+  await page.locator('#action-button').tap();
+  await expect(page.getByRole('heading', { name: 'Recrute et place tes renards' })).toBeVisible();
   await recruitUntil(page, 2);
   await closeCrew(page);
   await moveTo(0, -9.25, 0.75);
@@ -612,14 +685,15 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await moveTo(-1.7, -21.2, 1.15);
   await expect(page.locator('#context-prompt')).toContainText('atelier des Pins');
   await page.locator('#action-button').tap();
-  await expect(page.getByRole('button', { name: /gérer l’équipe/i })).toBeVisible();
   await openCrew(page);
   await recruitUntil(page, 4);
-  await upgradeWorker(page, 'Milo');
   await closeCrew(page);
-  await openProjects(page);
-  await completeProjectsUntil(page, 3);
-  await closeProjects(page);
+  await page.locator('#action-button').tap();
+  await expect(page.getByRole('heading', { name: 'Former au niveau 2' })).toBeVisible();
+  await upgradeWorker(page, 'Milo');
+  await upgradeWorker(page, 'Nila');
+  await closeCrew(page);
+  await completeProjectsUntil(page, 3, moveTo);
 
   await moveTo(3.75, -25.5, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont Cuivré');
@@ -636,9 +710,12 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await recruitUntil(page, 5);
   await assignWorker(page, 'Pollen', 'cuivre');
   await closeCrew(page);
-  await openProjects(page);
-  await completeProjectsUntil(page, 6);
-  await closeProjects(page);
+  await page.locator('#action-button').tap();
+  await expect(page.getByRole('heading', { name: 'Former au niveau 3' })).toBeVisible();
+  await upgradeWorker(page, 'Milo');
+  await upgradeWorker(page, 'Nila');
+  await closeCrew(page);
+  await completeProjectsUntil(page, 6, moveTo);
 
   await moveTo(8.48, -40.78, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont des Cristaux');
@@ -649,18 +726,17 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await moveTo(7.92, -41.42, 0.5);
   await moveTo(3.45, -46.73, 0.65);
   await moveTo(-1.1, -52.1, 1.2);
-  await expect(page.locator('#context-prompt')).toContainText('observatoire de Cristal');
+  await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
   await page.locator('#action-button').tap();
+  await page.locator('#action-button').tap();
+  await expect(page.getByRole('dialog', { name: 'Arbre des savoirs' })).toBeVisible();
+  await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   await openCrew(page);
   await recruitUntil(page, 7);
   await assignWorker(page, 'Braise', 'cristal');
-  await upgradeWorker(page, 'Milo');
-  await upgradeWorker(page, 'Nila');
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBeGreaterThanOrEqual(10);
   await closeCrew(page);
-  await openProjects(page);
-  await completeProjectsUntil(page, 9);
-  await closeProjects(page);
+  await completeProjectsUntil(page, 9, moveTo);
 
   await moveTo(2.78, -56.72, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont de la Couronne');
@@ -670,12 +746,9 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
 
   await openCrew(page);
   await recruitUntil(page, 8);
-  await upgradeWorker(page, 'Sève');
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBeGreaterThanOrEqual(12);
   await closeCrew(page);
-  await openProjects(page);
-  await completeProjectsUntil(page, 12);
-  await closeProjects(page);
+  await completeProjectsUntil(page, 12, moveTo);
   await expect.poll(async () => (await diagnostics(page)).projects).toBe(12);
 
   await moveTo(3.31, -57.39, 0.5);

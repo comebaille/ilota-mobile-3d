@@ -15,11 +15,13 @@
       <canvas id="game-canvas" aria-label="Monde 3D d’Ilota"></canvas>
 
       <section id="hud" class="hud" aria-live="polite">
-        <div class="brand-chip"><span class="brand-mark">I</span><strong>ILOTA</strong></div>
+        <button id="menu-button" class="menu-button" type="button" aria-label="Ouvrir le menu">
+          <span aria-hidden="true">☰</span><strong>ILOTA</strong>
+        </button>
         <button id="crew-button" class="crew-button" type="button" aria-label="Gérer l’équipe" hidden>
           <span>♟</span><strong>ÉQUIPE</strong><small id="crew-button-count">0/0</small>
         </button>
-        <button id="talent-button" class="talent-button" type="button" aria-label="Ouvrir l’arbre de talents">
+        <button id="talent-button" class="talent-button" type="button" aria-label="Ouvrir l’arbre de talents" hidden>
           <span>✧</span><strong>TALENTS</strong><small><b id="talent-button-count">0</b> SAVOIR</small>
         </button>
         <button id="projects-button" class="projects-button" type="button" aria-label="Ouvrir les Grands Travaux" hidden>
@@ -36,9 +38,23 @@
           <strong id="objective-title">Explore la clairière</strong>
           <span id="objective-detail">Approche-toi d’une ressource.</span>
         </div>
+        <aside id="island-goal" class="island-goal" aria-labelledby="island-goal-title" hidden>
+          <header>
+            <span aria-hidden="true">⚑</span>
+            <div>
+              <small id="island-goal-island">ÎLOT DES MARÉES</small>
+              <strong id="island-goal-title">OBJECTIF DE L’ÎLE</strong>
+            </div>
+            <b id="island-goal-count">0/0</b>
+          </header>
+          <ul id="island-goal-list"></ul>
+        </aside>
       </section>
 
-      <div id="context-prompt" class="context-prompt" aria-live="assertive">Approche-toi d’un arbre</div>
+      <div id="context-prompt" class="context-prompt" aria-live="assertive">
+        <strong id="context-title">Approche-toi d’un arbre</strong>
+        <span id="context-detail">Explore l’îlot pour trouver un chantier ou une ressource.</span>
+      </div>
 
       <section id="touch-controls" class="touch-controls" aria-label="Commandes tactiles">
         <div id="joystick" class="joystick" role="application" aria-label="Joystick de déplacement">
@@ -56,7 +72,7 @@
         <div class="crew-sheet">
           <header class="crew-header">
             <div>
-              <p class="kicker">TERRIER DES BÂTISSEURS</p>
+              <p id="crew-kicker" class="kicker">NURSERIE DE L’ÎLOT CENTRAL</p>
               <h2 id="crew-title">Place tes renards</h2>
             </div>
             <button id="crew-close-button" class="icon-button" type="button" aria-label="Fermer la gestion de l’équipe">×</button>
@@ -74,7 +90,7 @@
               <small>Sa fiche et son amélioration apparaîtront ici.</small>
             </aside>
           </div>
-          <footer class="crew-footer">
+          <footer id="crew-footer" class="crew-footer">
             <button id="recruit-button" class="primary-button recruit-button" type="button">
               <span class="recruit-portrait" aria-hidden="true">🦊</span>
               <span class="recruit-copy"><strong>APPELER UN RENARD</strong><small id="recruit-cost">4 bois · 2 pierre</small></span>
@@ -112,21 +128,46 @@
           <div class="talent-summary">
             <strong id="talent-knowledge">0 Savoir disponible</strong>
             <span id="tide-count">Marée 1 · exigence ×1.00</span>
-            <small id="forecast-text">Débloque Prévisions pour lire le prochain manque.</small>
+            <small id="forecast-text">Pince à deux doigts pour zoomer · glisse pour explorer.</small>
           </div>
-          <div class="skill-map-shell">
-            <div id="skill-branches" class="skill-branches" aria-live="polite"></div>
-            <div class="skill-zoom-controls" role="group" aria-label="Zoom de l’arbre des savoirs">
-              <button id="skill-zoom-out" type="button" aria-label="Dézoomer l’arbre">−</button>
-              <input id="skill-zoom-range" type="range" min="10" max="130" step="5" value="70" aria-label="Niveau de zoom de l’arbre" />
-              <button id="skill-zoom-in" type="button" aria-label="Zoomer l’arbre">+</button>
-              <button id="skill-zoom-fit" type="button" aria-label="Afficher une vue d’ensemble de l’arbre">VUE GLOBALE</button>
-              <output id="skill-zoom-value" for="skill-zoom-range">70 %</output>
+          <div class="skill-workspace">
+            <div class="skill-map-shell">
+              <div id="skill-branches" class="skill-branches" aria-live="polite"></div>
+              <div class="skill-gesture-hint" aria-hidden="true">↔ GLISSE · ⇱ PINCE</div>
             </div>
+            <aside id="skill-inspector" class="skill-inspector" aria-live="polite">
+              <span id="skill-inspector-icon" class="skill-inspector-icon" aria-hidden="true">✦</span>
+              <div class="skill-inspector-copy">
+                <small id="skill-inspector-branch">ORIGINE</small>
+                <h3 id="skill-inspector-name">Choisis un savoir</h3>
+                <p id="skill-inspector-detail">Touche un hexagone pour lire son pouvoir avant tout achat.</p>
+                <b id="skill-inspector-status">AUCUN ACHAT AUTOMATIQUE</b>
+              </div>
+              <button id="skill-buy-button" class="primary-button skill-buy-button" type="button" disabled>SÉLECTIONNE UN SAVOIR</button>
+              <button id="auto-regulation-button" class="auto-regulation-button" type="button" aria-pressed="false" disabled>
+                AUTO-RÉGULATION · TALENT REQUIS
+              </button>
+            </aside>
           </div>
-          <button id="auto-regulation-button" class="auto-regulation-button" type="button" aria-pressed="false" disabled>
-            AUTO-RÉGULATION · SOMMET INTELLIGENCE REQUIS
+        </div>
+      </section>
+
+      <section id="menu-panel" class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title" hidden>
+        <div class="menu-card">
+          <header>
+            <div>
+              <p class="kicker">PAUSE</p>
+              <h2 id="menu-title">Menu de la Marée</h2>
+            </div>
+            <button id="menu-close-button" class="icon-button" type="button" aria-label="Fermer le menu">×</button>
+          </header>
+          <p id="menu-status">Ton acte actuel est encore en cours.</p>
+          <button id="menu-resume-button" class="primary-button" type="button">REPRENDRE</button>
+          <button id="menu-tide-button" class="menu-choice" type="button" disabled>
+            <strong>NOUVELLE MARÉE</strong>
+            <small id="menu-tide-help">Termine l’acte actuel pour la débloquer.</small>
           </button>
+          <button id="menu-reset-button" class="menu-danger" type="button">RÉINITIALISER LA PROGRESSION</button>
         </div>
       </section>
 

@@ -1,4 +1,10 @@
-import { RESOURCE_KINDS, type Cost, type ResourceKind, type StructureKind } from './economy';
+import {
+  RESOURCE_KINDS,
+  type Cost,
+  type ProjectId,
+  type ResourceKind,
+  type StructureKind,
+} from './economy';
 import type { NatureKind } from './assets';
 
 export interface Point2 {
@@ -27,6 +33,15 @@ export interface StructureDefinition extends Point2 {
   name: string;
   radius: number;
   color: number;
+}
+
+export interface ProjectSiteDefinition extends Point2 {
+  id: ProjectId;
+  islandIndex: 1 | 2 | 3 | 4;
+  model: StructureKind;
+  radius: number;
+  color: number;
+  rotation: number;
 }
 
 export interface ResourceSpawn extends Point2 {
@@ -127,7 +142,30 @@ export const STRUCTURES: readonly StructureDefinition[] = [
   { kind: 'camp', name: 'Camp des Marées', x: 0, z: 0, radius: 1.65, color: 0xf2b958 },
   { kind: 'workshop', name: 'Atelier des Pins', x: -1.7, z: -21.2, radius: 1.45, color: 0xe29449 },
   { kind: 'foundry', name: 'Fonderie Cuivrée', x: 12.4, z: -36.1, radius: 1.55, color: 0xd47743 },
-  { kind: 'observatory', name: 'Observatoire de Cristal', x: -1.1, z: -52.1, radius: 1.55, color: 0xb9afe9 },
+  { kind: 'observatory', name: 'Autel du Savoir', x: -1.1, z: -52.1, radius: 1.55, color: 0xb9afe9 },
+];
+
+/**
+ * Chaque Grand Travail possède désormais son propre chantier dans le monde.
+ * Les positions laissent un couloir central lisible entre les bâtiments,
+ * les ressources et les ponts.
+ */
+export const PROJECT_SITES: readonly ProjectSiteDefinition[] = [
+  { id: 'timber_reserve', islandIndex: 1, model: 'camp', x: -0.2, z: -17.2, radius: 0.9, color: 0xd89a4c, rotation: -0.35 },
+  { id: 'towing_paths', islandIndex: 1, model: 'workshop', x: 2.3, z: -21.1, radius: 0.9, color: 0x6fa082, rotation: 0.7 },
+  { id: 'shared_warehouse', islandIndex: 1, model: 'camp', x: 0.8, z: -24.1, radius: 0.9, color: 0xcaa35d, rotation: 0.25 },
+
+  { id: 'communal_sawmill', islandIndex: 2, model: 'workshop', x: 12.2, z: -32.2, radius: 0.92, color: 0xd79a4b, rotation: -0.2 },
+  { id: 'shore_walls', islandIndex: 2, model: 'camp', x: 16, z: -36, radius: 0.92, color: 0x8f9f77, rotation: 0.8 },
+  { id: 'orders_office', islandIndex: 2, model: 'foundry', x: 12.8, z: -39.9, radius: 0.92, color: 0xbc7448, rotation: -0.6 },
+
+  { id: 'copper_winches', islandIndex: 3, model: 'foundry', x: -1, z: -48.3, radius: 0.92, color: 0xc3764b, rotation: 0.25 },
+  { id: 'hauling_rails', islandIndex: 3, model: 'workshop', x: -4.3, z: -52.2, radius: 0.92, color: 0x719a91, rotation: -0.75 },
+  { id: 'maintenance_yard', islandIndex: 3, model: 'camp', x: -0.3, z: -55.5, radius: 0.92, color: 0x9a8fae, rotation: 0.55 },
+
+  { id: 'crystal_beacons', islandIndex: 4, model: 'observatory', x: 11, z: -63.8, radius: 0.94, color: 0xbab4ed, rotation: 0.1 },
+  { id: 'prismatic_reservoir', islandIndex: 4, model: 'foundry', x: 8.2, z: -68.6, radius: 0.94, color: 0x8e8ec4, rotation: -0.5 },
+  { id: 'unity_lighthouse', islandIndex: 4, model: 'observatory', x: 13.8, z: -68.6, radius: 0.98, color: 0xf2b958, rotation: 0.55 },
 ];
 
 export const CACHES: readonly CacheDefinition[] = [
@@ -171,8 +209,8 @@ export const RESOURCE_SPAWNS: readonly ResourceSpawn[] = [
   { kind: 'copper', x: 1.1, z: -57.7, capacity: 7, scale: 0.88, respawnSeconds: 15 },
   { kind: 'wood', model: 'treeB', x: 2.7, z: -52.2, capacity: 8, scale: 0.92, respawnSeconds: 14 },
 
-  { kind: 'wood', model: 'treeA', x: 7.4, z: -64.3, capacity: 9, scale: 1.02, respawnSeconds: 15 },
-  { kind: 'stone', model: 'rock', x: 14.8, z: -64.2, capacity: 9, scale: 1.05, respawnSeconds: 16 },
-  { kind: 'copper', x: 8.5, z: -70.1, capacity: 9, scale: 1.02, respawnSeconds: 17 },
-  { kind: 'crystal', x: 14.4, z: -69.3, capacity: 9, scale: 1.08, respawnSeconds: 19 },
+  { kind: 'wood', model: 'treeA', x: 6.5, z: -64, capacity: 9, scale: 1.02, respawnSeconds: 15 },
+  { kind: 'stone', model: 'rock', x: 15.8, z: -64.2, capacity: 9, scale: 1.05, respawnSeconds: 16 },
+  { kind: 'copper', x: 8, z: -71, capacity: 9, scale: 1.02, respawnSeconds: 17 },
+  { kind: 'crystal', x: 15.5, z: -70.7, capacity: 9, scale: 1.08, respawnSeconds: 19 },
 ];

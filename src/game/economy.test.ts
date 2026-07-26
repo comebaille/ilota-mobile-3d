@@ -8,6 +8,7 @@ import {
   getAutoRegulationMoveCount,
   getBridgeCost,
   getCycleMultiplier,
+  getIslandGoal,
   getPlayerSpeed,
   getSkillRank,
   getTotalWorkerLevels,
@@ -282,6 +283,27 @@ describe('Economy v5', () => {
     expect(secondTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
     expect(ISLAND_PROJECTS.slice(0, 6).every((project) =>
       project.cost.wood > 0 && project.cost.stone > 0)).toBe(true);
+  });
+
+  it('calcule une fiche de sortie lisible depuis les vraies règles du pont', () => {
+    const economy = richEconomy({
+      campBuilt: true,
+      workshopBuilt: true,
+      bridgesBuilt: [true, false, false, false],
+      workers: [
+        { id: 'worker-1', name: 'Milo', task: 'wood', level: 2 },
+        { id: 'worker-2', name: 'Nila', task: 'stone', level: 1 },
+        { id: 'worker-3', name: 'Sève', task: 'wood', level: 1 },
+        { id: 'worker-4', name: 'Roc', task: 'stone', level: 1 },
+      ],
+    });
+    const before = getIslandGoal(economy.progress, 1);
+    expect(before.completed).toBe(false);
+    expect(before.items.find((item) => item.id === 'projects')?.done).toBe(false);
+    completeProjectsUntil(economy, 3);
+    const after = getIslandGoal(economy.progress, 1);
+    expect(after.items.every((item) => item.done)).toBe(true);
+    expect(after.completed).toBe(true);
   });
 
   it('migre les anciens talents v3 dans le nouveau graphe sans les perdre', () => {

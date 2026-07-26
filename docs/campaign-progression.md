@@ -19,14 +19,14 @@
 | 1. Camp des Marées | jouable | 6–10 min | Camp, 2 travailleurs, pont des Pins | Recrutement, affectation bois/pierre, premier Savoir | Récolte manuelle | Capacité 3 | Premier pont puis émergence | Accès aux Pins |
 | 2. Atelier des Pins | jouable | 10–15 min | Atelier, équipe de 4, niveau 2 et 3 travaux | Première infrastructure durable | Affectations et vrais trajets | Capacité 5 puis +1 | Pont cuivré | Accès au cuivre |
 | 3. Île Cuivrée | jouable | 10–16 min | Fonderie, cuivrier, équipe de 5 et 6 travaux cumulés | Troisième ressource et industrie | Arbitrage stocks / coûts | Capacité 7, niveau 3 | Pont des Cristaux | Accès au cristal |
-| 4. Observatoire | jouable | 12–18 min | Observatoire, cristallier, 10 niveaux et 9 travaux | Quatrième ressource et mécanisation | Tous les systèmes précédents | Capacité 9, métier cristal | Pont de la Couronne | Accès au Cœur |
+| 4. Autel du Savoir | jouable | 12–18 min | Autel, cristallier, 10 niveaux et 9 travaux | Quatrième ressource et arbre physique | Tous les systèmes précédents | Capacité 9, métier cristal | Pont de la Couronne | Accès au Cœur |
 | 5. Cœur de l’Archipel | jouable | 10–16 min | 8 travailleurs, 4 métiers, 12 niveaux, 12 travaux et offrande | Réseau final de l’archipel | Économie et logistique combinées | +5 Savoir des travaux, puis +2 du Cœur | Éveil du Cœur | Mode libre ou rebirth |
 
 ## Méta-progression persistante
 
 Chaque structure et chaque pont rapporte 1 Savoir ; onze Grands Travaux rapportent 1, le Phare de l’unisson en rapporte 3, et le Cœur en rapporte 2. Une Marée complète donne donc 24 Savoir avant la récompense de Nouvelle Marée. Ce revenu ouvre plusieurs choix immédiats, mais aucun sommet en un seul cycle.
 
-L’arbre commence par l’hexagone gratuit **Démarrer**. Il révèle trois portes, puis uniquement les nœuds dont **tous** les prérequis sont acquis. Un nœud à deux entrées reste totalement invisible tant que les deux parents ne sont pas débloqués. Les voies ne sont pas des colonnes isolées : trois savoirs hybrides créent des passerelles, chaque sommet exige un croisement, puis les trois sommets révèlent ensemble le pouvoir final. La carte se déplace librement et se zoome de 10 à 130 %, avec une commande de vue globale.
+L’arbre commence par l’hexagone gratuit **Démarrer**. Il révèle trois portes, puis uniquement les nœuds dont **tous** les prérequis sont acquis. Un nœud à deux entrées reste totalement invisible tant que les deux parents ne sont pas débloqués. Les voies ne sont pas des colonnes isolées : trois savoirs hybrides créent des passerelles, chaque sommet exige un croisement, puis les trois sommets révèlent ensemble le pouvoir final. La carte se déplace d’un doigt et se zoome par pincement à deux doigts. Toucher un hexagone ne dépense rien : une fiche lisible présente d’abord son pouvoir et un bouton séparé confirme l’achat.
 
 | Voie | Début | Milieu | Pouvoir profond | Sommet |
 |---|---|---|---|---|
@@ -58,7 +58,7 @@ Le contenu supplémentaire ne multiplie pas les minerais. Il multiplie les usage
 | Cristal | Treuils cuivrés, Rails de débardage, Cour de maintenance | récolte ouvrière +18 %, vitesse +12 %, recrutement/niveaux −15 % | 9 travaux avant la Couronne |
 | Couronne | Balises cristallines, Réservoir prismatique, Phare de l’unisson | repousse +18 %, livraisons +15 % puis +25 %, bonus de Savoir | 12 travaux avant le Cœur |
 
-Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants. Les trois cartes du palier restent néanmoins libres dans leur ordre : le joueur choisit d’abord le bonus qui répond à sa pénurie actuelle.
+Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants. Chaque projet est un pad puis un bâtiment visible sur son île ; les trois chantiers du palier restent libres dans leur ordre. Leur construction assemble successivement les pièces du modèle au lieu de faire surgir un bloc entier.
 
 ## Navigation et intelligence des ouvriers
 
@@ -85,11 +85,13 @@ Un palier futur n’apparaît qu’après le pont et le bâtiment correspondants
 
 Les placements initiaux restent garantis pour éviter un départ bloqué ; ces taux prennent effet lors des repousses successives.
 
-## Terrier des bâtisseurs
+## Bâtiments de gestion
 
-- Affectation en deux gestes : sélectionner une carte de renard, puis toucher une grande cible de métier.
+- La nurserie est le camp de l’îlot central. Son enseigne flottante affiche en permanence `renards / capacité`.
+- Affectation en deux gestes dans la nurserie : sélectionner une carte de renard, puis toucher une grande cible de métier.
 - La liste défile avec des lignes de hauteur fixe : même avec seize renards ou davantage, chaque nom et chaque `NIV` reste visible.
-- Toucher un renard ouvre une fiche stable avec son rendement, son intelligence de trajet, ses étoiles et son bouton d’amélioration.
+- Toucher un renard ouvre une fiche stable avec son rendement, son intelligence de trajet et ses étoiles. Aucune amélioration n’est achetable dans la nurserie.
+- Entrer physiquement dans l’Atelier des Pins ouvre la formation niveau 2 ; la Fonderie Cuivrée ouvre uniquement la formation niveau 3.
 - Chaque métier affiche le nombre de renards et les taux des îles actuellement émergées.
 - Le métier actif est indiqué par un contour, un fond, une icône et du texte, jamais par la couleur seule.
 - Un recrutement fait surgir le renard dans l’interface et dans le monde ; une amélioration produit un cartouche `LEVEL UP`, un halo et une impulsion 3D.
@@ -131,7 +133,8 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur réaffecte un ouvrier en mouvement, confirme l’absence de téléportation et échantillonne sa présence sur le réseau marchable.
 - Un test navigateur confirme qu’un ouvrier vide le filon ciblé, en transporte au plus la quantité restante, puis choisit une autre cible.
 - Des tests unitaires vérifient que chaque profil totalise 100 % et qu’aucun cuivre ou cristal ne peut repousser sur les deux premières îles.
-- Un test navigateur fait apparaître les trois voies depuis le nœud gratuit, confirme que le futur reste absent, atteint l’auto-régulation et vérifie zoom, dézoom et vue globale.
-- Un test navigateur affiche seize renards, fait défiler la nurserie, ouvre la dernière fiche et réalise son `LEVEL UP`.
-- Un test navigateur achève les douze Grands Travaux par paliers avant d’autoriser le Cœur.
+- Un test navigateur fait apparaître les trois voies depuis le nœud gratuit, confirme que le futur reste absent, atteint l’auto-régulation, vérifie l’inspecteur avant achat et simule un pincement tactile.
+- Un test navigateur affiche seize renards, fait défiler la nurserie, ouvre la dernière fiche et confirme que la formation n’y est pas achetable.
+- Un test navigateur achève les douze Grands Travaux directement sur leurs sites physiques avant d’autoriser le Cœur.
+- Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
