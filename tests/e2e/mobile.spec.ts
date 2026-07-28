@@ -50,6 +50,8 @@ interface IlotaDiagnostics {
     routeChoices: number;
     targetNode: string;
     targetIsland: number;
+    targetDistance: number;
+    hubDistance: number;
     cargo: number;
     cargoVisuals: number;
     cargoStackHeight: number;
@@ -87,11 +89,14 @@ const waitForGame = async (page: Page): Promise<void> => {
 };
 
 const richSave = () => ({
-  version: 5,
+  version: 8,
   wood: 9_999,
   stone: 9_999,
   copper: 9_999,
   crystal: 9_999,
+  playerCargo: { wood: 0, stone: 0, copper: 0, crystal: 0 },
+  warehousesBuilt: [true, false, false, false, false],
+  projectHallsBuilt: [false, false, false, false],
   campBuilt: false,
   workshopBuilt: false,
   foundryBuilt: false,
@@ -105,10 +110,15 @@ const richSave = () => ({
   skills: [],
   skillRanks: {},
   autoRegulation: false,
+  industrySurge: false,
+  explorationFlow: false,
+  powerNotifications: false,
+  powerVfx: true,
   rebirths: 0,
   cycleMilestones: [],
   lifetimeDeliveries: 0,
   projectsCompleted: [],
+  tutorialSeen: [],
 });
 
 const createNavigator = (page: Page) => {
@@ -199,10 +209,10 @@ const assignWorker = async (page: Page, name: string, task: string): Promise<voi
 };
 
 const PROJECT_HALLS = [
-  { x: -5.2, z: -30.1, name: 'Maison des Travaux des Pins' },
-  { x: 12.7, z: -41.7, name: 'Maison des Travaux Cuivrée' },
-  { x: -4, z: -74.5, name: 'Maison des Travaux de Cristal' },
-  { x: 15, z: -84.5, name: 'Maison des Travaux de la Couronne' },
+  { x: 3, z: -25.1, name: 'Maison des Travaux des Pins' },
+  { x: 19, z: -45.1, name: 'Maison des Travaux Cuivrée' },
+  { x: 2, z: -67.1, name: 'Maison des Travaux de Cristal' },
+  { x: 18, z: -89.1, name: 'Maison des Travaux de la Couronne' },
 ] as const;
 
 const PROJECT_IDS = [
@@ -233,6 +243,11 @@ const completeProjectsUntil = async (
     if (await page.locator('#projects-panel').isHidden()) {
       await moveTo(hall.x, hall.z, 0.9);
       await expect(page.locator('#context-prompt')).toContainText(hall.name);
+      const hallIndex = Math.floor(before / 3);
+      if ((await diagnostics(page)).projectHalls <= hallIndex) {
+        await page.locator('#action-button').tap();
+        await expect.poll(async () => (await diagnostics(page)).projectHalls).toBe(hallIndex + 1);
+      }
       await page.locator('#action-button').tap();
       await expect(page.locator('#projects-panel')).toBeVisible();
       await page.waitForTimeout(380);
@@ -314,7 +329,7 @@ test('le Savoir reste visible et une ancienne île ne rouvre jamais ses objectif
   await expect(page.locator('#knowledge-count')).toHaveText('7');
   await expect(page.locator('#island-goal')).toBeHidden();
   const state = await diagnostics(page);
-  expect(state.projectHalls).toBe(4);
+  expect(state.projectHalls).toBe(0);
   expect(state.knowledge).toBe(7);
 });
 
@@ -362,7 +377,7 @@ test('le HUD compact garde le monde visible et déplie les objectifs à la deman
 });
 
 test('l’Autel du Savoir exige les quatre grandes réserves sur l’île de Cristal', async ({ page }) => {
-  test.setTimeout(75_000);
+  test.setTimeout(120_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     version: 7,
@@ -388,12 +403,15 @@ test('l’Autel du Savoir exige les quatre grandes réserves sur l’île de Cri
   await moveTo(10.13, -39.66, 0.65);
   await moveTo(10.26, -54.44, 0.65);
   await moveTo(4.68, -61.64, 0.65);
-  await moveTo(-4, -65, 1.1);
+  await moveTo(5, -66, 0.8);
+  await moveTo(5, -70, 0.8);
+  await moveTo(2, -72.4, 0.9);
+  await moveTo(0, -72.4, 1.1);
   await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
-  await expect(page.locator('#context-prompt')).toContainText('120 bois · 110 pierre · 90 cuivre · 70 cristal');
+  await expect(page.locator('#context-prompt')).toContainText('78 bois · 68 pierre · 48 cuivre · 24 cristal');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).observatoryBuilt).toBe(true);
-  expect(await diagnostics(page)).toMatchObject({ wood: 80, stone: 90, copper: 110, crystal: 130 });
+  expect(await diagnostics(page)).toMatchObject({ wood: 122, stone: 132, copper: 152, crystal: 176 });
   await page.screenshot({ path: 'test-results/ilota-central-knowledge-altar.png' });
 });
 
@@ -576,12 +594,14 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   const { moveTo } = createNavigator(page);
   await moveTo(0, -12.1, 0.6);
   await moveTo(0, -17.9, 0.7);
-  await moveTo(-1, -27, 1.2);
+  await moveTo(0, -30.4, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('Atelier des Pins');
   await page.locator('#action-button').tap();
   await expect(page.getByRole('heading', { name: 'Former au niveau 2' })).toBeVisible();
   await upgradeWorker(page, 'Milo');
-  await expect(page.locator('.worker-card').filter({ hasText: 'Milo' }).locator('.level-up-burst')).toHaveCount(0);
+  await expect(page.locator('.worker-detail-burst')).toHaveCount(1);
+  await page.waitForTimeout(900);
+  await expect(page.locator('.worker-detail-burst')).toHaveCount(0);
   await expect(page.locator('#worker-detail')).toContainText('Milo');
   await expect(page.locator('#worker-detail')).toContainText('NIV 2');
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(4);
@@ -664,6 +684,9 @@ test('une Maison identique présente et assemble les trois Travaux de chaque îl
   await moveTo(PROJECT_HALLS[0].x, PROJECT_HALLS[0].z, 0.9);
   await expect(page.locator('#context-prompt')).toContainText(PROJECT_HALLS[0].name);
   await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).projectHalls).toBe(1);
+  await expect(page.locator('#context-prompt')).toContainText('0/3');
+  await page.locator('#action-button').tap();
   await expect(page.locator('#projects-panel')).toBeVisible();
   await expect.poll(async () => (await diagnostics(page)).projects).toBe(0);
   await page.waitForTimeout(380);
@@ -688,7 +711,7 @@ test('une Maison identique présente et assemble les trois Travaux de chaque îl
   await expect.poll(async () => (await diagnostics(page)).assemblingBuildings).toBeGreaterThan(0);
   await expect.poll(async () => (await diagnostics(page)).assemblingBuildings, { timeout: 4_000 }).toBe(0);
   await expect(page.locator('#projects-panel')).toBeHidden();
-  await expect(page.locator('#island-goal')).toContainText('3/5');
+  await expect(page.locator('#island-goal')).toContainText('4/6');
   await expect(page.locator('#island-goal')).toContainText('Achever les 3 Travaux à la Maison des Pins');
   await page.screenshot({ path: 'test-results/ilota-grand-works.png' });
 });
@@ -763,8 +786,8 @@ test('les ouvriers restent sur les îles et empruntent les ponts, même après r
   expect((await diagnostics(page)).workerNavigation[0]!.bridgesUsed).toEqual(expect.arrayContaining([0, 1, 2]));
 });
 
-test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée', async ({ page }) => {
-  test.setTimeout(40_000);
+test('un renard niveau 1 prélève exactement une unité par coup sur la roche ciblée', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     stone: 0,
@@ -772,34 +795,23 @@ test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée'
     workers: [{ id: 'worker-1', name: 'Milo', task: 'stone', level: 1 }],
   });
   await waitForGame(page);
+  await expect.poll(async () => (await diagnostics(page)).workerNavigation[0]?.phase, { timeout: 15_000 })
+    .toBe('gathering');
+  expect((await diagnostics(page)).workerNavigation[0]!.targetDistance).toBeGreaterThan(0.65);
+  expect((await diagnostics(page)).workerNavigation[0]!.animation).toBe('act');
   await expect.poll(async () => (await diagnostics(page)).lastWorkerHarvest, { timeout: 15_000 })
     .not.toBeNull();
   const mined = (await diagnostics(page)).lastWorkerHarvest!;
   const node = (await diagnostics(page)).resourceNodes.find((candidate) => candidate.id === mined.nodeId)!;
-  expect(mined.gathered).toBe(2);
-  expect(node.amount).toBe(node.capacity - 2);
+  expect(mined.gathered).toBe(1);
+  expect(node.amount).toBe(node.capacity - 1);
   await expect.poll(async () => {
     const worker = (await diagnostics(page)).workerNavigation[0]!;
     return worker.cargo > 0 ? `${worker.cargo}:${worker.cargoVisuals}` : '';
-  }).toBe('2:2');
+  }).toBe('1:1');
   expect((await diagnostics(page)).stone).toBe(0);
 
-  const depositSamples = await page.evaluate(async () => {
-    const samples: Array<{ cargo: number; visuals: number; stock: number }> = [];
-    for (let index = 0; index < 800; index += 1) {
-      const state = (window as typeof window & { __ILOTA__: IlotaDiagnostics }).__ILOTA__;
-      const worker = state.workerNavigation[0]!;
-      if (worker.phase === 'depositing' || state.stone > 0 || worker.cargo < 2) {
-        samples.push({ cargo: worker.cargo, visuals: worker.cargoVisuals, stock: state.stone });
-      }
-      if (state.stone >= 2) break;
-      await new Promise((resolve) => window.setTimeout(resolve, 25));
-    }
-    return samples;
-  });
-  expect(depositSamples.some((sample) => sample.cargo === 1 && sample.visuals === 1)).toBe(true);
-  expect(depositSamples.some((sample) => sample.stock === 1)).toBe(true);
-  await expect.poll(async () => (await diagnostics(page)).stone).toBe(2);
+  await expect.poll(async () => (await diagnostics(page)).stone, { timeout: 30_000 }).toBe(1);
 });
 
 test('les Tournées complètes enchaînent les filons avant le retour au dépôt', async ({ page }) => {
@@ -820,7 +832,24 @@ test('les Tournées complètes enchaînent les filons avant le retour au dépôt
   }, { timeout: 45_000 }).toBeGreaterThanOrEqual(8);
 });
 
-test('un renard vide réellement son filon puis choisit une autre cible naïve', async ({ page }) => {
+test('l’Instinct de relève empêche un renard de rester statique sans filon accessible', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    foundryBuilt: true,
+    bridgesBuilt: [false, false, false, false],
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'copper', level: 2 }],
+    skills: ['adaptive_assignments'],
+  });
+  await waitForGame(page);
+  await expect.poll(async () => (await diagnostics(page)).workerTasks, { timeout: 8_000 })
+    .not.toBe('copper');
+  await expect.poll(async () => (await diagnostics(page)).workerNavigation[0]?.targetNode)
+    .not.toBe('');
+  expect(['wood', 'stone']).toContain((await diagnostics(page)).workerTasks);
+});
+
+test('un renard niveau 3 frappe par lots de trois sans one-shot le filon', async ({ page }) => {
   test.setTimeout(35_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -833,15 +862,11 @@ test('un renard vide réellement son filon puis choisit une autre cible naïve',
   await expect.poll(async () => (await diagnostics(page)).lastWorkerHarvest, { timeout: 15_000 })
     .not.toBeNull();
   const mined = (await diagnostics(page)).lastWorkerHarvest!;
-  const depletedNode = (await diagnostics(page)).resourceNodes.find((node) => node.id === mined.nodeId)!;
-  expect(mined).toMatchObject({ workerId: 'worker-1', kind: 'stone', remaining: 0, island: 0 });
-  expect(mined.gathered).toBe(depletedNode.capacity);
-  expect(depletedNode.amount).toBe(0);
-
-  await expect.poll(async () => {
-    const worker = (await diagnostics(page)).workerNavigation[0]!;
-    return worker.routeChoices > 1 && worker.targetNode !== mined.nodeId;
-  }, { timeout: 15_000 }).toBe(true);
+  const workedNode = (await diagnostics(page)).resourceNodes.find((node) => node.id === mined.nodeId)!;
+  expect(mined).toMatchObject({ workerId: 'worker-1', kind: 'stone', island: 0 });
+  expect(mined.gathered).toBe(3);
+  expect(mined.remaining).toBe(workedNode.capacity - 3);
+  expect(workedNode.amount).toBe(workedNode.capacity - 3);
   expect((await diagnostics(page)).workersOnWalkable).toBe(true);
 });
 
@@ -909,7 +934,27 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   });
   await expect.poll(async () => page.locator('.skill-map-stage').evaluate((stage) => stage.getBoundingClientRect().width))
     .toBeGreaterThan(widthBeforePinch + 100);
+  await expect(page.locator('#skill-branches')).toHaveCSS('touch-action', 'none');
+  await page.locator('#skill-branches').evaluate((target) => {
+    const rect = target.getBoundingClientRect();
+    target.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 21,
+      pointerType: 'touch',
+      clientX: rect.left + 90,
+      clientY: rect.top + 90,
+    }));
+  });
+  const beforeClose = (await diagnostics(page)).player;
+  await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
+  await expect.poll(async () => (await diagnostics(page)).talentOpen).toBe(false);
+  await page.keyboard.down('ArrowRight');
+  await page.waitForTimeout(450);
+  await page.keyboard.up('ArrowRight');
+  await expect.poll(async () => (await diagnostics(page)).player.x).toBeGreaterThan(beforeClose.x + 0.25);
   await expect(page.locator('.skill-zoom-controls')).toHaveCount(0);
+  await openTalents(page);
   await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
 });
 
@@ -956,16 +1001,22 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await expect(page.locator('.power-edge').first()).toHaveCSS('background-image', /lightning\.png/);
   await page.screenshot({ path: 'test-results/ilota-industry-surge.png' });
 
-  await openTalents(page);
-  await page.getByRole('button', { name: /technique · surcharge armée/i }).click();
-  await page.getByRole('button', { name: /exploration · activer le courant/i }).click();
-  await expect(page.getByRole('button', { name: /exploration · courant armé/i })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   const { moveTo } = createNavigator(page);
   await moveTo(0, 7.2, 0.55);
   await page.keyboard.press('KeyE');
-  await expect.poll(async () => (await diagnostics(page)).playerCargo).toBeGreaterThan(0);
-  await expect.poll(async () => (await diagnostics(page)).explorationFlow, { timeout: 6_000 }).toBe(true);
+  await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(6);
+  await expect.poll(async () => (await diagnostics(page)).explorationFlow).toBe(false);
+
+  await openTalents(page);
+  await page.getByRole('button', { name: /exploration · activer le courant/i }).click();
+  await expect(page.getByRole('button', { name: /exploration · courant armé/i })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
+  await expect.poll(async () => {
+    const state = await diagnostics(page);
+    return state.industrySurge && state.explorationFlow;
+  }, { timeout: 8_000 }).toBe(false);
+  await expect.poll(async () => (await diagnostics(page)).explorationFlow, { timeout: 24_000 }).toBe(true);
+  expect((await diagnostics(page)).industrySurge).toBe(false);
   await expect(page.locator('#power-vfx')).toHaveClass(/exploration-active/, { timeout: 6_000 });
   await expect(page.locator('#power-vfx-label')).toContainText('COURANT DE MARÉE');
   expect(await page.locator('.power-edge').evaluateAll((edges) =>
@@ -1088,6 +1139,17 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
     // Le scénario QA conserve un déplacement accéléré afin de valider les
     // cinq îles sans transformer la durée du test en durée de partie réelle.
     skills: ['archipelago_consciousness'],
+    tutorialSeen: [
+      'welcome',
+      'warehouse-central',
+      'nursery',
+      'island-goals',
+      'bridge-guidance',
+      'pins-logistics',
+      'workshop',
+      'foundry',
+      'observatory',
+    ],
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
@@ -1112,7 +1174,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
 
   await moveTo(0, -12.1, 0.5);
   await moveTo(0, -17.9, 0.65);
-  await moveTo(-1, -27, 1.15);
+  await moveTo(0, -30.4, 1.15);
   await expect(page.locator('#context-prompt')).toContainText('atelier des Pins');
   await page.locator('#action-button').tap();
   await openCrew(page);
@@ -1133,7 +1195,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
 
   await moveTo(5.68, -34.11, 0.5);
   await moveTo(10.13, -39.66, 0.65);
-  await moveTo(16, -47, 1.2);
+  await moveTo(16, -50.4, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('fonderie Cuivrée');
   await page.locator('#action-button').tap();
   await openCrew(page);
@@ -1156,7 +1218,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   // Le cristal découvert, le joueur bâtit désormais le grand Autel sur cette
   // île spécialisée au lieu de retraverser tout l’archipel.
   await moveTo(4.68, -61.64, 0.65);
-  await moveTo(-4, -65, 1.2);
+  await moveTo(-1, -72.4, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
   const preAltar = await diagnostics(page);
   await page.locator('#action-button').tap();
@@ -1165,12 +1227,12 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   // Les ouvriers poursuivent leurs livraisons pendant l'assemblage : ce
   // scénario complet contrôle donc une baisse nette de chaque réserve. Le test
   // isolé de l'Autel, sans production concurrente, contrôle les quatre débits
-  // exacts (120 / 110 / 90 / 70).
+  // exacts (78 / 68 / 48 / 24).
   for (const [kind, cost] of [
-    ['wood', 120],
-    ['stone', 110],
-    ['copper', 90],
-    ['crystal', 70],
+    ['wood', 78],
+    ['stone', 68],
+    ['copper', 48],
+    ['crystal', 24],
   ] as const) {
     const spentAfterDeliveries = preAltar[kind] - postAltar[kind];
     expect(spentAfterDeliveries).toBeGreaterThan(0);
@@ -1198,7 +1260,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await moveTo(10.13, -39.66, 0.65);
   await moveTo(10.26, -54.44, 0.65);
   await moveTo(4.68, -61.64, 0.65);
-  await moveTo(-4, -74.5, 0.9);
+  await moveTo(2, -67.1, 0.9);
   await completeProjectsUntil(page, 9, moveTo);
 
   await moveTo(3.97, -75.84, 0.75);

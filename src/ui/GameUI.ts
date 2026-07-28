@@ -221,6 +221,8 @@ export class GameUI {
   private levelUpWorker: { id: string; level: number } | null = null;
   private recruitAnimationTimer = 0;
   private levelUpAnimationTimer = 0;
+  private levelUpVisualPendingKey = '';
+  private crewRenderLockedUntil = 0;
   private skillZoom = 0.7;
   private readonly skillPointers = new Map<number, { x: number; y: number }>();
   private skillGesture:
@@ -324,12 +326,7 @@ export class GameUI {
       }
       const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-skill]') : null;
       if (!target?.dataset.skill) return;
-      this.selectedSkill = target.dataset.skill as SkillId;
-      if (this.latestProgress) {
-        this.renderTalents(this.latestProgress);
-        this.skillInspector.classList.remove('skill-inspector-pulse');
-        window.requestAnimationFrame(() => this.skillInspector.classList.add('skill-inspector-pulse'));
-      }
+      this.selectSkill(target.dataset.skill as SkillId);
     });
     this.skillBuyButton.addEventListener('click', () => {
       if (!this.selectedSkill || this.skillBuyButton.disabled) return;
@@ -341,6 +338,8 @@ export class GameUI {
     this.skillBranches.addEventListener('pointermove', (event) => this.moveSkillPointer(event));
     this.skillBranches.addEventListener('pointerup', (event) => this.endSkillPointer(event));
     this.skillBranches.addEventListener('pointercancel', (event) => this.endSkillPointer(event));
+    window.addEventListener('pointerup', (event) => this.endSkillPointer(event), true);
+    window.addEventListener('pointercancel', (event) => this.endSkillPointer(event), true);
     this.skillBranches.addEventListener('wheel', (event) => {
       event.preventDefault();
       this.setSkillZoom(this.skillZoom + (event.deltaY < 0 ? 0.08 : -0.08), event.clientX, event.clientY);
@@ -438,13 +437,14 @@ export class GameUI {
     const key = `${workerId}:${level}`;
     if (this.lastLevelUpKey === key) return;
     this.lastLevelUpKey = key;
+    this.levelUpVisualPendingKey = key;
     this.selectedWorkerId = workerId;
     this.levelUpWorker = { id: workerId, level };
     window.clearTimeout(this.levelUpAnimationTimer);
     if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
+    this.crewRenderLockedUntil = performance.now() + 820;
     this.levelUpAnimationTimer = window.setTimeout(() => {
       this.levelUpWorker = null;
-      this.lastLevelUpKey = '';
       if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
     }, 1550);
   }
@@ -490,6 +490,7 @@ export class GameUI {
 
   showProjects(islandIndex: 1 | 2 | 3 | 4): void {
     if (!this.latestProgress) return;
+    if (!this.latestProgress.projectHallsBuilt[islandIndex - 1]) return;
     const localProjects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
     if (!localProjects.some((project) => isProjectVisible(this.latestProgress!, project))) return;
     this.projectIslandIndex = islandIndex;
@@ -511,6 +512,7 @@ export class GameUI {
 
   showTalents(): void {
     if (!this.latestProgress?.observatoryBuilt) return;
+    this.resetSkillGesture();
     this.talentPanel.hidden = false;
     this.renderTalents(this.latestProgress);
     this.talentHandlers?.onOpenChange(true);
@@ -519,6 +521,7 @@ export class GameUI {
 
   hideTalents(): void {
     if (this.talentPanel.hidden) return;
+    this.resetSkillGesture();
     this.talentPanel.hidden = true;
     this.talentHandlers?.onOpenChange(false);
     this.menuButton.focus({ preventScroll: true });
@@ -687,7 +690,7 @@ export class GameUI {
     this.talentButton.hidden = true;
     this.talentButtonCount.textContent = String(progress.knowledge);
     this.talentButton.setAttribute('aria-label', `Ouvrir l’arbre de talents, ${progress.knowledge} points de Savoir disponibles`);
-    if (!this.crewPanel.hidden) this.renderCrew(progress);
+    if (!this.crewPanel.hidden && performance.now() >= this.crewRenderLockedUntil) this.renderCrew(progress);
     if (!this.projectsPanel.hidden) this.renderProjects(progress);
     if (!this.talentPanel.hidden) this.renderTalents(progress);
     if (!this.menuPanel.hidden) this.renderMenu(progress);
@@ -787,10 +790,13 @@ export class GameUI {
       return;
     }
 
+    const pendingLevelVisual = this.levelUpWorker
+      ? this.levelUpVisualPendingKey === `${this.levelUpWorker.id}:${this.levelUpWorker.level}`
+      : false;
     progress.workers.forEach((worker) => {
       const isSelected = worker.id === this.selectedWorkerId;
       const isNew = worker.id === this.newRecruitWorkerId;
-      const isLeveling = worker.id === this.levelUpWorker?.id;
+      const isLeveling = pendingLevelVisual && worker.id === this.levelUpWorker?.id;
       const card = element('article', [
         'worker-card',
         `task-${worker.task}`,
@@ -832,7 +838,8 @@ export class GameUI {
       card.append(heading);
       this.workerList.append(card);
     });
-    this.renderWorkerDetail(progress, selectedWorker ?? progress.workers[0]!, levelCap);
+    this.renderWorkerDetail(progress, selectedWorker ?? progress.workers[0]!, levelCap, pendingLevelVisual);
+    if (pendingLevelVisual) this.levelUpVisualPendingKey = '';
     window.requestAnimationFrame(() => { this.workerList.scrollTop = previousRosterScroll; });
   }
 
@@ -840,9 +847,10 @@ export class GameUI {
     progress: IslandProgress,
     worker: IslandProgress['workers'][number],
     levelCap: ReturnType<typeof getWorkerLevelCap>,
+    showLevelVisual = false,
   ): void {
     this.workerDetail.replaceChildren();
-    this.workerDetail.className = `worker-detail task-${worker.task}${worker.id === this.levelUpWorker?.id ? ' leveling-up' : ''}`;
+    this.workerDetail.className = `worker-detail task-${worker.task}${showLevelVisual && worker.id === this.levelUpWorker?.id ? ' leveling-up' : ''}`;
     this.workerDetail.setAttribute('aria-label', `Fiche de ${worker.name}, niveau ${worker.level}`);
 
     const hero = element('div', 'worker-detail-hero');
@@ -892,7 +900,7 @@ export class GameUI {
     }
     this.workerDetail.append(hero, upgrade);
 
-    if (worker.id === this.levelUpWorker?.id) {
+    if (showLevelVisual && worker.id === this.levelUpWorker?.id) {
       const burst = element('span', 'worker-detail-burst');
       burst.textContent = `LEVEL UP · NIV ${this.levelUpWorker.level}`;
       burst.setAttribute('role', 'status');
@@ -1050,6 +1058,11 @@ export class GameUI {
           : `Voir ${skill.name}${skill.maxRank ? ` rang ${rank + 1}` : ''}, prix ${priceValue} Savoir. ${skill.detail}`,
       );
       button.title = skill.detail;
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.skillSuppressClick = false;
+        this.selectSkill(skill.id);
+      });
 
       const icon = element('span', 'skill-hex-icon');
       icon.textContent = maxed && !skill.maxRank ? '✓' : skill.icon;
@@ -1107,6 +1120,14 @@ export class GameUI {
       ? 'EFFETS PLEIN ÉCRAN · OUI'
       : 'EFFETS PLEIN ÉCRAN · NON';
     this.renderSkillInspector(progress);
+  }
+
+  private selectSkill(skill: SkillId): void {
+    this.selectedSkill = skill;
+    if (!this.latestProgress) return;
+    this.renderTalents(this.latestProgress);
+    this.skillInspector.classList.remove('skill-inspector-pulse');
+    window.requestAnimationFrame(() => this.skillInspector.classList.add('skill-inspector-pulse'));
   }
 
   private renderSkillInspector(progress: IslandProgress): void {
@@ -1178,6 +1199,14 @@ export class GameUI {
 
   private beginSkillPointer(event: PointerEvent): void {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const target = event.target;
+    if (
+      this.skillPointers.size === 0
+      && target instanceof Element
+      && target.closest('button[data-skill]')
+    ) {
+      return;
+    }
     this.skillPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.rebaseSkillGesture();
   }
@@ -1216,6 +1245,12 @@ export class GameUI {
     this.skillPointers.delete(event.pointerId);
     this.rebaseSkillGesture();
     if (this.skillSuppressClick) window.setTimeout(() => { this.skillSuppressClick = false; }, 0);
+  }
+
+  private resetSkillGesture(): void {
+    this.skillPointers.clear();
+    this.skillGesture = null;
+    this.skillSuppressClick = false;
   }
 
   private rebaseSkillGesture(): void {

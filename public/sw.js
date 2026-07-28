@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v12-tidal-council';
+const CACHE = 'ilota-v13-triangular-islands';
 const CORE = [
   './',
   './index.html',

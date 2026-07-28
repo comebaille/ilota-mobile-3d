@@ -674,7 +674,9 @@ button:focus-visible {
   height: 100%;
   overflow: auto;
   overscroll-behavior: contain;
-  touch-action: pan-x pan-y;
+  /* Le déplacement et le pinch sont gérés par GameUI. Laisser le navigateur
+     reconnaître son propre geste peut conserver un pointeur fantôme sur iOS. */
+  touch-action: none;
   border: 1px solid rgba(255, 247, 219, 0.13);
   border-radius: 16px;
   background:

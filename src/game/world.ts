@@ -32,6 +32,7 @@ export interface StructureDefinition extends Point2 {
   name: string;
   radius: number;
   color: number;
+  rotation: number;
 }
 
 export interface ProjectHallDefinition extends Point2 {
@@ -153,20 +154,20 @@ export const BRIDGES: readonly BridgeDefinition[] = [
 ];
 
 export const STRUCTURES: readonly StructureDefinition[] = [
-  { kind: 'camp', name: 'Camp des Marées', x: 0, z: 0, radius: 1.65, color: 0xf2b958 },
-  { kind: 'workshop', name: 'Atelier des Pins', x: -1, z: -27, radius: 1.65, color: 0xe29449 },
-  { kind: 'foundry', name: 'Fonderie Cuivrée', x: 16, z: -47, radius: 1.75, color: 0xd47743 },
-  // Le Savoir est ramené au foyer : après avoir découvert le cristal, le
-  // L’île de Cristal reçoit son bâtiment spécialisé : le grand Autel.
-  { kind: 'observatory', name: 'Autel du Savoir', x: -4, z: -65, radius: 1.75, color: 0xb9afe9 },
+  { kind: 'camp', name: 'Camp des Marées', x: 0, z: 0, radius: 1.65, color: 0xf2b958, rotation: Math.PI },
+  // Sur chaque île, bâtiment principal, dépôt et Maison dessinent un triangle
+  // lisible dont les façades regardent la place centrale.
+  { kind: 'workshop', name: 'Atelier des Pins', x: 0, z: -30.4, radius: 1.65, color: 0xe29449, rotation: 0 },
+  { kind: 'foundry', name: 'Fonderie Cuivrée', x: 16, z: -50.4, radius: 1.75, color: 0xd47743, rotation: 0 },
+  { kind: 'observatory', name: 'Autel du Savoir', x: -1, z: -72.4, radius: 1.75, color: 0xb9afe9, rotation: 0 },
 ];
 
 export const WAREHOUSES: readonly WarehouseDefinition[] = [
   { islandIndex: 0, name: 'Dépôt des Marées', x: -5.2, z: 1.2, radius: 1.45, rotation: 0.22 },
-  { islandIndex: 1, name: 'Dépôt des Pins', x: 4.5, z: -27.4, radius: 1.45, rotation: -0.28 },
-  { islandIndex: 2, name: 'Dépôt Cuivré', x: 20.8, z: -51.5, radius: 1.45, rotation: 0.34 },
-  { islandIndex: 3, name: 'Dépôt de Cristal', x: 3.8, z: -69.3, radius: 1.45, rotation: -0.18 },
-  { islandIndex: 4, name: 'Dépôt de la Couronne', x: 10.4, z: -91.2, radius: 1.45, rotation: 0.3 },
+  { islandIndex: 1, name: 'Dépôt des Pins', x: -3, z: -25.1, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 2, name: 'Dépôt Cuivré', x: 13, z: -45.1, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 3, name: 'Dépôt de Cristal', x: -4, z: -67.1, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 4, name: 'Dépôt de la Couronne', x: 12, z: -89.1, radius: 1.45, rotation: 2.14 },
 ];
 
 /**
@@ -174,10 +175,10 @@ export const WAREHOUSES: readonly WarehouseDefinition[] = [
  * trois sceaux indiquent physiquement l'avancement des trois projets locaux.
  */
 export const PROJECT_HALLS: readonly ProjectHallDefinition[] = [
-  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: -5.2, z: -30.1, radius: 1.35, color: 0xd89a4c, rotation: -0.35 },
-  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 12.7, z: -41.7, radius: 1.35, color: 0xc97a4a, rotation: -0.2 },
-  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: -4, z: -74.5, radius: 1.35, color: 0x9a8fc4, rotation: 0.3 },
-  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 15, z: -84.5, radius: 1.35, color: 0xf2b958, rotation: 0.1 },
+  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: 3, z: -25.1, radius: 1.35, color: 0xd89a4c, rotation: -2.14 },
+  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 19, z: -45.1, radius: 1.35, color: 0xc97a4a, rotation: -2.14 },
+  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: 2, z: -67.1, radius: 1.35, color: 0x9a8fc4, rotation: -2.14 },
+  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 18, z: -89.1, radius: 1.35, color: 0xf2b958, rotation: -2.14 },
 ];
 
 /**

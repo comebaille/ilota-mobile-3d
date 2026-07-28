@@ -24,6 +24,7 @@ import {
   getPriorityShortage,
   getProjectCost,
   getProjectDefinition,
+  getProjectHallCost,
   getRecruitCost,
   getRespawnMultiplier,
   getRebirthReward,
@@ -32,14 +33,17 @@ import {
   getTotalWorkerLevels,
   getTidalRetentionRate,
   getUpgradeCost,
+  getUnlockedWorkerTasks,
   getWarehouseCost,
   getWorkerCapacity,
   getWorkerGatherSeconds,
+  getWorkerDepositValue,
   getWorkerTravelSpeed,
   getWorkerYield,
   hasProject,
   hasSkill,
   isProjectVisible,
+  isProjectHallReady,
   isWarehouseUnlocked,
   type Cost,
   type ProjectId,
@@ -111,11 +115,13 @@ interface WorkerEntity {
   bridgesUsed: Set<number>;
   target: ResourceNode | null;
   hub: THREE.Vector3;
+  depositTarget: THREE.Vector3;
   cargo: number;
   cargoKind: ResourceKind;
   routeChoices: number;
   arrivalTimer: number;
   levelUpTimer: number;
+  idleSwitchCooldown: number;
 }
 
 interface BridgeEntity {
@@ -144,6 +150,7 @@ interface WarehouseEntity {
 
 interface ProjectEntity {
   definition: ProjectHallDefinition;
+  pad: THREE.Group;
   building: THREE.Group;
   status: THREE.Sprite;
   seals: THREE.Group[];
@@ -255,6 +262,8 @@ interface Diagnostics {
     routeChoices: number;
     targetNode: string;
     targetIsland: number;
+    targetDistance: number;
+    hubDistance: number;
     cargo: number;
     cargoVisuals: number;
     cargoStackHeight: number;
@@ -450,7 +459,7 @@ export class IlotaGame {
       powerNotifications: progress.powerNotifications,
       powerVfx: progress.powerVfx,
       projects: getCompletedProjectCount(progress),
-      projectHalls: this.projects.length,
+      projectHalls: progress.projectHallsBuilt.filter(Boolean).length,
       warehouses: progress.warehousesBuilt.filter(Boolean).length,
       playerCargo: getPlayerCargoTotal(progress),
       playerCargoStackHeight: 0,
@@ -647,7 +656,7 @@ export class IlotaGame {
 
   private toggleExplorationFlow(enabled: boolean): void {
     if (!this.economy.setExplorationFlow(enabled)) return;
-    this.explorationFlowCooldown = enabled ? 0.35 : 4;
+    this.explorationFlowCooldown = enabled ? 4.5 : 4;
     if (!enabled) this.explorationFlowRemaining = 0;
     if (this.economy.progress.powerNotifications) {
       this.ui.toast(enabled
@@ -979,7 +988,7 @@ export class IlotaGame {
     pad.add(this.createBuildPad(definition.radius, definition.color));
     this.addToIsland(pad, definition.x, definition.z);
 
-    const building = this.createStructureBuilding(definition.kind);
+    const building = this.createStructureBuilding(definition.kind, definition.rotation);
     building.position.set(definition.x, 0, definition.z);
     building.visible = false;
     const status = this.createWorldLabel(
@@ -999,6 +1008,12 @@ export class IlotaGame {
   }
 
   private createProjectHall(definition: ProjectHallDefinition): void {
+    const pad = new THREE.Group();
+    pad.position.set(definition.x, 0.05, definition.z);
+    pad.add(this.createBuildPad(definition.radius, definition.color));
+    pad.visible = false;
+    this.addToIsland(pad, definition.x, definition.z);
+
     const building = new THREE.Group();
     building.position.set(definition.x, 0, definition.z);
     const platform = new THREE.Mesh(
@@ -1049,7 +1064,7 @@ export class IlotaGame {
     status.position.set(definition.x, 3.45, definition.z);
     status.visible = false;
     this.addToIsland(status, definition.x, definition.z);
-    this.projects.push({ definition, building, status, seals });
+    this.projects.push({ definition, pad, building, status, seals });
   }
 
   private createWorldLabel(text: string, accent: number, width = 4.8): THREE.Sprite {
@@ -1187,7 +1202,7 @@ export class IlotaGame {
     return group;
   }
 
-  private createStructureBuilding(kind: StructureKind): THREE.Group {
+  private createStructureBuilding(kind: StructureKind, rotation = 0): THREE.Group {
     const group = new THREE.Group();
     const platformColor = kind === 'camp' ? 0xb7874f : kind === 'workshop' ? 0x9b7447 : kind === 'foundry' ? 0x765d54 : 0x74758e;
     const platform = new THREE.Mesh(
@@ -1206,7 +1221,7 @@ export class IlotaGame {
     };
     const model = this.assets.createBuilding(kind, targetHeight[kind]);
     model.position.y = 0.3;
-    model.rotation.y = kind === 'camp' ? -0.38 : kind === 'workshop' ? 0.3 : kind === 'foundry' ? -0.22 : 0.5;
+    model.rotation.y = rotation;
     model.name = `modèle:${kind}`;
     group.add(model);
 
@@ -1498,18 +1513,25 @@ export class IlotaGame {
       const tierProjects = ISLAND_PROJECTS.filter((project) => project.islandIndex === entity.definition.islandIndex);
       const completed = tierProjects.filter((project) => hasProject(progress, project.id)).length;
       const accessible = Boolean(progress.bridgesBuilt[entity.definition.islandIndex - 1]);
-      const unlocked = tierProjects.some((project) => isProjectVisible(progress, project));
-      entity.building.visible = accessible;
-      entity.status.visible = accessible;
+      const hallBuilt = Boolean(progress.projectHallsBuilt[entity.definition.islandIndex - 1]);
+      const readyToBuild = isProjectHallReady(progress, entity.definition.islandIndex);
+      const unlocked = hallBuilt && tierProjects.some((project) => isProjectVisible(progress, project));
+      entity.building.visible = accessible && hallBuilt;
+      entity.pad.visible = accessible && !hallBuilt && readyToBuild;
+      entity.status.visible = accessible && (hallBuilt || readyToBuild);
       entity.seals.forEach((seal, index) => { seal.visible = index < completed; });
       this.setWorldLabel(
         entity.status,
-        completed >= 3
+        !hallBuilt
+          ? readyToBuild
+            ? `⌂ MAISON DES TRAVAUX · À CONSTRUIRE`
+            : `⌂ MAISON DES TRAVAUX · BÂTIMENT PRINCIPAL REQUIS`
+          : completed >= 3
           ? `✓ MAISON DES TRAVAUX · 3/3`
           : unlocked
             ? `⌂ MAISON DES TRAVAUX · ${completed}/3`
             : `⌂ MAISON DES TRAVAUX · FERMÉE`,
-        unlocked ? entity.definition.color : 0x80918b,
+        hallBuilt && unlocked ? entity.definition.color : readyToBuild ? 0xd4a65f : 0x80918b,
       );
     });
     this.bridges.forEach((entity) => {
@@ -1662,11 +1684,13 @@ export class IlotaGame {
       bridgesUsed: new Set<number>(),
       target: null,
       hub: vec(0, 1),
+      depositTarget: vec(0, 0),
       cargo: 0,
       cargoKind: state.task,
       routeChoices: 0,
       arrivalTimer: withArrival ? WORKER_FEEL.arrivalSeconds : 0,
       levelUpTimer: 0,
+      idleSwitchCooldown: 0,
     };
     this.workers.push(entity);
     this.syncWorkerCargoVisuals(entity);
@@ -1701,14 +1725,34 @@ export class IlotaGame {
       .filter((entity) => this.economy.progress.warehousesBuilt[entity.definition.islandIndex])
       .map((entity) => ({
         entity,
-        point: vec(entity.definition.x, entity.definition.z + 1.15),
+        point: this.getWarehouseApproachPoint(entity),
       }));
   }
 
-  private nearestWarehouseRoute(start: THREE.Vector3): { point: THREE.Vector3; route: PlannedRoute } | null {
+  private getWarehouseApproachPoint(entity: WarehouseEntity): THREE.Vector3 {
+    const island = ISLANDS[entity.definition.islandIndex] ?? ISLANDS[0]!;
+    const inward = vec(island.x - entity.definition.x, island.z - entity.definition.z);
+    if (inward.lengthSq() < 0.01) inward.set(0, 0, 1);
+    return vec(entity.definition.x, entity.definition.z)
+      .addScaledVector(inward.normalize(), entity.definition.radius + 0.72);
+  }
+
+  private nearestWarehouseRoute(start: THREE.Vector3): {
+    point: THREE.Vector3;
+    depositTarget: THREE.Vector3;
+    route: PlannedRoute;
+  } | null {
     return this.builtWarehouseHubs()
-      .map(({ point }) => ({ point, route: this.planFrom(start, point) }))
-      .filter((candidate): candidate is { point: THREE.Vector3; route: PlannedRoute } => Boolean(candidate.route))
+      .map(({ entity, point }) => ({
+        point,
+        depositTarget: vec(entity.definition.x, entity.definition.z),
+        route: this.planFrom(start, point),
+      }))
+      .filter((candidate): candidate is {
+        point: THREE.Vector3;
+        depositTarget: THREE.Vector3;
+        route: PlannedRoute;
+      } => Boolean(candidate.route))
       .sort((a, b) => a.route.distance - b.route.distance)[0] ?? null;
   }
 
@@ -1722,6 +1766,7 @@ export class IlotaGame {
       return false;
     }
     entity.hub.copy(destination.point);
+    entity.depositTarget.copy(destination.depositTarget);
     this.applyWorkerRoute(entity, destination.route, 'toHub');
     return true;
   }
@@ -1761,6 +1806,43 @@ export class IlotaGame {
     }, 0);
   }
 
+  private getResourceApproachPoint(node: ResourceNode): THREE.Vector3 {
+    const island = ISLANDS[node.islandIndex] ?? ISLANDS[0]!;
+    const inward = vec(island.x - node.root.position.x, island.z - node.root.position.z);
+    if (inward.lengthSq() < 0.01) inward.set(0, 0, 1);
+    const clearance = node.kind === 'wood'
+      ? 0.82 + node.baseScale * 0.72
+      : 0.62 + node.baseScale * 0.5;
+    return node.root.position.clone().addScaledVector(inward.normalize(), clearance).setY(0);
+  }
+
+  private tryAdaptiveWorkerAssignment(entity: WorkerEntity, state: WorkerState): boolean {
+    if (
+      !hasSkill(this.economy.progress, 'adaptive_assignments')
+      || entity.cargo > 0
+      || entity.idleSwitchCooldown > 0
+    ) return false;
+    const start = entity.root.position;
+    const candidates = getUnlockedWorkerTasks(this.economy.progress)
+      .filter((kind) => kind !== state.task)
+      .filter((kind) => this.resources.some((node) => {
+        if (node.kind !== kind || node.amount <= 0 || !node.root.visible) return false;
+        const approach = this.getResourceApproachPoint(node);
+        return Boolean(this.planFrom(start, approach) && this.nearestWarehouseRoute(approach));
+      }))
+      .sort((a, b) => this.economy.progress[a] - this.economy.progress[b]);
+    const nextTask = candidates[0];
+    if (!nextTask || !this.economy.assignWorker(entity.id, nextTask)) return false;
+    entity.idleSwitchCooldown = 6;
+    this.syncWorker(entity, state, false);
+    if (this.economy.progress.powerNotifications) {
+      this.ui.toast(`${state.name} évite l’attente · relève vers ${RESOURCE_LABELS[nextTask]}.`);
+    }
+    this.ui.update(this.economy.progress);
+    this.save();
+    return true;
+  }
+
   private planWorkerCycle(entity: WorkerEntity, state: WorkerState): void {
     const start = entity.root.position;
     const matchingResources = this.resources.filter((node) =>
@@ -1769,23 +1851,32 @@ export class IlotaGame {
       && node.root.visible);
     const reachable = matchingResources
       .map((node) => {
-        const outbound = this.planFrom(start, node.root.position);
-        const warehouse = this.nearestWarehouseRoute(node.root.position);
+        const approach = this.getResourceApproachPoint(node);
+        const outbound = this.planFrom(start, approach);
+        const warehouse = this.nearestWarehouseRoute(approach);
         return {
           node,
+          approach,
           outbound,
           returning: warehouse?.route ?? null,
           hub: warehouse?.point ?? null,
+          depositTarget: warehouse?.depositTarget ?? null,
         };
       })
       .filter((candidate): candidate is {
         node: ResourceNode;
+        approach: THREE.Vector3;
         outbound: PlannedRoute;
         returning: PlannedRoute;
         hub: THREE.Vector3;
-      } => Boolean(candidate.outbound && candidate.returning && candidate.hub));
+        depositTarget: THREE.Vector3;
+      } => Boolean(candidate.outbound && candidate.returning && candidate.hub && candidate.depositTarget));
     if (!reachable.length) {
       if (entity.cargo > 0 && this.routeWorkerToWarehouse(entity)) return;
+      if (this.tryAdaptiveWorkerAssignment(entity, state)) {
+        this.planWorkerCycle(entity, state);
+        return;
+      }
       entity.route = [];
       entity.routeBridgeIndices = [];
       entity.target = null;
@@ -1806,6 +1897,7 @@ export class IlotaGame {
 
     entity.target = selected.node;
     entity.hub.copy(selected.hub);
+    entity.depositTarget.copy(selected.depositTarget);
     this.applyWorkerRoute(entity, selected.outbound, 'toResource');
   }
 
@@ -1862,6 +1954,19 @@ export class IlotaGame {
       const shouldGuide = bridge.pad.visible
         && getIslandGoal(this.economy.progress, bridge.definition.fromIsland).completed;
       bridge.guide.visible = shouldGuide;
+      if (shouldGuide) {
+        const pad = bridge.pad.getWorldPosition(new THREE.Vector3());
+        const direction = pad.clone().sub(this.player.position).setY(0);
+        if (direction.lengthSq() > 0.04) {
+          direction.normalize();
+          const start = this.player.position.clone().addScaledVector(direction, 1.25).setY(0.48);
+          const end = pad.clone().addScaledVector(direction, -0.9).setY(0.48);
+          bridge.guide.children.forEach((arrow, arrowIndex) => {
+            arrow.position.lerpVectors(start, end, (arrowIndex + 1) / (bridge.guide.children.length + 1));
+            arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+          });
+        }
+      }
       if (shouldGuide && bridge.index === 0 && !this.managementOpen) {
         this.maybeShowTutorial(
           'bridge-guidance',
@@ -1926,8 +2031,7 @@ export class IlotaGame {
   private updateResources(delta: number): void {
     this.resources.forEach((node) => {
       if (node.amount <= 0) {
-        const surgeMultiplier = this.industrySurgeRemaining > 0 && node.kind === this.industrySurgeKind ? 2 : 1;
-        node.respawn -= delta * surgeMultiplier;
+        node.respawn -= delta;
         node.currentScale = THREE.MathUtils.damp(node.currentScale, 0, 10, delta);
         node.root.scale.setScalar(node.currentScale);
         if (node.currentScale < 0.025) node.root.visible = false;
@@ -1979,6 +2083,7 @@ export class IlotaGame {
     this.workers.forEach((entity) => {
       const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
       if (!state) return;
+      entity.idleSwitchCooldown = Math.max(0, entity.idleSwitchCooldown - delta);
       if (state.task !== entity.task || state.level !== entity.level) this.syncWorker(entity, state, state.task !== entity.task);
       const baseScale = 0.9 + state.level * 0.055;
       if (entity.arrivalTimer > 0) {
@@ -2011,10 +2116,22 @@ export class IlotaGame {
         if (this.advanceWorker(entity, travelSpeed, delta)) {
           entity.phase = 'gathering';
           entity.phaseTimer = getWorkerGatherSeconds(state.level, this.economy.progress);
+          if (entity.target) {
+            entity.root.rotation.y = Math.atan2(
+              entity.target.root.position.x - entity.root.position.x,
+              entity.target.root.position.z - entity.root.position.z,
+            );
+          }
           this.playWorkerAction(entity, 'act', 0.08);
         }
       } else if (entity.phase === 'gathering') {
         this.playWorkerAction(entity, 'act', 0.08);
+        if (entity.target) {
+          entity.root.rotation.y = Math.atan2(
+            entity.target.root.position.x - entity.root.position.x,
+            entity.target.root.position.z - entity.root.position.z,
+          );
+        }
         entity.phaseTimer -= delta;
         if (entity.phaseTimer <= 0) {
           const target = entity.target;
@@ -2027,11 +2144,14 @@ export class IlotaGame {
             return;
           }
           const capacity = getCargoCapacity(this.economy.progress);
+          const free = capacity - entity.cargo;
+          const cargoMultiplier = this.industrySurgeRemaining > 0 && target.kind === this.industrySurgeKind ? 2 : 1;
           const requested = Math.min(
-            capacity - entity.cargo,
+            Math.ceil(free / cargoMultiplier),
             getWorkerYield(state.level, this.economy.progress),
           );
-          entity.cargo += this.consumeResourceNode(target, requested, entity.id);
+          const gathered = this.consumeResourceNode(target, requested, entity.id);
+          entity.cargo += Math.min(free, gathered * cargoMultiplier);
           entity.cargoKind = target.kind;
           this.syncWorkerCargoVisuals(entity);
           if (entity.cargo <= 0) {
@@ -2066,10 +2186,10 @@ export class IlotaGame {
         if (entity.cargo > 0 && entity.root.position.distanceToSquared(entity.hub) <= 1.8 * 1.8) {
           if (entity.phaseTimer <= 0) {
             const origin = this.getCargoStackTop(entity.cargoRack);
-            const target = entity.hub.clone().setY(0.42);
+            const target = entity.depositTarget.clone().setY(0.52);
             entity.cargo -= 1;
             this.spawnCargoDrop(origin, target, entity.cargoKind, () => {
-              this.economy.add(entity.cargoKind, 1);
+              this.economy.add(entity.cargoKind, getWorkerDepositValue(this.economy.progress));
               this.ui.update(this.economy.progress);
               this.save();
             });
@@ -2101,14 +2221,17 @@ export class IlotaGame {
       this.industrySurgeCooldown = 2.5;
     } else if (this.industrySurgeRemaining > 0) {
       this.industrySurgeRemaining = Math.max(0, this.industrySurgeRemaining - delta);
-      if (this.industrySurgeRemaining <= 0) this.industrySurgeCooldown = 16;
-    } else {
+      if (this.industrySurgeRemaining <= 0) {
+        this.industrySurgeCooldown = 16;
+        this.explorationFlowCooldown = Math.max(this.explorationFlowCooldown, 2.5);
+      }
+    } else if (this.explorationFlowRemaining <= 0) {
       this.industrySurgeCooldown -= delta;
       if (this.industrySurgeCooldown <= 0) {
         this.industrySurgeKind = getPriorityShortage(progress);
         this.industrySurgeRemaining = 10;
         if (progress.powerNotifications) {
-          this.ui.toast(`Surcharge tellurique · la repousse de ${RESOURCE_LABELS[this.industrySurgeKind]} est doublée !`);
+          this.ui.toast(`Surcharge tellurique · chaque ${RESOURCE_LABELS[this.industrySurgeKind]} récolté compte double !`);
         }
       }
     }
@@ -2118,8 +2241,11 @@ export class IlotaGame {
       this.explorationFlowCooldown = 4;
     } else if (this.explorationFlowRemaining > 0) {
       this.explorationFlowRemaining = Math.max(0, this.explorationFlowRemaining - delta);
-      if (this.explorationFlowRemaining <= 0) this.explorationFlowCooldown = 18;
-    } else {
+      if (this.explorationFlowRemaining <= 0) {
+        this.explorationFlowCooldown = 18;
+        this.industrySurgeCooldown = Math.max(this.industrySurgeCooldown, 2.5);
+      }
+    } else if (this.industrySurgeRemaining <= 0) {
       const transportActive = getPlayerCargoTotal(progress) > 0
         || this.workers.some((worker) => worker.cargo > 0 || worker.phase === 'toHub');
       if (transportActive) this.explorationFlowCooldown -= delta;
@@ -2183,9 +2309,11 @@ export class IlotaGame {
       if (target.visible && near(target.position, entity.definition.radius + 1.15)) return { type: 'structure', entity };
     }
     for (const entity of this.projects) {
+      const hallBuilt = Boolean(this.economy.progress.projectHallsBuilt[entity.definition.islandIndex - 1]);
+      const target = hallBuilt ? entity.building : entity.pad;
       if (
-        entity.building.visible
-        && near(entity.building.position, entity.definition.radius + 1.15)
+        target.visible
+        && near(target.position, entity.definition.radius + 1.15)
       ) return { type: 'projects', entity };
     }
     for (const entity of this.bridges) {
@@ -2299,8 +2427,25 @@ export class IlotaGame {
       const { islandIndex, name } = interaction.entity.definition;
       const projects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
       const completed = projects.filter((project) => hasProject(this.economy.progress, project.id)).length;
+      const hallBuilt = Boolean(this.economy.progress.projectHallsBuilt[islandIndex - 1]);
+      const hallReady = isProjectHallReady(this.economy.progress, islandIndex);
       const unlocked = projects.some((project) => isProjectVisible(this.economy.progress, project));
       const requirement = projects[0]?.requiresStructure;
+      if (!hallBuilt) {
+        const hallCost = getProjectHallCost(this.economy.progress, islandIndex);
+        this.ui.setContext(
+          `${name} · fondations`,
+          hallReady ? 'BÂTIR' : 'VERROUILLÉ',
+          '⌂',
+          hallReady && this.economy.canAfford(hallCost),
+          hallReady
+            ? `${formatCost(hallCost)} · à construire après le bâtiment principal.`
+            : requirement
+              ? `${STRUCTURE_COPY[requirement].built} avant cette Maison.`
+              : 'Le bâtiment principal de l’île est requis.',
+        );
+        return;
+      }
       this.ui.setContext(
         `${name} · ${completed}/3`,
         unlocked ? 'CONSULTER' : 'FERMÉ',
@@ -2460,7 +2605,23 @@ export class IlotaGame {
       return;
     }
     if (this.interaction.type === 'projects') {
-      const { islandIndex } = this.interaction.entity.definition;
+      const entity = this.interaction.entity;
+      const { islandIndex } = entity.definition;
+      if (!this.economy.progress.projectHallsBuilt[islandIndex - 1]) {
+        const hallCost = getProjectHallCost(this.economy.progress, islandIndex);
+        if (this.economy.buildProjectHall(islandIndex)) {
+          entity.building.visible = true;
+          entity.pad.visible = false;
+          this.startBuildingAssembly(entity.building);
+          this.spawnParticles(entity.building.position.clone().setY(1.1), islandIndex >= 3 ? 'crystal' : islandIndex === 2 ? 'copper' : 'wood', 22);
+          this.ui.toast(`${entity.definition.name} construite · ses trois Travaux sont maintenant consultables.`);
+          this.feedback.play('build');
+          this.changed();
+        } else if (!isProjectHallReady(this.economy.progress, islandIndex)) {
+          this.ui.toast('Construis d’abord le bâtiment principal de cette île.');
+        } else this.showMissing(hallCost);
+        return;
+      }
       const projects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
       if (projects.some((project) => isProjectVisible(this.economy.progress, project))) {
         this.ui.showProjects(islandIndex);
@@ -2536,9 +2697,13 @@ export class IlotaGame {
       this.ui.toast('Dos plein · retourne à un dépôt pour décharger.');
       return;
     }
-    const requested = Math.min(free, getManualYield(this.economy.progress, node.kind));
+    const cargoMultiplier = this.industrySurgeRemaining > 0 && node.kind === this.industrySurgeKind ? 2 : 1;
+    const requested = Math.min(
+      Math.ceil(free / cargoMultiplier),
+      getManualYield(this.economy.progress, node.kind),
+    );
     const gathered = this.consumeResourceNode(node, requested);
-    const carried = this.economy.carryForPlayer(node.kind, gathered);
+    const carried = this.economy.carryForPlayer(node.kind, gathered * cargoMultiplier);
     if (carried <= 0) return;
     this.feedback.play('harvest');
     this.syncPlayerCargoVisuals();
@@ -2604,7 +2769,7 @@ export class IlotaGame {
     } else if (kind === 'crystal') {
       piece.scale.y = 1.3;
     }
-    piece.rotation.y = index * 1.17;
+    piece.rotation.y = kind === 'wood' ? 0 : index * 1.17;
     piece.castShadow = true;
     piece.userData.cargoPiece = true;
     piece.userData.cargoKind = kind;
@@ -2624,8 +2789,10 @@ export class IlotaGame {
       const position = getCargoPiecePosition(index);
       const sway = Math.sign(position.x);
       piece.position.set(position.x, position.y, position.z);
-      piece.rotation.x += sway * 0.045;
-      piece.rotation.y += index % 2 === 0 ? 0 : Math.PI / 2;
+      if (kind !== 'wood') {
+        piece.rotation.x += sway * 0.045;
+        piece.rotation.y += index % 2 === 0 ? 0 : Math.PI / 2;
+      }
       rack.add(piece);
     });
   }
@@ -2999,7 +3166,7 @@ export class IlotaGame {
     this.diagnostics.powerNotifications = progress.powerNotifications;
     this.diagnostics.powerVfx = progress.powerVfx;
     this.diagnostics.projects = getCompletedProjectCount(progress);
-    this.diagnostics.projectHalls = this.projects.length;
+    this.diagnostics.projectHalls = this.economy.progress.projectHallsBuilt.filter(Boolean).length;
     this.diagnostics.warehouses = progress.warehousesBuilt.filter(Boolean).length;
     this.diagnostics.playerCargo = getPlayerCargoTotal(progress);
     this.diagnostics.playerCargoStackHeight = this.playerCargoRack.children.length > 1
@@ -3033,6 +3200,10 @@ export class IlotaGame {
       routeChoices: worker.routeChoices,
       targetNode: worker.target?.id ?? '',
       targetIsland: worker.target?.islandIndex ?? -1,
+      targetDistance: worker.target
+        ? Number(worker.root.position.distanceTo(worker.target.root.position).toFixed(2))
+        : -1,
+      hubDistance: Number(worker.root.position.distanceTo(worker.hub).toFixed(2)),
       cargo: worker.cargo,
       cargoVisuals: worker.cargoRack.children.length,
       cargoStackHeight: worker.cargoRack.children.length > 1

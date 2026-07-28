@@ -143,9 +143,9 @@ qu’une seule fois, à la fin de l’animation.
   ressources dépensées ne peuvent pas rouvrir un objectif historique.
 - Garder le nombre de Savoirs visible dans le HUD avant même l’ouverture de
   l’Autel.
-- Placer l’Autel du Savoir sur l’île principale et n’afficher son chantier qu’après
-  l’accès au cristal. Sa construction exige simultanément 120 bois, 110 pierre,
-  90 cuivre et 70 cristal afin de créer un retour logistique majeur vers le foyer.
+- Placer l’Autel du Savoir sur l’île de Cristal et n’afficher son chantier qu’après
+  l’accès au cristal. Sa construction exige simultanément 78 bois, 68 pierre,
+  48 cuivre et 24 cristal afin de conserver une phase manuelle sans l’étirer.
 - Garantir au moins deux unités libres entre les volumes de tous les bâtiments
   d’une même île et une marge de 0,9 unité avec son rivage.
 - Réduire le HUD permanent à l’essentiel : une seule ligne de ressources, une

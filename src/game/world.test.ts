@@ -68,6 +68,19 @@ describe('implantation des bâtiments', () => {
 
   it('place l’Autel du Savoir comme bâtiment spécialisé de l’île de Cristal', () => {
     expect(BUILDING_PLACEMENTS.find((building) => building.id === 'structure:observatory'))
-      .toMatchObject({ islandIndex: 3, x: -4, z: -65 });
+      .toMatchObject({ islandIndex: 3, x: -1, z: -72.4 });
+  });
+
+  it('dessine trois pôles équilibrés autour de la place de chaque île spécialisée', () => {
+    [1, 2, 3].forEach((islandIndex) => {
+      const island = ISLANDS[islandIndex]!;
+      const buildings = BUILDING_PLACEMENTS.filter((building) => building.islandIndex === islandIndex);
+      expect(buildings).toHaveLength(3);
+      const centroid = buildings.reduce(
+        (point, building) => ({ x: point.x + building.x / 3, z: point.z + building.z / 3 }),
+        { x: 0, z: 0 },
+      );
+      expect(Math.hypot(centroid.x - island.x, centroid.z - island.z)).toBeLessThan(0.35);
+    });
   });
 });
