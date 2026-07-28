@@ -419,6 +419,33 @@ test('les harnais agrandis forment une pile compacte au-dessus du dos', async ({
   await page.screenshot({ path: 'test-results/ilota-vertical-cargo-stack.png' });
 });
 
+test('le Conseil itinérant ouvre métiers, recrutement et formations depuis le HUD', async ({ page }) => {
+  test.setTimeout(45_000);
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    workshopBuilt: true,
+    foundryBuilt: true,
+    observatoryBuilt: true,
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'wood', level: 1 }],
+    skills: ['remote_management'],
+  });
+  await waitForGame(page);
+  await expect(page.locator('#crew-button')).toBeVisible();
+  await page.locator('#crew-button').click();
+  await expect(page.getByRole('heading', { name: 'Dirige tes renards où que tu sois' })).toBeVisible();
+  await upgradeWorker(page, 'Milo');
+  await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(2);
+  await upgradeWorker(page, 'Milo');
+  await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(3);
+  await assignWorker(page, 'Milo', 'cristal');
+  await expect.poll(async () => (await diagnostics(page)).workerTasks).toBe('crystal');
+  await recruitUntil(page, 2);
+  await expect(page.locator('#crew-capacity')).toContainText('2 /');
+  await page.screenshot({ path: 'test-results/ilota-remote-council.png' });
+});
+
 test('le tutoriel neuf explique la nurserie puis le panneau d’objectifs', async ({ page }) => {
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -925,6 +952,7 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await expect(page.locator('#power-vfx-label')).toContainText('SURCHARGE');
   expect(await page.locator('.power-edge').evaluateAll((edges) =>
     edges.map((edge) => Math.sign(new DOMMatrix(getComputedStyle(edge).transform).a)))).toEqual([1, -1]);
+  await expect(page.locator('.power-edge').first()).toHaveCSS('background-image', /lightning\.png/);
   await page.screenshot({ path: 'test-results/ilota-industry-surge.png' });
 
   await openTalents(page);
@@ -941,6 +969,7 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await expect(page.locator('#power-vfx-label')).toContainText('COURANT DE MARÉE');
   expect(await page.locator('.power-edge').evaluateAll((edges) =>
     edges.map((edge) => Math.sign(new DOMMatrix(getComputedStyle(edge).transform).a)))).toEqual([1, -1]);
+  await expect(page.locator('.power-edge').first()).toHaveCSS('background-image', /tide\.png/);
 });
 
 test('la Conscience absolue réserve les filons et évite les départs inutiles en groupe', async ({ page }) => {

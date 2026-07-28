@@ -44,9 +44,11 @@ export type SkillId =
   | 'tidal_memory'
   | 'far_horizons'
   | 'ocean_legacy'
+  | 'tidal_inheritance'
   | 'logistics_network'
   | 'adaptive_harvest'
   | 'scouting_parties'
+  | 'remote_management'
   | 'archipelago_consciousness';
 
 export interface Cost {
@@ -277,8 +279,10 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
 
   { id: 'collective_intelligence', branch: 'intelligence', tier: 7, cost: 10, name: 'Esprit collectif', detail: 'Sommet Intelligence : deux réaffectations possibles toutes les 3 secondes.', icon: '♜', x: 300, y: 1040, requires: ['auto_regulation', 'logistics_network'] },
   { id: 'endless_engine', branch: 'industry', tier: 7, cost: 10, name: 'Surcharge tellurique', detail: 'Sommet Technique : active des phases électriques qui accélèrent de 100 % la repousse de la ressource prioritaire.', icon: 'ϟ', x: 505, y: 1040, requires: ['master_builders', 'adaptive_harvest'] },
-  { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Courant de Marée', detail: 'Sommet Exploration : active des élans qui doublent la vitesse des cargaisons et conserve 35 % des stocks à la prochaine Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
-  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 8, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : réserve intelligemment chaque filon, évite les trajets excédentaires, ajoute 4 postes et synchronise les trois pouvoirs.', icon: '✺', x: 580, y: 1180, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
+  { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Courant de Marée', detail: 'Sommet Exploration : double pendant 10 s la vitesse des renards qui portent une cargaison et conserve 5 % des stocks à la prochaine Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
+  { id: 'remote_management', branch: 'hybrid', tier: 8, cost: 24, name: 'Conseil itinérant', detail: 'Liaison des trois voies : ouvre l’onglet ÉQUIPE partout et autorise recrutement, métiers et formations sans revenir aux bâtiments.', icon: '♟', x: 265, y: 1210, requires: ['coordinated_shifts', 'expanded_roster', 'tidal_memory'] },
+  { id: 'tidal_inheritance', branch: 'exploration', tier: 8, cost: 10, rankCosts: [10, 16, 24], maxRank: 3, name: 'Héritage des courants', detail: '+5 % de stocks conservés par rang à la prochaine Marée (5 % → 20 %).', icon: '+5', x: 940, y: 1210, requires: ['ocean_legacy'] },
+  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 9, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : réserve intelligemment chaque filon, évite les trajets excédentaires, ajoute 4 postes et synchronise les trois pouvoirs.', icon: '✺', x: 580, y: 1400, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
 ];
 
 const SKILL_IDS = new Set<SkillId>(SKILL_DEFINITIONS.map((skill) => skill.id));
@@ -658,6 +662,12 @@ export const getPlayerSpeed = (progress: IslandProgress): number =>
   * (hasSkill(progress, 'tide_stride') ? 1.2 : 1)
   * (hasSkill(progress, 'far_horizons') ? 1.15 : 1)
   * (hasSkill(progress, 'archipelago_consciousness') ? 1.2 : 1);
+export const getPlayerFlowMultiplier = (progress: IslandProgress, flowActive: boolean): number =>
+  flowActive && getPlayerCargoTotal(progress) > 0 ? 2 : 1;
+export const getTidalRetentionRate = (progress: IslandProgress): number =>
+  hasSkill(progress, 'ocean_legacy')
+    ? 0.05 + getSkillRank(progress, 'tidal_inheritance') * 0.05
+    : 0;
 export const getManualYield = (progress: IslandProgress, kind?: ResourceKind): number =>
   (hasSkill(progress, 'sharp_tools') ? 2 : 1)
   + (hasProject(progress, 'communal_sawmill') ? 1 : 0)
@@ -1301,7 +1311,7 @@ export class Economy {
       next.copper = Math.max(0, rebirths - 1) * 2;
     }
     if (skills.includes('ocean_legacy')) {
-      const retainedRatio = skills.includes('archipelago_consciousness') ? 0.55 : 0.35;
+      const retainedRatio = getTidalRetentionRate(this.progress);
       RESOURCE_KINDS.forEach((kind) => {
         next[kind] = Math.max(next[kind], Math.floor(previousStocks[kind] * retainedRatio));
       });

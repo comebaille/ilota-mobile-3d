@@ -19,6 +19,7 @@ import {
   getIslandGoal,
   getManualYield,
   getPlayerSpeed,
+  getPlayerFlowMultiplier,
   getPlayerCargoTotal,
   getPriorityShortage,
   getProjectCost,
@@ -29,6 +30,7 @@ import {
   getSkillRank,
   getStructureCost,
   getTotalWorkerLevels,
+  getTidalRetentionRate,
   getUpgradeCost,
   getWarehouseCost,
   getWorkerCapacity,
@@ -608,6 +610,10 @@ export class IlotaGame {
             ? `Harnais modulaires rang ${getSkillRank(this.economy.progress, skill)} · capacité ${getCargoCapacity(this.economy.progress)}.`
             : skill === 'full_loads'
               ? 'Tournées complètes · les renards attendent désormais d’avoir le dos plein.'
+              : skill === 'remote_management'
+                ? 'Conseil itinérant · l’onglet ÉQUIPE est maintenant accessible partout.'
+                : skill === 'tidal_inheritance'
+                  ? `Héritage des courants rang ${getSkillRank(this.economy.progress, skill)} · ${Math.round(getTidalRetentionRate(this.economy.progress) * 100)} % conservés.`
         : skill === 'awakening'
           ? 'Le Savoir s’éveille · trois voies viennent d’apparaître.'
           : 'Nouveau savoir acquis · la constellation s’étend.';
@@ -694,7 +700,7 @@ export class IlotaGame {
   }
 
   private recruitWorker(): void {
-    if (this.ui.activeCrewMode !== 'nursery') {
+    if (this.ui.activeCrewMode !== 'nursery' && this.ui.activeCrewMode !== 'remote') {
       this.ui.toast('Le recrutement se fait uniquement dans la nurserie centrale.');
       return;
     }
@@ -716,7 +722,7 @@ export class IlotaGame {
   }
 
   private assignWorker(workerId: string, task: ResourceKind): void {
-    if (this.ui.activeCrewMode !== 'nursery') {
+    if (this.ui.activeCrewMode !== 'nursery' && this.ui.activeCrewMode !== 'remote') {
       this.ui.toast('Les métiers se gèrent depuis la nurserie centrale.');
       return;
     }
@@ -732,7 +738,9 @@ export class IlotaGame {
     const before = this.economy.progress.workers.find((worker) => worker.id === workerId);
     if (!before) return;
     const requiredMode = before.level === 1 ? 'workshop' : 'foundry';
-    if (this.ui.activeCrewMode !== requiredMode) {
+    const remoteTraining = this.ui.activeCrewMode === 'remote'
+      && hasSkill(this.economy.progress, 'remote_management');
+    if (this.ui.activeCrewMode !== requiredMode && !remoteTraining) {
       this.ui.toast(before.level === 1
         ? 'Va dans l’Atelier des Pins pour atteindre le niveau 2.'
         : 'Va dans la Fonderie Cuivrée pour atteindre le niveau 3.');
@@ -1879,7 +1887,10 @@ export class IlotaGame {
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const direction = right.multiplyScalar(move.x).add(forward.multiplyScalar(move.y)).normalize();
     this.lastMoveDirection.copy(direction);
-    const flowMultiplier = this.explorationFlowRemaining > 0 ? 2 : 1;
+    const flowMultiplier = getPlayerFlowMultiplier(
+      this.economy.progress,
+      this.explorationFlowRemaining > 0,
+    );
     const candidate = this.player.position.clone().addScaledVector(
       direction,
       getPlayerSpeed(this.economy.progress) * flowMultiplier * magnitude * delta,

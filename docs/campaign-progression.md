@@ -6,7 +6,7 @@
 - Boucle principale : récolter, choisir le prochain investissement, construire, recruter, affecter et améliorer les travailleurs, puis spécialiser durablement l’archipel dans une branche de talents.
 - Durée cible de la première Marée : 45 à 75 minutes selon la part de récolte manuelle, l’ordre des Grands Travaux et la qualité des affectations.
 - Durée cible des Marées suivantes : 35 à 60 minutes chacune, avec davantage de coûts mais des talents permanents et un départ accélérable.
-- Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 28 nœuds (245 Savoir pour tout maximiser).
+- Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 30 nœuds (319 Savoir pour tout maximiser).
 - État initial : un renard, deux ressources, un kit de dépôt gratuit à assembler et aucun talent.
 - Conclusion d’une Marée : achever douze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
 - Conclusion méta : aucune fin forcée ; chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée.
@@ -32,8 +32,8 @@ L’arbre commence par l’hexagone gratuit **Démarrer**. Il révèle trois por
 |---|---|---|---|---|
 | Intelligence | Vitesse et vrais plus courts chemins | Prévisions et relèves coordonnées | Auto-régulation des métiers | Esprit collectif : deux changements toutes les 3 s |
 | Technique | Récolte manuelle et cargaisons | Régénération et effectif répétable | Maîtres bâtisseurs | Surcharge tellurique activable : repousse prioritaire +100 % pendant 10 s |
-| Exploration | Vitesse joueur et caches | Coûts et mémoire de départ | Horizon lointain | Courant de Marée activable : cargaisons deux fois plus rapides pendant 10 s et 35 % des stocks conservés |
-| Hybrides | Réseau logistique | Récolte adaptative et éclaireurs | Connexions entre voies | Conscience absolue : réservation des filons, +4 postes, bonus généraux, héritage 55 % et synchronisation des trois voies |
+| Exploration | Vitesse joueur et caches | Coûts et mémoire de départ | Horizon lointain | Courant de Marée : renards chargés deux fois plus rapides pendant 10 s, 5 % des stocks conservés puis jusqu’à 20 % par rangs coûteux |
+| Hybrides | Réseau logistique | Récolte adaptative et éclaireurs | Connexions entre voies | Conseil itinérant optionnel pour gérer l’équipe partout ; Conscience absolue pour la réservation, +4 postes, bonus généraux et synchronisation |
 
 **Cercle des bâtisseurs** possède cinq rangs : chaque rang ajoute un poste permanent, mais coûte successivement 3, 5, 8, 12 puis 17 Savoir. La Réserve de charpente ajoute un poste et Conscience absolue en ajoute quatre : la capacité maximale passe de 9 à 19 travailleurs.
 
@@ -44,8 +44,8 @@ La Nouvelle Marée :
 - accorde 3 à 6 Savoir supplémentaires selon le nombre de Marées déjà franchies ;
 - augmente les exigences de 22 % par Marée, jusqu’à un plafond ;
 - donne une réserve initiale croissante si Mémoire des marées est acquise.
-- conserve 35 % des quatre stocks si Courant de Marée est acquis.
-- porte cette conservation à 55 % si Conscience absolue est acquise.
+- conserve 5 % des quatre stocks si Courant de Marée est acquis ;
+- porte cette conservation à 10, 15 puis 20 % via les trois rangs coûteux d’Héritage des courants ;
 - débloque un nouveau dépôt local par cycle terminé : Pins à la Marée 2, Cuivrée à la 3, Cristal à la 4 et Couronne à la 5.
 - se joue dans une cinématique où les îles s’enfoncent de la dernière à la première, les ponts cèdent et le héros ressort de la nurserie centrale.
 

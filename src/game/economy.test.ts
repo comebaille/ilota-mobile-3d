@@ -11,13 +11,16 @@ import {
   getCycleMultiplier,
   getIslandGoal,
   getPlayerCargoTotal,
+  getPlayerFlowMultiplier,
   getPlayerSpeed,
   getSkillRank,
   getStructureCost,
   getTotalWorkerLevels,
+  getTidalRetentionRate,
   getWorkerCapacity,
   getWorkerYield,
   getWarehouseCost,
+  hasSkill,
   isProjectVisible,
   isSkillVisible,
   isWarehouseUnlocked,
@@ -409,7 +412,7 @@ describe('Economy v7', () => {
       crystal: 40,
     });
     legacy.rebirth();
-    expect(legacy.progress).toMatchObject({ wood: 35, stone: 28, copper: 21, crystal: 14 });
+    expect(legacy.progress).toMatchObject({ wood: 16, stone: 11, copper: 3, crystal: 2 });
     expect(legacy.setExplorationFlow(true)).toBe(true);
   });
 
@@ -445,7 +448,48 @@ describe('Economy v7', () => {
 
     economy.progress.completed = true;
     economy.rebirth();
-    expect(economy.progress).toMatchObject({ wood: 55, stone: 44, copper: 33, crystal: 22 });
+    expect(economy.progress).toMatchObject({ wood: 16, stone: 11, copper: 3, crystal: 2 });
+  });
+
+  it('ne double la vitesse du joueur sous Courant de Marée que lorsqu’il porte une cargaison', () => {
+    const economy = new Economy({ skills: ['ocean_legacy'] });
+    expect(getPlayerFlowMultiplier(economy.progress, true)).toBe(1);
+    economy.carryForPlayer('wood', 1);
+    expect(getPlayerFlowMultiplier(economy.progress, false)).toBe(1);
+    expect(getPlayerFlowMultiplier(economy.progress, true)).toBe(2);
+  });
+
+  it('fait progresser l’héritage de Marée de 5 à 20 % sans dépasser le plafond', () => {
+    const economy = new Economy({ knowledge: 100, skills: ['ocean_legacy'] });
+    expect(getTidalRetentionRate(economy.progress)).toBeCloseTo(0.05);
+    for (const expected of [0.1, 0.15, 0.2]) {
+      expect(economy.unlockSkill('tidal_inheritance')).toBe(true);
+      expect(getTidalRetentionRate(economy.progress)).toBeCloseTo(expected);
+    }
+    expect(economy.unlockSkill('tidal_inheritance')).toBe(false);
+    economy.progress.completed = true;
+    Object.assign(economy.progress, { wood: 100, stone: 80, copper: 60, crystal: 40 });
+    economy.rebirth();
+    expect(economy.progress).toMatchObject({ wood: 20, stone: 16, copper: 12, crystal: 8 });
+  });
+
+  it('garde le Conseil itinérant séparé des sommets et exige un palier dans les trois voies', () => {
+    const definition = SKILL_DEFINITIONS.find((skill) => skill.id === 'remote_management')!;
+    const incomplete = new Economy({
+      knowledge: 100,
+      skills: ['coordinated_shifts', 'expanded_roster'],
+    });
+    expect(isSkillVisible(incomplete.progress, definition)).toBe(false);
+    const ready = new Economy({
+      knowledge: 24,
+      skills: ['coordinated_shifts', 'expanded_roster', 'tidal_memory'],
+    });
+    expect(isSkillVisible(ready.progress, definition)).toBe(true);
+    expect(ready.unlockSkill('remote_management')).toBe(true);
+    expect(ready.progress.knowledge).toBe(0);
+    expect(hasSkill(ready.progress, 'collective_intelligence')).toBe(false);
+    expect(hasSkill(ready.progress, 'endless_engine')).toBe(false);
+    expect(hasSkill(ready.progress, 'ocean_legacy')).toBe(false);
   });
 
   it('conserve les talents et le Savoir lors d’une Nouvelle Marée', () => {

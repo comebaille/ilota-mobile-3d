@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v11-crystal-knowledge';
+const CACHE = 'ilota-v12-tidal-council';
 const CORE = [
   './',
   './index.html',
@@ -43,7 +43,10 @@ const CORE = [
   './assets/third-party/kaykit-buildings/building_well_blue.bin',
   './assets/third-party/kaykit-buildings/building_tower_B_yellow.gltf',
   './assets/third-party/kaykit-buildings/building_tower_B_yellow.bin',
-  './assets/third-party/kaykit-buildings/hexagons_medieval.png'
+  './assets/third-party/kaykit-buildings/hexagons_medieval.png',
+  './assets/third-party/kenney-particles/lightning.png',
+  './assets/third-party/kenney-particles/tide.png',
+  './assets/third-party/kenney-particles/convergence.png',
 ];
 
 self.addEventListener('install', (event) => {

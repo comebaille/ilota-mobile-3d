@@ -70,7 +70,10 @@ interface MenuHandlers {
   onReset: () => void;
 }
 
-export type CrewMode = 'nursery' | 'workshop' | 'foundry';
+export type CrewMode = 'nursery' | 'workshop' | 'foundry' | 'remote';
+
+const SKILL_MAP_WIDTH = 1160;
+const SKILL_MAP_HEIGHT = 1500;
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -237,6 +240,13 @@ export class GameUI {
   private lastLevelUpKey = '';
 
   constructor() {
+    const vfxBase = new URL(
+      `${import.meta.env.BASE_URL}assets/third-party/kenney-particles/`,
+      window.location.href,
+    ).href.replace(/\/$/, '');
+    document.documentElement.style.setProperty('--vfx-lightning', `url("${vfxBase}/lightning.png")`);
+    document.documentElement.style.setProperty('--vfx-tide', `url("${vfxBase}/tide.png")`);
+    document.documentElement.style.setProperty('--vfx-convergence', `url("${vfxBase}/convergence.png")`);
     window.addEventListener('beforeinstallprompt', (event) => {
       event.preventDefault();
       this.installPrompt = event as InstallPrompt;
@@ -250,7 +260,9 @@ export class GameUI {
       this.installButton.hidden = true;
     });
 
-    this.crewButton.addEventListener('click', () => this.showCrew('nursery'));
+    this.crewButton.addEventListener('click', () => this.showCrew(
+      this.latestProgress && hasSkill(this.latestProgress, 'remote_management') ? 'remote' : 'nursery',
+    ));
     this.crewCloseButton.addEventListener('click', () => this.hideCrew());
     this.crewPanel.addEventListener('pointerdown', (event) => {
       if (event.target === this.crewPanel) this.hideCrew();
@@ -459,6 +471,7 @@ export class GameUI {
 
   showCrew(mode: CrewMode = 'nursery'): void {
     if (!this.latestProgress?.campBuilt) return;
+    if (mode === 'remote' && !hasSkill(this.latestProgress, 'remote_management')) return;
     if (mode === 'workshop' && !this.latestProgress.workshopBuilt) return;
     if (mode === 'foundry' && !this.latestProgress.foundryBuilt) return;
     this.crewMode = mode;
@@ -664,7 +677,7 @@ export class GameUI {
     this.objectiveDetail.textContent = objective.detail;
 
     const capacity = getWorkerCapacity(progress);
-    this.crewButton.hidden = true;
+    this.crewButton.hidden = !progress.campBuilt || !hasSkill(progress, 'remote_management');
     this.crewButtonCount.textContent = `${progress.workers.length}/${capacity}`;
     this.crewButton.setAttribute('aria-label', `Gérer l’équipe, ${progress.workers.length} travailleurs sur ${capacity}`);
     const completedProjects = getCompletedProjectCount(progress);
@@ -685,25 +698,29 @@ export class GameUI {
     const levelCap = getWorkerLevelCap(progress);
     const unlockedTasks = getUnlockedWorkerTasks(progress);
     const nursery = this.crewMode === 'nursery';
+    const remote = this.crewMode === 'remote';
+    const rosterManagement = nursery || remote;
     const workshop = this.crewMode === 'workshop';
     this.crewPanel.dataset.mode = this.crewMode;
-    this.crewKicker.textContent = nursery
-      ? 'NURSERIE DE L’ÎLOT CENTRAL'
+    this.crewKicker.textContent = rosterManagement
+      ? remote ? 'CONSEIL ITINÉRANT · LIAISON DES TROIS VOIES' : 'NURSERIE DE L’ÎLOT CENTRAL'
       : workshop ? 'ATELIER DES PINS · FORMATION' : 'FONDERIE CUIVRÉE · MAÎTRISE';
-    this.crewTitle.textContent = nursery
-      ? 'Recrute et place tes renards'
+    this.crewTitle.textContent = rosterManagement
+      ? remote ? 'Dirige tes renards où que tu sois' : 'Recrute et place tes renards'
       : workshop ? 'Former au niveau 2' : 'Former au niveau 3';
     let selectedWorker = progress.workers.find((worker) => worker.id === this.selectedWorkerId);
     if (!selectedWorker && progress.workers[0]) {
       this.selectedWorkerId = progress.workers[0].id;
       selectedWorker = progress.workers[0];
     } else if (this.selectedWorkerId && !selectedWorker) this.selectedWorkerId = null;
-    this.crewCapacity.textContent = nursery
+    this.crewCapacity.textContent = rosterManagement
       ? `${progress.workers.length} / ${capacity} renards disponibles`
       : `${progress.workers.filter((worker) => workshop ? worker.level >= 2 : worker.level >= 3).length} formés · cible niveau ${workshop ? 2 : 3}`;
-    this.crewHelp.textContent = nursery
+    this.crewHelp.textContent = rosterManagement
       ? selectedWorker
-        ? `${selectedWorker.name} · choisis son métier. Niveau 2 : atelier · niveau 3 : fonderie.`
+        ? remote
+          ? `${selectedWorker.name} · métier et formation à distance débloqués.`
+          : `${selectedWorker.name} · choisis son métier. Niveau 2 : atelier · niveau 3 : fonderie.`
         : progress.autoRegulation
           ? `Auto-régulation active · priorité actuelle : ${RESOURCE_LABELS[getPriorityShortage(progress)]}.`
           : '1. Choisis un renard · 2. Touche un métier.'
@@ -714,12 +731,12 @@ export class GameUI {
     const recruitCost = getRecruitCost(progress);
     this.recruitCost.textContent = progress.workers.length >= capacity ? 'CAPACITÉ ATTEINTE' : formatCost(recruitCost);
     this.recruitButton.disabled = progress.workers.length >= capacity || !canAfford(progress, recruitCost);
-    this.crewFooter.hidden = !nursery;
-    this.jobDocks.hidden = !nursery;
+    this.crewFooter.hidden = !rosterManagement;
+    this.jobDocks.hidden = !rosterManagement;
 
     const accessibleIslandCount = Math.min(ISLANDS.length, progress.bridgesBuilt.filter(Boolean).length + 1);
     this.jobDocks.replaceChildren();
-    if (nursery) RESOURCE_KINDS.forEach((task) => {
+    if (rosterManagement) RESOURCE_KINDS.forEach((task) => {
       const assigned = progress.workers.filter((worker) => worker.task === task).length;
       const enabled = unlockedTasks.includes(task);
       const accessibleProfiles = RESOURCE_SPAWN_PROFILES.slice(0, accessibleIslandCount);
@@ -971,8 +988,8 @@ export class GameUI {
       : 'Touche un hexagone pour lire son pouvoir · pince à deux doigts pour zoomer.';
     this.talentKicker.textContent = `${visibleSkills.length}/${SKILL_DEFINITIONS.length} HEXAGONES DÉCOUVERTS · FUTUR MASQUÉ`;
     const stage = element('div', 'skill-map-stage');
-    stage.style.width = `${1160 * this.skillZoom}px`;
-    stage.style.height = `${1250 * this.skillZoom}px`;
+    stage.style.width = `${SKILL_MAP_WIDTH * this.skillZoom}px`;
+    stage.style.height = `${SKILL_MAP_HEIGHT * this.skillZoom}px`;
     const canvas = element('div', 'skill-map-canvas');
     canvas.setAttribute('role', 'group');
     canvas.setAttribute('aria-label', 'Constellation des savoirs');
@@ -980,7 +997,7 @@ export class GameUI {
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('skill-links');
-    svg.setAttribute('viewBox', '0 0 1160 1250');
+    svg.setAttribute('viewBox', `0 0 ${SKILL_MAP_WIDTH} ${SKILL_MAP_HEIGHT}`);
     svg.setAttribute('aria-hidden', 'true');
     visibleSkills.forEach((definition) => {
       definition.requires?.forEach((requiredId) => {
@@ -1149,8 +1166,8 @@ export class GameUI {
     const stage = this.skillBranches.querySelector<HTMLElement>('.skill-map-stage');
     const canvas = this.skillBranches.querySelector<HTMLElement>('.skill-map-canvas');
     if (stage && canvas) {
-      stage.style.width = `${1160 * next}px`;
-      stage.style.height = `${1250 * next}px`;
+      stage.style.width = `${SKILL_MAP_WIDTH * next}px`;
+      stage.style.height = `${SKILL_MAP_HEIGHT * next}px`;
       canvas.style.transform = `scale(${next})`;
       window.requestAnimationFrame(() => {
         this.skillBranches.scrollLeft = Math.max(0, contentX * next - anchorX);

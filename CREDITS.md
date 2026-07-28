@@ -34,6 +34,16 @@ La direction artistique associe un archipel low-poly vert mousse et ocre à des 
 
 Les notices et liens de provenance détaillés sont conservés à côté des fichiers dans `public/assets/third-party/`.
 
+## Effets des pouvoirs
+
+- Asset : sélection du **Particle Pack**
+- Auteur : **Kenney**
+- Source officielle : https://www.kenney.nl/assets/particle-pack
+- Licence : **CC0 1.0 Universal**
+- Fichiers : `lightning.png`, `tide.png`, `convergence.png`
+- Usage : éclairs ramifiés de la Surcharge tellurique, vortex du Courant de
+  Marée et lueur de convergence lorsque plusieurs pouvoirs se synchronisent.
+
 ## Créations originales
 
 Le monde, les plateformes fonctionnelles, les ponts, la balise, les effets, l’interface et l’icône d’Ilota ont été créés spécialement pour ce projet.
