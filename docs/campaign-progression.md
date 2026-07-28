@@ -6,7 +6,7 @@
 - Boucle principale : récolter, choisir le prochain investissement, construire, recruter, affecter et améliorer les travailleurs, puis spécialiser durablement l’archipel dans une branche de talents.
 - Durée cible de la première Marée : 45 à 75 minutes selon la part de récolte manuelle, l’ordre des Grands Travaux et la qualité des affectations.
 - Durée cible des Marées suivantes : 35 à 60 minutes chacune, avec davantage de coûts mais des talents permanents et un départ accélérable.
-- Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 26 nœuds (185 Savoir pour tout maximiser).
+- Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 28 nœuds (245 Savoir pour tout maximiser).
 - État initial : un renard, deux ressources, un kit de dépôt gratuit à assembler et aucun talent.
 - Conclusion d’une Marée : achever douze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
 - Conclusion méta : aucune fin forcée ; chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée.
@@ -19,7 +19,7 @@
 | 1. Camp des Marées | jouable | 8–12 min | Dépôt, nurserie, 2 travailleurs, pont des Pins | Cargaison visible, déchargement, recrutement et affectation bois/pierre | Récolte manuelle | Capacité 3 | Premier pont puis émergence | Accès aux Pins |
 | 2. Atelier des Pins | jouable | 10–15 min | Atelier, équipe de 4, niveau 2 et 3 travaux | Première infrastructure durable | Affectations et vrais trajets | Capacité 5 puis +1 | Pont cuivré | Accès au cuivre |
 | 3. Île Cuivrée | jouable | 10–16 min | Fonderie, cuivrier, équipe de 5 et 6 travaux cumulés | Troisième ressource et industrie | Arbitrage stocks / coûts | Capacité 7, niveau 3 | Pont des Cristaux | Accès au cristal |
-| 4. Retour à l’Autel | jouable | 12–18 min | Cristallier, 9 travaux, puis retour au centre avec 120 bois, 110 pierre, 90 cuivre et 70 cristal | Quatrième ressource et grand chantier central | Tous les systèmes précédents et la logistique inter-îles | Capacité 9, métier cristal et arbre physique | Construction de l’Autel puis pont de la Couronne | Accès au Cœur |
+| 4. Autel de Cristal | jouable | 12–18 min | Cristallier, 9 travaux, puis Autel local avec 120 bois, 110 pierre, 90 cuivre et 70 cristal | Quatrième ressource et bâtiment spécialisé | Tous les systèmes précédents et la logistique inter-îles | Capacité 9, métier cristal et arbre physique | Construction de l’Autel puis pont de la Couronne | Accès au Cœur |
 | 5. Cœur de l’Archipel | jouable | 10–16 min | 8 travailleurs, 4 métiers, 12 niveaux, 12 travaux et offrande | Réseau final de l’archipel | Économie et logistique combinées | +5 Savoir des travaux, puis +2 du Cœur | Éveil du Cœur | Mode libre ou rebirth |
 
 ## Méta-progression persistante
@@ -144,7 +144,7 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur achève les douze Grands Travaux depuis les quatre Maisons physiques, une par île, avant d’autoriser le Cœur.
 - Un test navigateur ouvre une Maison sur un écran de 568 × 320, vérifie que ses trois cartes restent simultanément lisibles et interdit tout achat fantôme au relâchement du toucher.
 - Des tests de géométrie imposent une marge intérieure aux îles et au moins deux unités libres entre les volumes de tous les bâtiments d’une même île.
-- Un test navigateur rapporte les quatre grandes réserves sur l’île principale, y construit l’Autel pour exactement 120 bois, 110 pierre, 90 cuivre et 70 cristal, puis ouvre l’arbre.
+- Un test navigateur traverse les trois ponts, construit l’Autel sur l’île de Cristal pour exactement 120 bois, 110 pierre, 90 cuivre et 70 cristal, puis ouvre l’arbre.
 - Un test navigateur vérifie que le HUD paysage reste compact et que la liste complète des objectifs ne s’affiche qu’après une demande du joueur.
 - Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
@@ -155,4 +155,6 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur confirme que trois maîtres mineurs dotés de Conscience absolue réservent trois filons distincts.
 - Un test navigateur déclenche la Nouvelle Marée, observe la phase cinématique, puis vérifie la persistance du Savoir et des talents après rechargement.
 - Un test navigateur confirme qu’un pont déjà payé clôt définitivement l’objectif de son ancienne île, même lorsque les réserves ont été dépensées.
-- Un test navigateur vérifie que seize unités forment une pile verticale au-dessus du renard et que le Savoir reste visible avant l’Autel.
+- Un test navigateur vérifie qu’un harnais amélioré porte seize unités dans une pile compacte au-dessus du renard et que le Savoir reste visible avant l’Autel.
+- La cargaison commence à 8 places. Les six rangs de **Harnais modulaires** ajoutent chacun 4 places jusqu’à 32, pour le joueur comme pour les travailleurs.
+- **Tournées complètes** croise Intelligence et Technique : une fois débloqué, un renard enchaîne les filons jusqu’à remplir sa capacité avant de rentrer au dépôt.

@@ -2278,6 +2278,21 @@ button:focus-visible {
   background: rgba(243, 186, 88, 0.18);
 }
 
+.feedback-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.feedback-settings .menu-choice[aria-pressed="false"] {
+  opacity: 0.62;
+  filter: saturate(0.35);
+}
+
+@media (max-width: 540px) {
+  .feedback-settings { grid-template-columns: 1fr; }
+}
+
 .menu-danger {
   min-height: 44px;
   padding: 7px 10px;
@@ -2741,10 +2756,11 @@ button:focus-visible {
   bottom: -5%;
   width: 12vw;
   opacity: 0;
+  --edge-direction: 1;
 }
 
 .power-edge.left { left: -2vw; }
-.power-edge.right { right: -2vw; transform: scaleX(-1); }
+.power-edge.right { right: -2vw; --edge-direction: -1; transform: scaleX(-1); }
 
 .power-vfx.industry-active {
   color: #ffd45c;
@@ -2775,11 +2791,13 @@ button:focus-visible {
 }
 
 @keyframes electric-edge {
-  50% { filter: drop-shadow(0 0 12px #ffe995) brightness(1.35); transform: translateY(4px); }
+  0%, 100% { transform: scaleX(var(--edge-direction)) translateY(0); }
+  50% { filter: drop-shadow(0 0 12px #ffe995) brightness(1.35); transform: scaleX(var(--edge-direction)) translateY(4px); }
 }
 
 @keyframes tide-edge {
-  to { opacity: 0.9; transform: translateX(5px) scaleY(1.04); }
+  from { transform: scaleX(var(--edge-direction)) translateX(0) scaleY(1); }
+  to { opacity: 0.9; transform: scaleX(var(--edge-direction)) translateX(5px) scaleY(1.04); }
 }
 
 @media (max-height: 350px) {

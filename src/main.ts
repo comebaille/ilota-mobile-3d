@@ -1,6 +1,7 @@
 import './styles.css';
 import { AssetLibrary } from './game/assets';
 import { IlotaGame, restoreEconomy } from './game/IlotaGame';
+import { FeedbackController } from './game/feedback';
 import { GameUI } from './ui/GameUI';
 
 interface IlotaWindow extends Window {
@@ -83,10 +84,12 @@ const launch = async (): Promise<void> => {
   const ui = new GameUI();
   const economy = restoreEconomy();
   const assets = new AssetLibrary();
+  const feedback = new FeedbackController();
+  ui.updateFeedbackSettings(feedback.soundEnabled, feedback.hapticsEnabled);
 
   try {
     await assets.load((progress, label) => ui.setLoading(progress, label));
-    const game = new IlotaGame(canvas, assets, economy, ui);
+    const game = new IlotaGame(canvas, assets, economy, ui, feedback);
     (window as IlotaWindow).__ILOTA__ = game.diagnostics;
 
     if (
@@ -99,8 +102,20 @@ const launch = async (): Promise<void> => {
     }
 
     ui.startButton.addEventListener('click', () => {
+      void feedback.unlock();
+      feedback.play('ui');
       ui.start();
       game.start();
+    });
+    ui.soundToggleButton.addEventListener('click', () => {
+      const enabled = !feedback.soundEnabled;
+      feedback.setSoundEnabled(enabled);
+      if (enabled) feedback.play('ui');
+      ui.updateFeedbackSettings(feedback.soundEnabled, feedback.hapticsEnabled);
+    });
+    ui.hapticsToggleButton.addEventListener('click', () => {
+      feedback.setHapticsEnabled(!feedback.hapticsEnabled);
+      ui.updateFeedbackSettings(feedback.soundEnabled, feedback.hapticsEnabled);
     });
     ui.continueButton.addEventListener('click', () => game.continueAfterVictory());
     let rebirthArmed = false;

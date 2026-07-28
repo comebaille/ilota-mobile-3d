@@ -157,8 +157,8 @@ export const STRUCTURES: readonly StructureDefinition[] = [
   { kind: 'workshop', name: 'Atelier des Pins', x: -1, z: -27, radius: 1.65, color: 0xe29449 },
   { kind: 'foundry', name: 'Fonderie Cuivrée', x: 16, z: -47, radius: 1.75, color: 0xd47743 },
   // Le Savoir est ramené au foyer : après avoir découvert le cristal, le
-  // joueur doit revenir sur l'îlot principal pour financer son grand Autel.
-  { kind: 'observatory', name: 'Autel du Savoir', x: 5.2, z: -4.6, radius: 1.75, color: 0xb9afe9 },
+  // L’île de Cristal reçoit son bâtiment spécialisé : le grand Autel.
+  { kind: 'observatory', name: 'Autel du Savoir', x: -4, z: -65, radius: 1.75, color: 0xb9afe9 },
 ];
 
 export const WAREHOUSES: readonly WarehouseDefinition[] = [

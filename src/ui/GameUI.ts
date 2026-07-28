@@ -2,12 +2,12 @@ import {
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
-  PLAYER_CARGO_CAPACITY,
   ISLAND_PROJECTS,
   SKILL_BRANCH_LABELS,
   SKILL_DEFINITIONS,
   formatCost,
   getCompletedProjectCount,
+  getCargoCapacity,
   getCycleMultiplier,
   getIslandGoal,
   getObjective,
@@ -98,6 +98,8 @@ export class GameUI {
   readonly startButton = byId<HTMLButtonElement>('start-button');
   readonly continueButton = byId<HTMLButtonElement>('continue-button');
   readonly resetButton = byId<HTMLButtonElement>('reset-button');
+  readonly soundToggleButton = byId<HTMLButtonElement>('sound-toggle-button');
+  readonly hapticsToggleButton = byId<HTMLButtonElement>('haptics-toggle-button');
   readonly rebirthButton = byId<HTMLButtonElement>('rebirth-button');
   readonly joystick = byId<HTMLElement>('joystick');
   readonly joystickKnob = byId<HTMLElement>('joystick-knob');
@@ -402,6 +404,13 @@ export class GameUI {
     this.menuHandlers = handlers;
   }
 
+  updateFeedbackSettings(sound: boolean, haptics: boolean): void {
+    this.soundToggleButton.setAttribute('aria-pressed', String(sound));
+    this.soundToggleButton.querySelector('strong')!.textContent = `SON · ${sound ? 'OUI' : 'NON'}`;
+    this.hapticsToggleButton.setAttribute('aria-pressed', String(haptics));
+    this.hapticsToggleButton.querySelector('strong')!.textContent = `VIBRATIONS · ${haptics ? 'OUI' : 'NON'}`;
+  }
+
   celebrateRecruit(workerId: string): void {
     this.selectedWorkerId = workerId;
     this.newRecruitWorkerId = workerId;
@@ -410,7 +419,7 @@ export class GameUI {
     this.recruitAnimationTimer = window.setTimeout(() => {
       this.newRecruitWorkerId = null;
       if (this.latestProgress && !this.crewPanel.hidden) this.renderCrew(this.latestProgress);
-    }, 1450);
+    }, 2200);
   }
 
   celebrateLevelUp(workerId: string, level: number): void {
@@ -646,7 +655,7 @@ export class GameUI {
     this.knowledgeCount.textContent = String(progress.knowledge);
     this.updateCargo(
       RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0),
-      PLAYER_CARGO_CAPACITY,
+      getCargoCapacity(progress),
     );
 
     const objective = getObjective(progress);

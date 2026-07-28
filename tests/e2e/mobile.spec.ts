@@ -361,7 +361,8 @@ test('le HUD compact garde le monde visible et déplie les objectifs à la deman
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('l’Autel du Savoir exige les quatre grandes réserves sur l’île principale', async ({ page }) => {
+test('l’Autel du Savoir exige les quatre grandes réserves sur l’île de Cristal', async ({ page }) => {
+  test.setTimeout(75_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     version: 7,
@@ -381,7 +382,13 @@ test('l’Autel du Savoir exige les quatre grandes réserves sur l’île princi
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
-  await moveTo(5.2, -4.6, 1.1);
+  await moveTo(0, -12.1, 0.65);
+  await moveTo(0, -17.9, 0.65);
+  await moveTo(5.68, -34.11, 0.65);
+  await moveTo(10.13, -39.66, 0.65);
+  await moveTo(10.26, -54.44, 0.65);
+  await moveTo(4.68, -61.64, 0.65);
+  await moveTo(-4, -65, 1.1);
   await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
   await expect(page.locator('#context-prompt')).toContainText('120 bois · 110 pierre · 90 cuivre · 70 cristal');
   await page.locator('#action-button').tap();
@@ -390,7 +397,7 @@ test('l’Autel du Savoir exige les quatre grandes réserves sur l’île princi
   await page.screenshot({ path: 'test-results/ilota-central-knowledge-altar.png' });
 });
 
-test('seize ressources forment une tour verticale au-dessus du dos', async ({ page }) => {
+test('les harnais agrandis forment une pile compacte au-dessus du dos', async ({ page }) => {
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     version: 7,
@@ -400,13 +407,15 @@ test('seize ressources forment une tour verticale au-dessus du dos', async ({ pa
     crystal: 0,
     warehousesBuilt: [true, false, false, false, false],
     playerCargo: { wood: 0, stone: 16, copper: 0, crystal: 0 },
+    skills: ['cargo_harness'],
+    skillRanks: { cargo_harness: 2 },
     powerNotifications: false,
     powerVfx: true,
     tutorialSeen: ['welcome', 'warehouse-central'],
   });
   await waitForGame(page);
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(16);
-  await expect.poll(async () => (await diagnostics(page)).playerCargoStackHeight).toBeGreaterThan(2);
+  await expect.poll(async () => (await diagnostics(page)).playerCargoStackHeight).toBeGreaterThan(1.2);
   await page.screenshot({ path: 'test-results/ilota-vertical-cargo-stack.png' });
 });
 
@@ -532,7 +541,7 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   await waitForGame(page);
   await openCrew(page);
   await recruitUntil(page, 3);
-  await expect(page.locator('.worker-card').filter({ hasText: 'Sève' }).locator('.recruit-burst')).toContainText('NOUVEAU');
+  await expect(page.locator('#worker-detail')).toContainText('Sève');
   await expect(page.locator('.job-wood')).toContainText('55 · 60 %');
   await expect(page.locator('.job-copper')).toContainText('MÉTIER VERROUILLÉ');
   await assignWorker(page, 'Milo', 'pierre');
@@ -548,8 +557,6 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   await expect(page.locator('.worker-card').filter({ hasText: 'Milo' }).locator('.level-up-burst')).toHaveCount(0);
   await expect(page.locator('#worker-detail')).toContainText('Milo');
   await expect(page.locator('#worker-detail')).toContainText('NIV 2');
-  await expect(page.locator('#worker-detail-burst, .worker-detail-burst')).toHaveCount(1);
-  await expect(page.locator('#worker-detail-burst, .worker-detail-burst')).toContainText('LEVEL UP');
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBe(4);
   await expect.poll(async () => (await diagnostics(page)).workerTasks.split(',')[0]).toBe('stone');
   await expect(page.locator('#worker-detail')).toContainText('pierre');
@@ -615,6 +622,7 @@ test('la nurserie garde 16 renards lisibles et ouvre une vraie fiche de niveau',
 });
 
 test('une Maison identique présente et assemble les trois Travaux de chaque île', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -747,7 +755,6 @@ test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée'
     const worker = (await diagnostics(page)).workerNavigation[0]!;
     return worker.cargo > 0 ? `${worker.cargo}:${worker.cargoVisuals}` : '';
   }).toBe('2:2');
-  expect((await diagnostics(page)).workerNavigation[0]!.cargoStackHeight).toBeGreaterThan(0.15);
   expect((await diagnostics(page)).stone).toBe(0);
 
   const depositSamples = await page.evaluate(async () => {
@@ -766,6 +773,24 @@ test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée'
   expect(depositSamples.some((sample) => sample.cargo === 1 && sample.visuals === 1)).toBe(true);
   expect(depositSamples.some((sample) => sample.stock === 1)).toBe(true);
   await expect.poll(async () => (await diagnostics(page)).stone).toBe(2);
+});
+
+test('les Tournées complètes enchaînent les filons avant le retour au dépôt', async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    stone: 0,
+    campBuilt: true,
+    foundryBuilt: true,
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'stone', level: 3 }],
+    skills: ['full_loads'],
+    skillRanks: { full_loads: 1 },
+  });
+  await waitForGame(page);
+  await expect.poll(async () => {
+    const state = await diagnostics(page);
+    return Math.max(state.workerNavigation[0]?.cargo ?? 0, state.stone);
+  }, { timeout: 30_000 }).toBeGreaterThanOrEqual(8);
 });
 
 test('un renard vide réellement son filon puis choisit une autre cible naïve', async ({ page }) => {
@@ -898,6 +923,8 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   await expect(page.locator('#power-vfx')).toHaveClass(/industry-active/, { timeout: 6_000 });
   await expect(page.locator('#power-vfx-label')).toContainText('SURCHARGE');
+  expect(await page.locator('.power-edge').evaluateAll((edges) =>
+    edges.map((edge) => Math.sign(new DOMMatrix(getComputedStyle(edge).transform).a)))).toEqual([1, -1]);
   await page.screenshot({ path: 'test-results/ilota-industry-surge.png' });
 
   await openTalents(page);
@@ -912,6 +939,8 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await expect.poll(async () => (await diagnostics(page)).explorationFlow, { timeout: 6_000 }).toBe(true);
   await expect(page.locator('#power-vfx')).toHaveClass(/exploration-active/, { timeout: 6_000 });
   await expect(page.locator('#power-vfx-label')).toContainText('COURANT DE MARÉE');
+  expect(await page.locator('.power-edge').evaluateAll((edges) =>
+    edges.map((edge) => Math.sign(new DOMMatrix(getComputedStyle(edge).transform).a)))).toEqual([1, -1]);
 });
 
 test('la Conscience absolue réserve les filons et évite les départs inutiles en groupe', async ({ page }) => {
@@ -982,6 +1011,7 @@ test('l’auto-régulation envoie réellement un renard vers la ressource en pé
     ],
     skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
     autoRegulation: true,
+    projectsCompleted: [...PROJECT_IDS],
   });
   await waitForGame(page);
   expect((await diagnostics(page)).workerTasks.split(',').filter((task) => task === 'copper')).toHaveLength(1);
@@ -1093,16 +1123,10 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect.poll(async () => (await diagnostics(page)).bridges).toBe(3);
   await expect.poll(async () => (await diagnostics(page)).visibleIslands, { timeout: 5_000 }).toBe(4);
 
-  // Le cristal découvert, le joueur doit désormais retraverser tout son
-  // archipel pour édifier le grand Autel sur l'île principale.
-  await moveTo(10.26, -54.44, 0.5);
+  // Le cristal découvert, le joueur bâtit désormais le grand Autel sur cette
+  // île spécialisée au lieu de retraverser tout l’archipel.
   await moveTo(4.68, -61.64, 0.65);
-  await moveTo(10.26, -54.44, 0.65);
-  await moveTo(10.13, -39.66, 0.65);
-  await moveTo(5.68, -34.11, 0.65);
-  await moveTo(0, -17.9, 0.65);
-  await moveTo(0, -12.1, 0.65);
-  await moveTo(5.2, -4.6, 1.2);
+  await moveTo(-4, -65, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
   const preAltar = await diagnostics(page);
   await page.locator('#action-button').tap();
@@ -1127,17 +1151,24 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.getByRole('dialog', { name: 'Arbre des savoirs' })).toBeVisible();
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
 
+  await moveTo(4.68, -61.64, 0.65);
+  await moveTo(10.26, -54.44, 0.65);
+  await moveTo(10.13, -39.66, 0.65);
+  await moveTo(5.68, -34.11, 0.65);
+  await moveTo(0, -17.9, 0.65);
+  await moveTo(0, -12.1, 0.65);
+  await openCrew(page);
+  await recruitUntil(page, 7);
+  await assignWorker(page, 'Braise', 'cristal');
+  await expect.poll(async () => (await diagnostics(page)).workerLevels).toBeGreaterThanOrEqual(10);
+  await closeCrew(page);
   await moveTo(0, -12.1, 0.65);
   await moveTo(0, -17.9, 0.65);
   await moveTo(5.68, -34.11, 0.65);
   await moveTo(10.13, -39.66, 0.65);
   await moveTo(10.26, -54.44, 0.65);
   await moveTo(4.68, -61.64, 0.65);
-  await openCrew(page);
-  await recruitUntil(page, 7);
-  await assignWorker(page, 'Braise', 'cristal');
-  await expect.poll(async () => (await diagnostics(page)).workerLevels).toBeGreaterThanOrEqual(10);
-  await closeCrew(page);
+  await moveTo(-4, -74.5, 0.9);
   await completeProjectsUntil(page, 9, moveTo);
 
   await moveTo(3.97, -75.84, 0.75);

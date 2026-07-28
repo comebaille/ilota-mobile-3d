@@ -7,6 +7,7 @@ import {
   getAutoRegulationInterval,
   getAutoRegulationMoveCount,
   getBridgeCost,
+  getCargoCapacity,
   getCycleMultiplier,
   getIslandGoal,
   getPlayerCargoTotal,
@@ -283,6 +284,22 @@ describe('Economy v7', () => {
     expect(economy.progress.knowledge).toBe(82);
   });
 
+  it('fait progresser les harnais de 8 à 32 et exige deux voies pour les tournées complètes', () => {
+    const economy = new Economy({ knowledge: 200 });
+    expect(getCargoCapacity(economy.progress)).toBe(8);
+    ['awakening', 'craft_gateway', 'sharp_tools', 'reinforced_carts', 'living_quarries']
+      .forEach((skill) => expect(economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0])).toBe(true));
+    expect(economy.unlockSkill('full_loads')).toBe(false);
+    ['insight_gateway', 'trail_sense', 'optimal_routes']
+      .forEach((skill) => expect(economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0])).toBe(true));
+    expect(economy.unlockSkill('full_loads')).toBe(true);
+    for (let rank = 1; rank <= 6; rank += 1) {
+      expect(economy.unlockSkill('cargo_harness')).toBe(true);
+      expect(getCargoCapacity(economy.progress)).toBe(8 + rank * 4);
+    }
+    expect(economy.unlockSkill('cargo_harness')).toBe(false);
+  });
+
   it('connecte vraiment les voies pour les savoirs hybrides', () => {
     const economy = new Economy({ knowledge: 100 });
     ['awakening', 'insight_gateway', 'trail_sense', 'optimal_routes']
@@ -381,7 +398,7 @@ describe('Economy v7', () => {
     const engine = new Economy({ skills: ['endless_engine'] });
     expect(engine.setIndustrySurge(true)).toBe(true);
     expect(engine.progress.industrySurge).toBe(true);
-    expect(getWorkerYield(3, engine.progress)).toBeLessThanOrEqual(16);
+    expect(getWorkerYield(3, engine.progress)).toBeLessThanOrEqual(8);
 
     const legacy = new Economy({
       completed: true,
@@ -488,8 +505,8 @@ describe('Economy v7', () => {
     expect(economy.unloadPlayerCargo('stone', 2)).toBe(2);
     expect(economy.progress.stone).toBe(1);
     expect(getPlayerCargoTotal(economy.progress)).toBe(2);
-    expect(economy.carryForPlayer('wood', 99)).toBe(14);
-    expect(getPlayerCargoTotal(economy.progress)).toBe(16);
+    expect(economy.carryForPlayer('wood', 99)).toBe(6);
+    expect(getPlayerCargoTotal(economy.progress)).toBe(8);
   });
 
   it('débloque un dépôt local supplémentaire à chaque Nouvelle Marée', () => {

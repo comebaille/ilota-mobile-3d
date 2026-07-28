@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v10-central-knowledge';
+const CACHE = 'ilota-v11-crystal-knowledge';
 const CORE = [
   './',
   './index.html',
@@ -47,7 +47,16 @@ const CORE = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(CORE);
+    const html = await (await fetch('./index.html')).text();
+    const builtAssets = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+      .map((match) => match[1])
+      .filter((url) => url.includes('/assets/') || url.startsWith('assets/'));
+    await Promise.all(builtAssets.map((url) => cache.add(url)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -60,5 +69,8 @@ self.addEventListener('fetch', (event) => {
     const copy = response.clone();
     caches.open(CACHE).then((cache) => cache.put(event.request, copy));
     return response;
-  }).catch(() => caches.match('./index.html'))));
+  }).catch(() => {
+    if (event.request.mode === 'navigate') return caches.match('./index.html');
+    return Response.error();
+  })));
 });

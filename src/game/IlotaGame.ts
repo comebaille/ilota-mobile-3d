@@ -11,6 +11,7 @@ import {
   getAutoRegulationInterval,
   getAutoRegulationMoveCount,
   getBridgeCost,
+  getCargoCapacity,
   getCacheReward,
   getChapter,
   getCompletedProjectCount,
@@ -38,7 +39,6 @@ import {
   hasSkill,
   isProjectVisible,
   isWarehouseUnlocked,
-  PLAYER_CARGO_CAPACITY,
   type Cost,
   type ProjectId,
   type ResourceKind,
@@ -48,6 +48,8 @@ import {
   type WorkerState,
 } from './economy';
 import { InputController } from './input';
+import { FeedbackController } from './feedback';
+import { getCargoPiecePosition } from './cargo';
 import {
   chooseUninformedResourceIndex,
   isPointOnWalkableNetwork,
@@ -282,6 +284,7 @@ interface Diagnostics {
 }
 
 const SAVE_KEY = 'ilota-save-v1';
+const SAVE_BACKUP_KEY = 'ilota-save-backup-v1';
 const HIDDEN_ISLAND_Y = -8.5;
 const WORKER_FEEL = {
   arrivalSeconds: 0.95,
@@ -373,6 +376,8 @@ export class IlotaGame {
   private fpsAverage = 60;
   private victoryShown = false;
   private readonly playerCargoRack = new THREE.Group();
+  private readonly cargoGeometries = new Map<ResourceKind, THREE.BufferGeometry>();
+  private readonly cargoMaterials = new Map<ResourceKind, THREE.MeshStandardMaterial>();
   private playerDeposit: { warehouse: WarehouseEntity; timer: number } | null = null;
   private tideResetAnimation: TideResetAnimation | null = null;
   private industrySurgeCooldown = 2.5;
@@ -387,6 +392,7 @@ export class IlotaGame {
     private readonly assets: AssetLibrary,
     private readonly economy: Economy,
     private readonly ui: GameUI,
+    private readonly feedback: FeedbackController,
   ) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -399,7 +405,7 @@ export class IlotaGame {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
 
     this.input = new InputController(ui.joystick, ui.joystickKnob, ui.actionButton);
@@ -494,6 +500,7 @@ export class IlotaGame {
 
   resetProgress(): void {
     localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(SAVE_BACKUP_KEY);
     window.location.reload();
   }
 
@@ -595,12 +602,17 @@ export class IlotaGame {
       ? 'CONSCIENCE ABSOLUE · les trois voies ne font plus qu’une.'
       : skill === 'auto_regulation'
       ? 'Auto-régulation débloquée · tu peux maintenant l’activer.'
-      : skill === 'expanded_roster'
-        ? `Cercle des bâtisseurs rang ${getSkillRank(this.economy.progress, skill)} · +1 poste permanent.`
+        : skill === 'expanded_roster'
+          ? `Cercle des bâtisseurs rang ${getSkillRank(this.economy.progress, skill)} · +1 poste permanent.`
+          : skill === 'cargo_harness'
+            ? `Harnais modulaires rang ${getSkillRank(this.economy.progress, skill)} · capacité ${getCargoCapacity(this.economy.progress)}.`
+            : skill === 'full_loads'
+              ? 'Tournées complètes · les renards attendent désormais d’avoir le dos plein.'
         : skill === 'awakening'
           ? 'Le Savoir s’éveille · trois voies viennent d’apparaître.'
           : 'Nouveau savoir acquis · la constellation s’étend.';
     this.ui.toast(message);
+    this.feedback.play('skill');
     this.changed();
   }
 
@@ -610,6 +622,7 @@ export class IlotaGame {
     if (this.economy.progress.powerNotifications) {
       this.ui.toast(enabled ? 'Auto-régulation active · l’équipe surveille les pénuries.' : 'Auto-régulation désactivée.');
     }
+    if (enabled) this.feedback.play('power');
     this.changed();
   }
 
@@ -622,6 +635,7 @@ export class IlotaGame {
         ? 'Surcharge tellurique armée · elle réagira à la prochaine pénurie.'
         : 'Surcharge tellurique désactivée.');
     }
+    if (enabled) this.feedback.play('power');
     this.changed();
   }
 
@@ -634,6 +648,7 @@ export class IlotaGame {
         ? 'Courant de Marée armé · les cargaisons appelleront le prochain élan.'
         : 'Courant de Marée désactivé.');
     }
+    if (enabled) this.feedback.play('power');
     this.changed();
   }
 
@@ -674,6 +689,7 @@ export class IlotaGame {
       project === 'unity_lighthouse' ? 32 : 18,
     );
     this.ui.toast(`${definition.name} achevé · ${definition.effect}`);
+    this.feedback.play('build');
     this.changed();
   }
 
@@ -695,6 +711,7 @@ export class IlotaGame {
     const entity = this.workers.find((candidate) => candidate.id === worker.id);
     if (entity) this.spawnParticles(entity.root.position.clone().setY(0.75), worker.task, 12);
     this.ui.toast(`${worker.name} rejoint l’équipe et récolte : ${RESOURCE_LABELS[worker.task]}.`);
+    this.feedback.play('recruit');
     this.changed();
   }
 
@@ -736,6 +753,7 @@ export class IlotaGame {
     if (state) {
       this.ui.celebrateLevelUp(state.id, state.level);
       this.ui.toast(`${state.name} passe niveau ${state.level} · rendement amélioré !`);
+      this.feedback.play('level');
     }
     this.changed();
   }
@@ -1395,7 +1413,7 @@ export class IlotaGame {
     this.player.add(root);
     // Le premier objet commence au-dessus de l'échine : aucune cargaison ne
     // doit traverser le modèle du renard.
-    this.playerCargoRack.position.set(0, 0.96, -0.12);
+    this.playerCargoRack.position.set(0, 1.04, -0.12);
     this.playerCargoRack.name = 'cargaison:joueur';
     this.player.add(this.playerCargoRack);
     this.player.position.set(0, 0, 4.25);
@@ -1598,7 +1616,7 @@ export class IlotaGame {
     marker.rotation.x = Math.PI / 2;
     root.add(marker);
     const cargoRack = new THREE.Group();
-    cargoRack.position.set(0, 0.7, -0.08);
+    cargoRack.position.set(0, 0.78, -0.08);
     cargoRack.name = `cargaison:${state.id}`;
     root.add(cargoRack);
     this.scene.add(root);
@@ -1727,7 +1745,11 @@ export class IlotaGame {
         || (worker.phase !== 'toResource' && worker.phase !== 'gathering')
       ) return total;
       const state = this.economy.progress.workers.find((candidate) => candidate.id === worker.id);
-      return total + (state ? getWorkerYield(state.level, this.economy.progress) : 0);
+      if (!state) return total;
+      const amount = hasSkill(this.economy.progress, 'full_loads')
+        ? Math.max(0, getCargoCapacity(this.economy.progress) - worker.cargo)
+        : getWorkerYield(state.level, this.economy.progress);
+      return total + amount;
     }, 0);
   }
 
@@ -1755,6 +1777,7 @@ export class IlotaGame {
         hub: THREE.Vector3;
       } => Boolean(candidate.outbound && candidate.returning && candidate.hub));
     if (!reachable.length) {
+      if (entity.cargo > 0 && this.routeWorkerToWarehouse(entity)) return;
       entity.route = [];
       entity.routeBridgeIndices = [];
       entity.target = null;
@@ -1781,6 +1804,10 @@ export class IlotaGame {
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     const now = performance.now();
+    if (document.hidden) {
+      this.lastFrameTime = now;
+      return;
+    }
     const rawDelta = Math.min(0.05, Math.max(0.001, (now - this.lastFrameTime) / 1000));
     this.lastFrameTime = now;
     this.fpsAverage += ((1 / rawDelta) - this.fpsAverage) * 0.05;
@@ -1982,12 +2009,18 @@ export class IlotaGame {
           const target = entity.target;
           if (!target || target.amount <= 0 || target.kind !== state.task) {
             entity.target = null;
-            entity.cargo = 0;
-            this.planWorkerCycle(entity, state);
+            if (entity.cargo > 0 && !this.routeWorkerToWarehouse(entity)) {
+              entity.phase = 'depositing';
+              entity.phaseTimer = 0.28;
+            } else if (entity.cargo <= 0) this.planWorkerCycle(entity, state);
             return;
           }
-          const requested = getWorkerYield(state.level, this.economy.progress);
-          entity.cargo = this.consumeResourceNode(target, requested, entity.id);
+          const capacity = getCargoCapacity(this.economy.progress);
+          const requested = Math.min(
+            capacity - entity.cargo,
+            getWorkerYield(state.level, this.economy.progress),
+          );
+          entity.cargo += this.consumeResourceNode(target, requested, entity.id);
           entity.cargoKind = target.kind;
           this.syncWorkerCargoVisuals(entity);
           if (entity.cargo <= 0) {
@@ -1997,6 +2030,11 @@ export class IlotaGame {
           }
           const height = target.kind === 'wood' ? 1.4 : target.kind === 'crystal' ? 1 : 0.7;
           this.spawnParticles(target.root.position.clone().setY(height), target.kind, 5 + state.level * 2);
+          if (hasSkill(this.economy.progress, 'full_loads') && entity.cargo < capacity) {
+            entity.target = null;
+            this.planWorkerCycle(entity, state);
+            return;
+          }
           const returning = this.planFrom(entity.root.position, entity.hub);
           if (returning) this.applyWorkerRoute(entity, returning, 'toHub');
           else {
@@ -2168,12 +2206,13 @@ export class IlotaGame {
     if (interaction.type === 'resource') {
       const label = interaction.node.kind === 'wood' ? 'Arbre' : interaction.node.kind === 'stone' ? 'Rocher' : interaction.node.kind === 'copper' ? 'Filon de cuivre' : 'Cristal ancien';
       const carried = getPlayerCargoTotal(this.economy.progress);
+      const capacity = getCargoCapacity(this.economy.progress);
       this.ui.setContext(
         `${label} · ${interaction.node.amount}/${interaction.node.capacity}`,
-        carried >= PLAYER_CARGO_CAPACITY ? 'DOS PLEIN' : 'RÉCOLTER',
+        carried >= capacity ? 'DOS PLEIN' : 'RÉCOLTER',
         RESOURCE_ICONS[interaction.node.kind],
-        carried < PLAYER_CARGO_CAPACITY,
-        `Cargaison ${carried}/${PLAYER_CARGO_CAPACITY} · décharge-la dans un dépôt.`,
+        carried < capacity,
+        `Cargaison ${carried}/${capacity} · décharge-la dans un dépôt.`,
       );
       return;
     }
@@ -2223,7 +2262,7 @@ export class IlotaGame {
           'BÂTIR',
           kind === 'camp' ? '⌂' : kind === 'observatory' ? '✦' : '▣',
           kind === 'observatory'
-            ? 'Grand chantier de l’îlot central · les quatre ressources sont indispensables.'
+            ? 'Grand chantier de l’île de Cristal · les quatre ressources sont indispensables.'
             : 'Les pièces s’assembleront ici.',
         );
         return;
@@ -2326,6 +2365,7 @@ export class IlotaGame {
           return;
         }
         this.playerDeposit = { warehouse: entity, timer: 0.04 };
+        this.feedback.play('deposit');
         this.input.release();
         this.ui.toast('Déchargement · chaque unité rejoint maintenant le stock.');
         return;
@@ -2338,6 +2378,7 @@ export class IlotaGame {
         this.startBuildingAssembly(entity.building);
         this.spawnParticles(entity.building.position.clone().setY(1), 'wood', 22);
         this.ui.toast(`${entity.definition.name} assemblé · les cargaisons ont une vraie destination.`);
+        this.feedback.play('build');
         this.changed();
         if (islandIndex === 0) {
           this.maybeShowTutorial(
@@ -2371,6 +2412,7 @@ export class IlotaGame {
         this.interaction.entity.building.visible = true;
         this.startBuildingAssembly(this.interaction.entity.building);
         this.ui.toast(`${STRUCTURE_COPY[kind].toast} · +1 Savoir`);
+        this.feedback.play('build');
         const buildOrigin = this.interaction.entity.building.getWorldPosition(new THREE.Vector3());
         this.spawnParticles(buildOrigin.setY(1.2), kind === 'foundry' ? 'copper' : kind === 'observatory' ? 'crystal' : 'wood', 20);
         this.changed();
@@ -2399,7 +2441,7 @@ export class IlotaGame {
           this.maybeShowTutorial(
             'observatory',
             'L’Autel du Savoir',
-            'Tu as ramené les quatre ressources jusqu’au foyer. Touche un hexagone pour lire son pouvoir : il faut ensuite confirmer tout achat dans la grande fiche.',
+            'Tu as réuni les quatre ressources sur l’île de Cristal. Touche un hexagone pour lire son pouvoir : il faut ensuite confirmer tout achat dans la grande fiche.',
             '✦',
           );
         }
@@ -2434,6 +2476,7 @@ export class IlotaGame {
         this.ui.toast(`${definition.name} terminé · nouvelle île · +1 Savoir`);
         this.spawnParticles(this.interaction.entity.start.clone().lerp(this.interaction.entity.end, 0.5).setY(0.7), index >= 2 ? 'crystal' : 'stone', 26);
         this.changed();
+        this.feedback.play('build');
         if (index === 0) {
           this.maybeShowTutorial(
             'pins-logistics',
@@ -2460,6 +2503,7 @@ export class IlotaGame {
     }
     if (this.interaction.type === 'heart') {
       if (this.economy.complete()) {
+        this.feedback.play('victory');
         this.activateHeart(true);
         this.ui.update(this.economy.progress);
         this.save();
@@ -2476,7 +2520,7 @@ export class IlotaGame {
 
   private harvest(node: ResourceNode): void {
     if (node.amount <= 0) return;
-    const free = PLAYER_CARGO_CAPACITY - getPlayerCargoTotal(this.economy.progress);
+    const free = getCargoCapacity(this.economy.progress) - getPlayerCargoTotal(this.economy.progress);
     if (free <= 0) {
       this.ui.toast('Dos plein · retourne à un dépôt pour décharger.');
       return;
@@ -2485,6 +2529,7 @@ export class IlotaGame {
     const gathered = this.consumeResourceNode(node, requested);
     const carried = this.economy.carryForPlayer(node.kind, gathered);
     if (carried <= 0) return;
+    this.feedback.play('harvest');
     this.syncPlayerCargoVisuals();
     const height = node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
     this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
@@ -2517,25 +2562,35 @@ export class IlotaGame {
   }
 
   private createCargoPiece(kind: ResourceKind, index = 0): THREE.Object3D {
-    const material = new THREE.MeshStandardMaterial({
-      color: RESOURCE_COLORS[kind],
-      roughness: kind === 'crystal' ? 0.28 : 0.72,
-      metalness: kind === 'copper' ? 0.28 : 0.04,
-      emissive: kind === 'crystal' ? 0x444070 : 0x000000,
-      emissiveIntensity: kind === 'crystal' ? 0.55 : 0,
-      flatShading: true,
-    });
-    let piece: THREE.Mesh;
+    let material = this.cargoMaterials.get(kind);
+    if (!material) {
+      material = new THREE.MeshStandardMaterial({
+        color: RESOURCE_COLORS[kind],
+        roughness: kind === 'crystal' ? 0.28 : 0.72,
+        metalness: kind === 'copper' ? 0.28 : 0.04,
+        emissive: kind === 'crystal' ? 0x444070 : 0x000000,
+        emissiveIntensity: kind === 'crystal' ? 0.55 : 0,
+        flatShading: true,
+      });
+      this.cargoMaterials.set(kind, material);
+    }
+    let geometry = this.cargoGeometries.get(kind);
+    if (!geometry) {
+      geometry = kind === 'wood'
+        ? new THREE.CylinderGeometry(0.09, 0.1, 0.42, 7)
+        : kind === 'stone'
+          ? new THREE.DodecahedronGeometry(0.17, 0)
+          : kind === 'copper'
+            ? new THREE.DodecahedronGeometry(0.165, 0)
+            : new THREE.OctahedronGeometry(0.16);
+      this.cargoGeometries.set(kind, geometry);
+    }
+    const piece = new THREE.Mesh(geometry, material);
     if (kind === 'wood') {
-      piece = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.42, 7), material);
       piece.rotation.z = Math.PI / 2;
-    } else if (kind === 'stone') {
-      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.17, 0), material);
     } else if (kind === 'copper') {
-      piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.165, 0), material);
       piece.scale.y = 0.82;
-    } else {
-      piece = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), material);
+    } else if (kind === 'crystal') {
       piece.scale.y = 1.3;
     }
     piece.rotation.y = index * 1.17;
@@ -2546,29 +2601,18 @@ export class IlotaGame {
   }
 
   private clearCargoRack(rack: THREE.Group): void {
-    [...rack.children].forEach((child) => {
-      rack.remove(child);
-      child.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
-    });
+    rack.clear();
   }
 
   private populateCargoRack(rack: THREE.Group, kinds: readonly ResourceKind[]): void {
     this.clearCargoRack(rack);
-    kinds.slice(0, PLAYER_CARGO_CAPACITY).forEach((kind, index) => {
+    kinds.slice(0, getCargoCapacity(this.economy.progress)).forEach((kind, index) => {
       const piece = this.createCargoPiece(kind, index);
-      // Une vraie pile verticale, unité par unité, au lieu d'une grille qui
-      // pénétrait dans le dos. Le léger décalage garde les 16 pièces lisibles.
-      const sway = index % 2 === 0 ? -1 : 1;
-      piece.position.set(
-        sway * (0.03 + (index % 3) * 0.012),
-        0.07 + index * 0.18,
-        ((index % 3) - 1) * 0.026,
-      );
+      // Deux colonnes compactes : la première couche repose bien au-dessus du
+      // dos et les grandes capacités restent lisibles sans former une tour.
+      const position = getCargoPiecePosition(index);
+      const sway = Math.sign(position.x);
+      piece.position.set(position.x, position.y, position.z);
       piece.rotation.x += sway * 0.045;
       piece.rotation.y += index % 2 === 0 ? 0 : Math.PI / 2;
       rack.add(piece);
@@ -2581,13 +2625,13 @@ export class IlotaGame {
       for (let index = 0; index < this.economy.progress.playerCargo[kind]; index += 1) kinds.push(kind);
     });
     this.populateCargoRack(this.playerCargoRack, kinds);
-    this.ui.updateCargo(getPlayerCargoTotal(this.economy.progress), PLAYER_CARGO_CAPACITY);
+    this.ui.updateCargo(getPlayerCargoTotal(this.economy.progress), getCargoCapacity(this.economy.progress));
   }
 
   private syncWorkerCargoVisuals(entity: WorkerEntity): void {
     this.populateCargoRack(
       entity.cargoRack,
-      Array.from({ length: Math.min(PLAYER_CARGO_CAPACITY, entity.cargo) }, () => entity.cargoKind),
+      Array.from({ length: Math.min(getCargoCapacity(this.economy.progress), entity.cargo) }, () => entity.cargoKind),
     );
   }
 
@@ -2909,7 +2953,10 @@ export class IlotaGame {
 
   private save(): void {
     try {
-      localStorage.setItem(SAVE_KEY, this.economy.serialize());
+      const next = this.economy.serialize();
+      const previous = localStorage.getItem(SAVE_KEY);
+      if (previous && previous !== next) localStorage.setItem(SAVE_BACKUP_KEY, previous);
+      localStorage.setItem(SAVE_KEY, next);
     } catch {
       // Le jeu reste jouable lorsque le stockage privé est indisponible.
     }
@@ -3021,4 +3068,16 @@ export class IlotaGame {
   };
 }
 
-export const restoreEconomy = (): Economy => Economy.restore(localStorage.getItem(SAVE_KEY));
+export const restoreEconomy = (): Economy => {
+  const validSave = (key: string): string | null => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      JSON.parse(raw);
+      return raw;
+    } catch {
+      return null;
+    }
+  };
+  return Economy.restore(validSave(SAVE_KEY) ?? validSave(SAVE_BACKUP_KEY));
+};

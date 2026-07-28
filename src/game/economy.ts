@@ -34,6 +34,8 @@ export type SkillId =
   | 'reinforced_carts'
   | 'living_quarries'
   | 'expanded_roster'
+  | 'cargo_harness'
+  | 'full_loads'
   | 'master_builders'
   | 'endless_engine'
   | 'tide_stride'
@@ -201,7 +203,9 @@ export const STRUCTURE_COSTS: Record<StructureKind, Cost> = {
   observatory: cost(120, 110, 90, 70),
 };
 
-export const PLAYER_CARGO_CAPACITY = 16;
+export const BASE_CARGO_CAPACITY = 8;
+export const CARGO_CAPACITY_PER_RANK = 4;
+export const MAX_CARGO_CAPACITY = 32;
 
 const WAREHOUSE_COSTS: readonly Cost[] = [
   cost(),
@@ -262,10 +266,12 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
 
   { id: 'coordinated_shifts', branch: 'intelligence', tier: 5, cost: 5, name: 'Relèves coordonnées', detail: 'L’auto-gestion pourra réagir plus souvent.', icon: '⇄', x: 165, y: 755, requires: ['forecasting'] },
   { id: 'expanded_roster', branch: 'industry', tier: 5, cost: 3, rankCosts: [3, 5, 8, 12, 17], maxRank: 5, name: 'Cercle des bâtisseurs', detail: '+1 poste par rang. Le prix augmente à chaque renard supplémentaire.', icon: '+1', x: 585, y: 755, requires: ['living_quarries'] },
+  { id: 'cargo_harness', branch: 'industry', tier: 5, cost: 2, rankCosts: [2, 4, 6, 9, 13, 18], maxRank: 6, name: 'Harnais modulaires', detail: '+4 places de cargaison par rang pour toi et chaque travailleur (8 → 32).', icon: '+4', x: 735, y: 790, requires: ['living_quarries'] },
   { id: 'tidal_memory', branch: 'exploration', tier: 5, cost: 5, name: 'Mémoire des marées', detail: 'Chaque Nouvelle Marée commence avec une réserve croissante.', icon: '≈', x: 925, y: 755, requires: ['frugal_plans'] },
   { id: 'scouting_parties', branch: 'hybrid', tier: 6, cost: 7, name: 'Éclaireurs autonomes', detail: 'Intelligence + Exploration : les caches sont récupérées à l’émergence d’une île.', icon: '⚑', x: 365, y: 815, requires: ['forecasting', 'frugal_plans'] },
 
   { id: 'auto_regulation', branch: 'intelligence', tier: 6, cost: 7, name: 'Auto-régulation', detail: 'Les renards changent eux-mêmes de métier selon les vrais besoins.', icon: '◎', x: 205, y: 900, requires: ['coordinated_shifts'] },
+  { id: 'full_loads', branch: 'hybrid', tier: 6, cost: 8, name: 'Tournées complètes', detail: 'Intelligence + Technique : les travailleurs enchaînent les gisements jusqu’à remplir leur harnais avant de rentrer.', icon: '⇥', x: 420, y: 925, requires: ['optimal_routes', 'reinforced_carts'] },
   { id: 'master_builders', branch: 'industry', tier: 6, cost: 7, name: 'Maîtres bâtisseurs', detail: 'Les livraisons gagnent encore +35 %.', icon: '⚙', x: 575, y: 900, requires: ['expanded_roster'] },
   { id: 'far_horizons', branch: 'exploration', tier: 6, cost: 7, name: 'Horizon lointain', detail: 'Le renard accélère encore et les caches sont plus riches.', icon: '◒', x: 855, y: 900, requires: ['tidal_memory'] },
 
@@ -564,6 +570,11 @@ export const getWarehouseCost = (progress: IslandProgress, islandIndex: number):
 };
 export const getPlayerCargoTotal = (progress: IslandProgress): number =>
   RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0);
+export const getCargoCapacity = (progress: IslandProgress): number =>
+  Math.min(
+    MAX_CARGO_CAPACITY,
+    BASE_CARGO_CAPACITY + getSkillRank(progress, 'cargo_harness') * CARGO_CAPACITY_PER_RANK,
+  );
 export const getBridgeCost = (progress: IslandProgress, index: number): Cost | null => {
   const value = BRIDGE_COSTS[index];
   return value ? scaleCost(progress, value) : null;
@@ -626,7 +637,7 @@ export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): n
     * (hasProject(progress, 'prismatic_reservoir') ? 1.15 : 1)
     * (hasProject(progress, 'unity_lighthouse') ? 1.25 : 1)
     * (hasSkill(progress, 'archipelago_consciousness') ? 1.5 : 1);
-  return Math.min(16, Math.ceil(base * multiplier));
+  return Math.min(getCargoCapacity(progress), Math.ceil(base * multiplier));
 };
 
 // Conservé comme estimation d'interface ; la simulation utilise la vraie
@@ -768,7 +779,7 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
     case 3:
       destination = 'Île Couronne';
       items = [
-        { id: 'altar', label: 'Retourner bâtir l’Autel du Savoir au centre', done: progress.observatoryBuilt },
+        { id: 'altar', label: 'Bâtir l’Autel du Savoir sur l’île de Cristal', done: progress.observatoryBuilt },
         { id: 'workers', label: 'Réunir 7 renards', done: progress.workers.length >= 7 },
         { id: 'crystal-job', label: 'Assigner 1 cristallier', done: hasTask('crystal') },
         { id: 'levels', label: 'Atteindre 10 niveaux cumulés', done: totalLevels >= 10 },
@@ -897,7 +908,7 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
     chapter,
     eyebrow,
     title: 'Décharge ta cargaison',
-    detail: `${getPlayerCargoTotal(progress)}/${PLAYER_CARGO_CAPACITY} unités sont visibles sur ton dos.`,
+    detail: `${getPlayerCargoTotal(progress)}/${getCargoCapacity(progress)} unités sont visibles sur ton dos.`,
   };
   if (!progress.campBuilt) return { chapter, eyebrow, title: 'Bâtis le camp des Marées', detail: `Coût : ${formatCost(getStructureCost(progress, 'camp'))}` };
   if (progress.workers.length < 2) return { chapter, eyebrow, title: 'Forme ta première équipe', detail: 'Entre dans la nurserie centrale : recrute 2 renards et assigne bois + pierre.' };
@@ -915,8 +926,8 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
   if (!progress.observatoryBuilt) return {
     chapter,
     eyebrow,
-    title: 'Retourne bâtir l’Autel du Savoir',
-    detail: `Il t’attend sur l’îlot central · grand coût : ${formatCost(getStructureCost(progress, 'observatory'))}`,
+    title: 'Bâtis l’Autel sur l’île de Cristal',
+    detail: `Le site spécialisé t’attend sur la quatrième île · grand coût : ${formatCost(getStructureCost(progress, 'observatory'))}`,
   };
   if (!progress.workers.some((worker) => worker.task === 'crystal')) return { chapter, eyebrow, title: 'Forme un cristallier', detail: 'Retourne à la nurserie et assigne le métier cristal.' };
   if (progress.workers.length < 7 || getTotalWorkerLevels(progress) < 10) return { chapter, eyebrow, title: 'Prépare l’expédition finale', detail: '7 travailleurs et 10 niveaux cumulés requis.' };
@@ -1024,7 +1035,7 @@ export class Economy {
   }
 
   carryForPlayer(kind: ResourceKind, amount = 1): number {
-    const free = Math.max(0, PLAYER_CARGO_CAPACITY - getPlayerCargoTotal(this.progress));
+    const free = Math.max(0, getCargoCapacity(this.progress) - getPlayerCargoTotal(this.progress));
     const carried = Math.min(free, nonNegativeInteger(amount));
     this.progress.playerCargo[kind] += carried;
     return carried;

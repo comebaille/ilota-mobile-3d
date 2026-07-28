@@ -66,8 +66,8 @@ describe('implantation des bâtiments', () => {
     });
   });
 
-  it('place bien l’Autel du Savoir sur l’îlot principal', () => {
+  it('place l’Autel du Savoir comme bâtiment spécialisé de l’île de Cristal', () => {
     expect(BUILDING_PLACEMENTS.find((building) => building.id === 'structure:observatory'))
-      .toMatchObject({ islandIndex: 0, x: 5.2, z: -4.6 });
+      .toMatchObject({ islandIndex: 3, x: -4, z: -65 });
   });
 });
