@@ -6,7 +6,7 @@
 - Boucle principale : récolter, choisir le prochain investissement, construire, recruter, affecter et améliorer les travailleurs, puis spécialiser durablement l’archipel dans une branche de talents.
 - Durée cible de la première Marée : 45 à 75 minutes selon la part de récolte manuelle, l’ordre des Grands Travaux et la qualité des affectations.
 - Durée cible des Marées suivantes : 35 à 60 minutes chacune, avec davantage de coûts mais des talents permanents et un départ accélérable.
-- Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 31 nœuds (331 Savoir pour tout maximiser).
+- Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 32 nœuds (363 Savoir pour tout maximiser).
 - État initial : un renard, deux ressources, un kit de dépôt gratuit à assembler et aucun talent.
 - Conclusion d’une Marée : achever douze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
 - Conclusion méta : aucune fin forcée ; chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée.
@@ -31,11 +31,13 @@ L’arbre commence par l’hexagone gratuit **Démarrer**. Il révèle trois por
 | Voie | Début | Milieu | Pouvoir profond | Sommet |
 |---|---|---|---|---|
 | Intelligence | Vitesse et vrais plus courts chemins | Prévisions, relèves coordonnées et Instinct de relève anti-inactivité | Auto-régulation des métiers | Esprit collectif : deux changements toutes les 3 s |
-| Technique | Récolte manuelle et cargaisons | Régénération et effectif répétable | Maîtres bâtisseurs | Surcharge tellurique activable : chaque unité prioritaire chargée compte double pendant 10 s |
+| Technique | Récolte manuelle et cargaisons | Régénération, effectif et Frappe de maîtrise répétables | Maîtres bâtisseurs | Surcharge tellurique activable : chaque unité prioritaire chargée compte double pendant 10 s |
 | Exploration | Vitesse joueur et caches | Coûts et mémoire de départ | Horizon lointain | Courant de Marée : renards chargés deux fois plus rapides pendant 10 s, 5 % des stocks conservés puis jusqu’à 20 % par rangs coûteux |
 | Hybrides | Réseau logistique | Récolte adaptative et éclaireurs | Connexions entre voies | Conseil itinérant optionnel pour gérer l’équipe partout ; Conscience absolue pour la réservation, +4 postes, bonus généraux et synchronisation |
 
 **Cercle des bâtisseurs** possède cinq rangs : chaque rang ajoute un poste permanent, mais coûte successivement 3, 5, 8, 12 puis 17 Savoir. La Réserve de charpente ajoute un poste et Conscience absolue en ajoute quatre : la capacité maximale passe de 9 à 19 travailleurs.
+
+**Frappe de maîtrise** est un embranchement Technique facultatif après Maîtres bâtisseurs et Harnais modulaires. Son premier rang coûte 12 Savoir et double les coups des niveaux 1/2/3 en `2/4/6`. Son second rang coûte 20 Savoir et les triple en `3/6/9`.
 
 La Nouvelle Marée :
 

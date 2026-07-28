@@ -21,7 +21,7 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - douze Grands Travaux regroupés dans quatre Maisons à construire après le bâtiment principal de chaque île ; chacune ouvre trois grandes cartes lisibles et allume trois sceaux d’avancement ;
 - HUD paysage compact : l’étape suivante reste visible, le détail des objectifs se déplie à la demande, disparaît définitivement après le paiement du pont, puis des flèches 3D partent du renard et le suivent jusqu’au passage ;
 - tutoriel contextuel réservé aux sauvegardes neuves : dépôt, cargaison, nurserie, objectifs, formations, talents et Nouvelle Marée ;
-- arbre hexagonal à 31 nœuds : futur invisible, doubles prérequis stricts, capacité de cargaison évolutive, tournées complètes, Instinct de relève anti-inactivité, Conseil itinérant optionnel, héritage de Marée progressif, pincement tactile robuste, trois sommets et convergence finale très coûteuse ;
+- arbre hexagonal à 32 nœuds : futur invisible, doubles prérequis stricts, capacité de cargaison évolutive, tournées complètes, Frappe de maîtrise à deux rangs, Instinct de relève anti-inactivité, Conseil itinérant optionnel, héritage de Marée progressif, pincement tactile robuste, trois sommets et convergence finale très coûteuse ;
 - sélection d’un savoir sans achat automatique : une grande fiche explique l’effet, le prix et les prérequis avant confirmation ;
 - menu de Marée avec reprise, remise à zéro confirmée et Nouvelle Marée grisée tant que l’acte actuel n’est pas terminé ;
 - compteur de Savoir toujours visible, même avant la construction de l’Autel ;
@@ -29,6 +29,7 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - pouvoir final **Conscience absolue** : réservation intelligente des filons, +4 postes, bonus économiques et synchronisation des trois voies ;
 - **Courant de Marée** ne double la vitesse que des renards chargés ; il conserve 5 % des stocks, puis 10, 15 et 20 % via trois rangs coûteux d’Héritage des courants ;
 - **Conseil itinérant** : liaison optionnelle à 24 Savoir entre les trois voies, ouvrant l’onglet ÉQUIPE, les métiers et les formations depuis n’importe quelle île ;
+- **Frappe de maîtrise** : embranchement Technique facultatif à 12 puis 20 Savoir, faisant évoluer les coups ouvriers de `1/2/3` à `2/4/6`, puis `3/6/9` ;
 - cinématique de rebirth : îles englouties de la dernière à la première, ponts brisés et héros ressortant de la nurserie ;
 - ambiance et signaux sonores procéduraux, vibrations réglables, caches optionnelles, sauvegarde locale doublée d’une copie de secours et migration des versions antérieures ;
 - commandes tactiles, interface paysage et installation PWA hors ligne.

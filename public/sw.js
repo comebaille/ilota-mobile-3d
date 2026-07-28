@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v13-triangular-islands';
+const CACHE = 'ilota-v14-masterful-strikes';
 const CORE = [
   './',
   './index.html',

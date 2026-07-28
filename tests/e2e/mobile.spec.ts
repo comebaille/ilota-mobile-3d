@@ -870,6 +870,51 @@ test('un renard niveau 3 frappe par lots de trois sans one-shot le filon', async
   expect((await diagnostics(page)).workersOnWalkable).toBe(true);
 });
 
+test('la Frappe de maîtrise affiche neuf et augmente réellement chaque coup', async ({ page }) => {
+  test.setTimeout(35_000);
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    foundryBuilt: true,
+    workers: [{ id: 'worker-1', name: 'Milo', task: 'stone', level: 3 }],
+    skills: ['master_builders', 'cargo_harness', 'masterful_strikes'],
+    skillRanks: { master_builders: 1, cargo_harness: 1, masterful_strikes: 2 },
+  });
+  await waitForGame(page);
+  await expect.poll(async () => (await diagnostics(page)).lastWorkerHarvest, { timeout: 15_000 })
+    .not.toBeNull();
+  const mined = (await diagnostics(page)).lastWorkerHarvest!;
+  expect(mined).toMatchObject({ workerId: 'worker-1', kind: 'stone', island: 0 });
+  expect(mined.gathered).toBeGreaterThan(3);
+  expect(mined.gathered).toBeLessThanOrEqual(9);
+  await openCrew(page);
+  await expect(page.locator('#worker-detail')).toContainText('+9');
+});
+
+test('achète les deux rangs de Frappe de maîtrise pour 12 puis 20 Savoir', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    observatoryBuilt: true,
+    knowledge: 32,
+    skills: ['master_builders', 'cargo_harness'],
+    skillRanks: { master_builders: 1, cargo_harness: 1 },
+  });
+  await waitForGame(page);
+  await openTalents(page);
+
+  await page.getByRole('button', { name: /voir Frappe de maîtrise rang 1, prix 12/i }).click();
+  await expect(page.locator('#skill-inspector-detail')).toContainText('2/4/6');
+  await page.locator('#skill-buy-button').click();
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(20);
+
+  await page.getByRole('button', { name: /voir Frappe de maîtrise rang 2, prix 20/i }).click();
+  await expect(page.locator('#skill-inspector-detail')).toContainText('3/6/9');
+  await page.locator('#skill-buy-button').click();
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(0);
+  await expect(page.getByRole('button', { name: /Frappe de maîtrise, rang 2 sur 2, acquis/i }))
+    .toBeVisible();
+});
+
 test('fait naître le graphe hexagonal puis atteint l’auto-régulation profonde', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 568, height: 320 });

@@ -106,6 +106,24 @@ describe('Economy v8', () => {
     expect(getWorkerYield(3, economy.progress)).toBe(3);
   });
 
+  it('fait évoluer les coups ouvriers de 1/2/3 à 2/4/6 puis 3/6/9', () => {
+    const economy = new Economy({
+      knowledge: 32,
+      skills: ['master_builders', 'cargo_harness'],
+      skillRanks: { master_builders: 1, cargo_harness: 1 },
+    });
+    expect(economy.unlockSkill('masterful_strikes')).toBe(true);
+    expect(economy.progress.knowledge).toBe(20);
+    expect([1, 2, 3].map((level) => getWorkerYield(level as 1 | 2 | 3, economy.progress)))
+      .toEqual([2, 4, 6]);
+
+    expect(economy.unlockSkill('masterful_strikes')).toBe(true);
+    expect(economy.progress.knowledge).toBe(0);
+    expect([1, 2, 3].map((level) => getWorkerYield(level as 1 | 2 | 3, economy.progress)))
+      .toEqual([3, 6, 9]);
+    expect(economy.unlockSkill('masterful_strikes')).toBe(false);
+  });
+
   it('construit chaque Maison des Travaux seulement après le bâtiment principal', () => {
     const economy = richEconomy({ bridgesBuilt: [true, false, false, false] });
     expect(economy.buildProjectHall(1)).toBe(false);

@@ -51,6 +51,7 @@ export type SkillId =
   | 'scouting_parties'
   | 'remote_management'
   | 'adaptive_assignments'
+  | 'masterful_strikes'
   | 'archipelago_consciousness';
 
 export interface Cost {
@@ -296,6 +297,7 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
   { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Courant de Marée', detail: 'Sommet Exploration : double pendant 10 s la vitesse des renards qui portent une cargaison et conserve 5 % des stocks à la prochaine Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
   { id: 'remote_management', branch: 'hybrid', tier: 8, cost: 24, name: 'Conseil itinérant', detail: 'Liaison des trois voies : ouvre l’onglet ÉQUIPE partout et autorise recrutement, métiers et formations sans revenir aux bâtiments.', icon: '♟', x: 265, y: 1210, requires: ['coordinated_shifts', 'expanded_roster', 'tidal_memory'] },
   { id: 'adaptive_assignments', branch: 'intelligence', tier: 8, cost: 12, name: 'Instinct de relève', detail: 'Un renard sans filon disponible abandonne son poste statique et rejoint automatiquement la ressource accessible dont le stock manque le plus.', icon: '↻', x: 95, y: 1210, requires: ['auto_regulation'] },
+  { id: 'masterful_strikes', branch: 'industry', tier: 8, cost: 12, rankCosts: [12, 20], maxRank: 2, name: 'Frappe de maîtrise', detail: 'Rang 1 : coups ouvriers ×2 (2/4/6). Rang 2 : coups ×3 (3/6/9).', icon: '×2', x: 580, y: 1210, requires: ['master_builders', 'cargo_harness'] },
   { id: 'tidal_inheritance', branch: 'exploration', tier: 8, cost: 10, rankCosts: [10, 16, 24], maxRank: 3, name: 'Héritage des courants', detail: '+5 % de stocks conservés par rang à la prochaine Marée (5 % → 20 %).', icon: '+5', x: 940, y: 1210, requires: ['ocean_legacy'] },
   { id: 'archipelago_consciousness', branch: 'hybrid', tier: 9, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : réserve intelligemment chaque filon, évite les trajets excédentaires et ajoute 4 postes sans superposer les pouvoirs visuels.', icon: '✺', x: 580, y: 1400, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
 ];
@@ -670,7 +672,7 @@ export const getUpgradeCost = (worker: WorkerState, progress?: IslandProgress): 
 };
 
 export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): number => {
-  const perHit = level;
+  const perHit = level * (progress ? 1 + getSkillRank(progress, 'masterful_strikes') : 1);
   if (!progress) return perHit;
   return Math.min(getCargoCapacity(progress), perHit);
 };
