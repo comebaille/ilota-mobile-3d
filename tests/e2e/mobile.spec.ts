@@ -982,7 +982,7 @@ test('les trois sommets seuls révèlent la Conscience absolue', async ({ page }
 });
 
 test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisible', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -1015,7 +1015,10 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
     const state = await diagnostics(page);
     return state.industrySurge && state.explorationFlow;
   }, { timeout: 8_000 }).toBe(false);
-  await expect.poll(async () => (await diagnostics(page)).explorationFlow, { timeout: 24_000 }).toBe(true);
+  // Le delta moteur est plafonné à 50 ms pour protéger la physique. Sur un
+  // runner CI peu rapide, 14,5 s de simulation peuvent donc prendre plus de
+  // 24 s murales sans que l'alternance des pouvoirs soit incorrecte.
+  await expect.poll(async () => (await diagnostics(page)).explorationFlow, { timeout: 45_000 }).toBe(true);
   expect((await diagnostics(page)).industrySurge).toBe(false);
   await expect(page.locator('#power-vfx')).toHaveClass(/exploration-active/, { timeout: 6_000 });
   await expect(page.locator('#power-vfx-label')).toContainText('COURANT DE MARÉE');
