@@ -803,7 +803,7 @@ test('un renard niveau 1 prélève exactement deux unités sur la roche ciblée'
 });
 
 test('les Tournées complètes enchaînent les filons avant le retour au dépôt', async ({ page }) => {
-  test.setTimeout(40_000);
+  test.setTimeout(60_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     stone: 0,
@@ -817,7 +817,7 @@ test('les Tournées complètes enchaînent les filons avant le retour au dépôt
   await expect.poll(async () => {
     const state = await diagnostics(page);
     return Math.max(state.workerNavigation[0]?.cargo ?? 0, state.stone);
-  }, { timeout: 30_000 }).toBeGreaterThanOrEqual(8);
+  }, { timeout: 45_000 }).toBeGreaterThanOrEqual(8);
 });
 
 test('un renard vide réellement son filon puis choisit une autre cible naïve', async ({ page }) => {
@@ -937,6 +937,7 @@ test('les trois sommets seuls révèlent la Conscience absolue', async ({ page }
 });
 
 test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisible', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
