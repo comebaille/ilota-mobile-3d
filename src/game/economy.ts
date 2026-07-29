@@ -1,8 +1,44 @@
 export const RESOURCE_KINDS = ['wood', 'stone', 'copper', 'crystal'] as const;
-export const WORLD_TWO_RESOURCE_KINDS = ['coal', 'iron', 'silver', 'gold'] as const;
+export const LEGACY_WORLD_TWO_RESOURCE_KINDS = ['coal', 'iron', 'silver', 'gold'] as const;
+export const WORLD_TWO_MINERAL_IDS = [
+  'stone',
+  'slate',
+  'coal',
+  'tin',
+  'copper',
+  'iron',
+  'zinc',
+  'nickel',
+  'cobalt',
+  'silver',
+  'quartz',
+  'amethyst',
+  'garnet',
+  'topaz',
+  'emerald',
+  'sapphire',
+  'ruby',
+  'platinum',
+  'obsidian',
+  'opal',
+  'jade',
+  'onyx',
+  'moonstone',
+  'star_iron',
+  'mithril',
+  'adamantite',
+  'void_crystal',
+  'solarite',
+  'diamond',
+  'celestium',
+] as const;
+// Alias conservé pour les appels de gameplay existants pendant la migration.
+export const WORLD_TWO_RESOURCE_KINDS = WORLD_TWO_MINERAL_IDS;
 
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];
-export type WorldTwoResourceKind = (typeof WORLD_TWO_RESOURCE_KINDS)[number];
+export type LegacyWorldTwoResourceKind = (typeof LEGACY_WORLD_TWO_RESOURCE_KINDS)[number];
+export type WorldTwoMineralId = (typeof WORLD_TWO_MINERAL_IDS)[number];
+export type WorldTwoResourceKind = WorldTwoMineralId;
 export type WorkerLevel = 1 | 2 | 3;
 export type StructureKind = 'camp' | 'workshop' | 'foundry' | 'observatory';
 export type SkillBranch = 'intelligence' | 'industry' | 'exploration';
@@ -73,17 +109,28 @@ export interface Cost {
   crystal: number;
 }
 
-export interface WorldTwoCost {
+export interface LegacyWorldTwoCost {
   coal: number;
   iron: number;
   silver: number;
   gold: number;
 }
 
+export interface WorldTwoMineralDefinition {
+  id: WorldTwoMineralId;
+  name: string;
+  hardness: number;
+  saleValue: number;
+  color: number;
+  visualKind: LegacyWorldTwoResourceKind;
+}
+
+export type WorldTwoCargo = Partial<Record<WorldTwoMineralId, number>>;
+
 export interface WorldTwoWorkerState {
   id: string;
   name: string;
-  task: WorldTwoResourceKind;
+  task: WorldTwoMineralId;
   level: WorkerLevel;
   health: number;
 }
@@ -96,7 +143,7 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 10;
+  version: 11;
   wood: number;
   stone: number;
   copper: number;
@@ -128,16 +175,33 @@ export interface IslandProgress {
   tutorialSeen: string[];
   currentWorld: 1 | 2;
   worldTwoPeakReached: boolean;
-  worldTwoResources: WorldTwoCost;
-  worldTwoCargo: WorldTwoCost;
+  worldTwoMoney: number;
+  worldTwoFangLevel: number;
+  worldTwoWolfFangLevel: number;
+  worldTwoCargo: WorldTwoCargo;
   worldTwoTerracesUnlocked: number;
   worldTwoWolves: WorldTwoWorkerState[];
   worldTwoSkills: WorldTwoSkillId[];
   worldTwoEnemyDefeats: number;
 }
 
-interface VersionNineProgress extends Omit<
+interface VersionTenProgress extends Omit<
   IslandProgress,
+  'version'
+  | 'worldTwoMoney'
+  | 'worldTwoFangLevel'
+  | 'worldTwoWolfFangLevel'
+  | 'worldTwoCargo'
+  | 'worldTwoWolves'
+> {
+  version: 10;
+  worldTwoResources: LegacyWorldTwoCost;
+  worldTwoCargo: LegacyWorldTwoCost;
+  worldTwoWolves: Array<Omit<WorldTwoWorkerState, 'task'> & { task: LegacyWorldTwoResourceKind }>;
+}
+
+interface VersionNineProgress extends Omit<
+  VersionTenProgress,
   'version'
   | 'worldTwoResources'
   | 'worldTwoCargo'
@@ -237,7 +301,7 @@ export interface WorldTwoSkillDefinition {
   name: string;
   detail: string;
   icon: string;
-  cost: WorldTwoCost;
+  cost: number;
   requires?: readonly WorldTwoSkillId[];
 }
 
@@ -262,7 +326,7 @@ export interface AssignmentMove {
 }
 
 const cost = (wood = 0, stone = 0, copper = 0, crystal = 0): Cost => ({ wood, stone, copper, crystal });
-const worldTwoCost = (coal = 0, iron = 0, silver = 0, gold = 0): WorldTwoCost => ({
+const legacyWorldTwoCost = (coal = 0, iron = 0, silver = 0, gold = 0): LegacyWorldTwoCost => ({
   coal,
   iron,
   silver,
@@ -323,33 +387,52 @@ export const RESOURCE_ICONS: Record<ResourceKind, string> = {
   crystal: '✦',
 };
 
-export const WORLD_TWO_RESOURCE_LABELS: Record<WorldTwoResourceKind, string> = {
-  coal: 'charbon',
-  iron: 'fer',
-  silver: 'argent',
-  gold: 'or',
-};
-
-export const WORLD_TWO_RESOURCE_ICONS: Record<WorldTwoResourceKind, string> = {
-  coal: '⬢',
-  iron: '⬟',
-  silver: '◆',
-  gold: '✦',
-};
-
-export const WORLD_TWO_FOG_COSTS: readonly WorldTwoCost[] = [
-  worldTwoCost(),
-  worldTwoCost(18),
-  worldTwoCost(28, 8),
-  worldTwoCost(38, 16),
-  worldTwoCost(50, 28, 6),
-  worldTwoCost(65, 42, 14),
-  worldTwoCost(80, 56, 24, 4),
-  worldTwoCost(95, 72, 38, 10),
-  worldTwoCost(115, 90, 55, 20),
-  worldTwoCost(140, 110, 78, 34),
-  worldTwoCost(170, 140, 105, 55),
+export const WORLD_TWO_MINERALS: readonly WorldTwoMineralDefinition[] = [
+  { id: 'stone', name: 'Pierre', hardness: 1, saleValue: 5, color: 0x8a8c8f, visualKind: 'iron' },
+  { id: 'slate', name: 'Ardoise', hardness: 2, saleValue: 8, color: 0x434b55, visualKind: 'coal' },
+  { id: 'coal', name: 'Charbon', hardness: 3, saleValue: 12, color: 0x27292d, visualKind: 'coal' },
+  { id: 'tin', name: 'Étain', hardness: 4, saleValue: 18, color: 0x9aa9b3, visualKind: 'silver' },
+  { id: 'copper', name: 'Cuivre', hardness: 5, saleValue: 26, color: 0xb87333, visualKind: 'gold' },
+  { id: 'iron', name: 'Fer', hardness: 6, saleValue: 38, color: 0x68737a, visualKind: 'iron' },
+  { id: 'zinc', name: 'Zinc', hardness: 7, saleValue: 54, color: 0x8da7a6, visualKind: 'silver' },
+  { id: 'nickel', name: 'Nickel', hardness: 8, saleValue: 75, color: 0xb5b0a1, visualKind: 'silver' },
+  { id: 'cobalt', name: 'Cobalt', hardness: 9, saleValue: 105, color: 0x3569b3, visualKind: 'iron' },
+  { id: 'silver', name: 'Argent', hardness: 10, saleValue: 145, color: 0xd9e5ed, visualKind: 'silver' },
+  { id: 'quartz', name: 'Quartz', hardness: 11, saleValue: 200, color: 0xe8e4dc, visualKind: 'silver' },
+  { id: 'amethyst', name: 'Améthyste', hardness: 12, saleValue: 270, color: 0x9a5bc6, visualKind: 'gold' },
+  { id: 'garnet', name: 'Grenat', hardness: 13, saleValue: 360, color: 0x8d263f, visualKind: 'gold' },
+  { id: 'topaz', name: 'Topaze', hardness: 14, saleValue: 480, color: 0xe9a83a, visualKind: 'gold' },
+  { id: 'emerald', name: 'Émeraude', hardness: 15, saleValue: 630, color: 0x2fb56d, visualKind: 'silver' },
+  { id: 'sapphire', name: 'Saphir', hardness: 16, saleValue: 820, color: 0x306adf, visualKind: 'silver' },
+  { id: 'ruby', name: 'Rubis', hardness: 17, saleValue: 1_060, color: 0xd72f50, visualKind: 'gold' },
+  { id: 'platinum', name: 'Platine', hardness: 18, saleValue: 1_360, color: 0xd6dde0, visualKind: 'silver' },
+  { id: 'obsidian', name: 'Obsidienne', hardness: 19, saleValue: 1_740, color: 0x171629, visualKind: 'coal' },
+  { id: 'opal', name: 'Opale', hardness: 20, saleValue: 2_200, color: 0x9ee8db, visualKind: 'silver' },
+  { id: 'jade', name: 'Jade', hardness: 21, saleValue: 2_800, color: 0x52a878, visualKind: 'iron' },
+  { id: 'onyx', name: 'Onyx', hardness: 22, saleValue: 3_550, color: 0x090a0d, visualKind: 'coal' },
+  { id: 'moonstone', name: 'Pierre de lune', hardness: 23, saleValue: 4_500, color: 0xb6c8e6, visualKind: 'silver' },
+  { id: 'star_iron', name: 'Fer stellaire', hardness: 24, saleValue: 5_700, color: 0x566887, visualKind: 'iron' },
+  { id: 'mithril', name: 'Mithril', hardness: 25, saleValue: 7_200, color: 0x70d7e9, visualKind: 'silver' },
+  { id: 'adamantite', name: 'Adamantite', hardness: 26, saleValue: 9_100, color: 0xad2f4d, visualKind: 'gold' },
+  { id: 'void_crystal', name: 'Cristal du Vide', hardness: 27, saleValue: 11_500, color: 0x542271, visualKind: 'coal' },
+  { id: 'solarite', name: 'Solarite', hardness: 28, saleValue: 14_500, color: 0xf9d45c, visualKind: 'gold' },
+  { id: 'diamond', name: 'Diamant', hardness: 29, saleValue: 18_500, color: 0xa9f5ff, visualKind: 'silver' },
+  { id: 'celestium', name: 'Célestium', hardness: 30, saleValue: 24_000, color: 0xf3ffff, visualKind: 'silver' },
 ];
+
+export const WORLD_TWO_RESOURCE_LABELS: Record<WorldTwoMineralId, string> = Object.fromEntries(
+  WORLD_TWO_MINERALS.map((mineral) => [mineral.id, mineral.name.toLocaleLowerCase('fr')]),
+) as Record<WorldTwoMineralId, string>;
+
+export const WORLD_TWO_RESOURCE_ICONS: Record<WorldTwoMineralId, string> = Object.fromEntries(
+  WORLD_TWO_MINERALS.map((mineral) => [mineral.id, mineral.hardness >= 25 ? '✦' : mineral.hardness >= 13 ? '◆' : '⬢']),
+) as Record<WorldTwoMineralId, string>;
+
+export const getWorldTwoMineral = (id: WorldTwoMineralId): WorldTwoMineralDefinition =>
+  WORLD_TWO_MINERALS.find((mineral) => mineral.id === id) ?? WORLD_TWO_MINERALS[0]!;
+
+export const formatWorldTwoMoney = (value: number): string =>
+  `${Math.max(0, Math.floor(value)).toLocaleString('fr-FR')} $`;
 
 export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
   {
@@ -357,14 +440,14 @@ export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
     name: 'Instinct de meute',
     detail: 'Les loups se déplacent et choisissent leur prochain filon 20 % plus vite.',
     icon: '🐺',
-    cost: worldTwoCost(30, 10),
+    cost: 350,
   },
   {
     id: 'mountain_tools',
-    name: 'Crocs de montagne',
-    detail: 'Chaque frappe de loup extrait une unité supplémentaire.',
+    name: 'Morsure minière',
+    detail: 'Chaque frappe de loup extrait une unité supplémentaire, sans modifier la dureté de ses crocs.',
     icon: '⛏',
-    cost: worldTwoCost(45, 28),
+    cost: 950,
     requires: ['pack_instinct'],
   },
   {
@@ -372,7 +455,7 @@ export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
     name: 'Harnais d’altitude',
     detail: '+4 places de cargaison pour toi et pour chaque loup.',
     icon: '+4',
-    cost: worldTwoCost(55, 42, 14),
+    cost: 1_400,
     requires: ['mountain_tools'],
   },
   {
@@ -380,7 +463,7 @@ export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
     name: 'Cercle de garde',
     detail: 'Les loups ripostent plus vite et subissent moitié moins de dégâts.',
     icon: '◉',
-    cost: worldTwoCost(70, 58, 30),
+    cost: 1_600,
     requires: ['pack_instinct'],
   },
   {
@@ -388,7 +471,7 @@ export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
     name: 'Veines profondes',
     detail: 'Tous les minerais du Zénith repoussent 30 % plus vite.',
     icon: '♻',
-    cost: worldTwoCost(90, 78, 48, 14),
+    cost: 3_200,
     requires: ['loaded_saddles', 'guard_circle'],
   },
   {
@@ -396,7 +479,7 @@ export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
     name: 'Meute du Zénith',
     detail: '+2 places dans la meute et +1 unité par livraison.',
     icon: '✺',
-    cost: worldTwoCost(120, 100, 72, 40),
+    cost: 7_500,
     requires: ['deep_veins'],
   },
 ];
@@ -541,7 +624,7 @@ const WORKER_NAMES = [
 const WOLF_NAMES = ['Rime', 'Toundra', 'Granit', 'Ébène', 'Névé', 'Orage', 'Quartz', 'Boréal'];
 
 const freshProgress = (): IslandProgress => ({
-  version: 10,
+  version: 11,
   wood: 0,
   stone: 0,
   copper: 0,
@@ -573,9 +656,13 @@ const freshProgress = (): IslandProgress => ({
   tutorialSeen: [],
   currentWorld: 1,
   worldTwoPeakReached: false,
-  worldTwoResources: worldTwoCost(),
-  worldTwoCargo: worldTwoCost(),
-  worldTwoTerracesUnlocked: 1,
+  worldTwoMoney: 0,
+  worldTwoFangLevel: 1,
+  worldTwoWolfFangLevel: 1,
+  worldTwoCargo: {},
+  // Le relief complet est explorable dès l'arrivée. Les crocs, pas la brume,
+  // contrôlent désormais la progression minière.
+  worldTwoTerracesUnlocked: 11,
   worldTwoWolves: [],
   worldTwoSkills: [],
   worldTwoEnemyDefeats: 0,
@@ -596,9 +683,9 @@ const sanitizeCost = (value: unknown): Cost => {
   };
 };
 
-const sanitizeWorldTwoCost = (value: unknown): WorldTwoCost => {
+const sanitizeLegacyWorldTwoCost = (value: unknown): LegacyWorldTwoCost => {
   const source = value && typeof value === 'object'
-    ? value as Partial<Record<WorldTwoResourceKind, unknown>>
+    ? value as Partial<Record<LegacyWorldTwoResourceKind, unknown>>
     : {};
   return {
     coal: nonNegativeInteger(source.coal),
@@ -606,6 +693,39 @@ const sanitizeWorldTwoCost = (value: unknown): WorldTwoCost => {
     silver: nonNegativeInteger(source.silver),
     gold: nonNegativeInteger(source.gold),
   };
+};
+
+const getLegacyWorldTwoValue = (value: unknown): number => {
+  const legacy = sanitizeLegacyWorldTwoCost(value);
+  return legacy.coal * 12 + legacy.iron * 38 + legacy.silver * 145 + legacy.gold * 480;
+};
+
+const getLegacyFangLevel = (...values: unknown[]): number => {
+  const combined = values.reduce<LegacyWorldTwoCost>((total, value) => {
+    const legacy = sanitizeLegacyWorldTwoCost(value);
+    return {
+      coal: total.coal + legacy.coal,
+      iron: total.iron + legacy.iron,
+      silver: total.silver + legacy.silver,
+      gold: total.gold + legacy.gold,
+    };
+  }, legacyWorldTwoCost());
+  if (combined.gold > 0) return 14;
+  if (combined.silver > 0) return 10;
+  if (combined.iron > 0) return 6;
+  if (combined.coal > 0) return 3;
+  return 1;
+};
+
+const sanitizeWorldTwoCargo = (value: unknown): WorldTwoCargo => {
+  if (!value || typeof value !== 'object') return {};
+  const source = value as Partial<Record<WorldTwoMineralId, unknown>>;
+  const cargo: WorldTwoCargo = {};
+  WORLD_TWO_MINERAL_IDS.forEach((id) => {
+    const amount = nonNegativeInteger(source[id]);
+    if (amount > 0) cargo[id] = amount;
+  });
+  return cargo;
 };
 
 const sanitizeWorldTwoSkills = (value: unknown): WorldTwoSkillId[] => {
@@ -620,9 +740,9 @@ const sanitizeWorldTwoWolves = (value: unknown): WorldTwoWorkerState[] => {
   return value.slice(0, 8).flatMap((entry, index) => {
     if (!entry || typeof entry !== 'object') return [];
     const source = entry as Partial<WorldTwoWorkerState>;
-    const task = WORLD_TWO_RESOURCE_KINDS.includes(source.task as WorldTwoResourceKind)
-      ? source.task as WorldTwoResourceKind
-      : 'coal';
+    const task = WORLD_TWO_MINERAL_IDS.includes(source.task as WorldTwoMineralId)
+      ? source.task as WorldTwoMineralId
+      : 'stone';
     const level = Math.max(1, Math.min(3, nonNegativeInteger(source.level))) as WorkerLevel;
     return [{
       id: typeof source.id === 'string' ? source.id.slice(0, 48) : `wolf-${index + 1}`,
@@ -765,7 +885,13 @@ export const worldTwoSkillPrerequisitesMet = (
 ): boolean => (definition.requires ?? []).every((required) => hasWorldTwoSkill(progress, required));
 
 export const getWorldTwoCargoTotal = (progress: IslandProgress): number =>
-  WORLD_TWO_RESOURCE_KINDS.reduce((total, kind) => total + progress.worldTwoCargo[kind], 0);
+  WORLD_TWO_MINERAL_IDS.reduce((total, kind) => total + (progress.worldTwoCargo[kind] ?? 0), 0);
+
+export const getWorldTwoCargoValue = (progress: IslandProgress): number =>
+  WORLD_TWO_MINERAL_IDS.reduce(
+    (total, kind) => total + (progress.worldTwoCargo[kind] ?? 0) * getWorldTwoMineral(kind).saleValue,
+    0,
+  );
 
 export const getWorldTwoCargoCapacity = (progress: IslandProgress): number =>
   8 + (hasWorldTwoSkill(progress, 'loaded_saddles') ? 4 : 0);
@@ -773,18 +899,29 @@ export const getWorldTwoCargoCapacity = (progress: IslandProgress): number =>
 export const getWorldTwoWolfCapacity = (progress: IslandProgress): number =>
   2 + (hasWorldTwoSkill(progress, 'zenith_pack') ? 2 : 0);
 
-export const getWorldTwoFogCost = (terraceIndex: number): WorldTwoCost | null =>
-  WORLD_TWO_FOG_COSTS[terraceIndex] ?? null;
+export const canMineWorldTwoMineral = (
+  progress: IslandProgress,
+  id: WorldTwoMineralId,
+  actor: 'player' | 'wolf' = 'player',
+): boolean => (actor === 'player' ? progress.worldTwoFangLevel : progress.worldTwoWolfFangLevel)
+  >= getWorldTwoMineral(id).hardness;
 
-export const formatWorldTwoCost = (value: WorldTwoCost): string =>
-  WORLD_TWO_RESOURCE_KINDS
-    .filter((kind) => value[kind] > 0)
-    .map((kind) => `${value[kind]} ${WORLD_TWO_RESOURCE_LABELS[kind]}`)
-    .join(' · ') || 'gratuit';
+export const getWorldTwoFangUpgradeCost = (
+  progress: IslandProgress,
+  actor: 'player' | 'wolf',
+): number | null => {
+  const current = actor === 'player' ? progress.worldTwoFangLevel : progress.worldTwoWolfFangLevel;
+  if (current >= WORLD_TWO_MINERALS.length) return null;
+  const nextMineral = WORLD_TWO_MINERALS[current]!;
+  const multiplier = actor === 'player' ? 6 : 8;
+  return Math.max(50, Math.ceil((nextMineral.saleValue * multiplier) / 10) * 10);
+};
 
-export const getWorldTwoRecruitCost = (progress: IslandProgress): WorldTwoCost => {
+export const formatWorldTwoCost = (value: number): string => formatWorldTwoMoney(value);
+
+export const getWorldTwoRecruitCost = (progress: IslandProgress): number => {
   const count = progress.worldTwoWolves.length;
-  return worldTwoCost(20 + count * 18, 8 + count * 12, count >= 2 ? 8 + count * 4 : 0, 0);
+  return [250, 650, 1_450, 3_200][count] ?? 5_000 + count * 1_500;
 };
 
 export const skillPrerequisitesMet = (progress: IslandProgress, definition: SkillDefinition): boolean =>
@@ -1331,7 +1468,7 @@ export class Economy {
     this.progress = {
       ...fresh,
       ...initial,
-      version: 10,
+      version: 11,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
@@ -1363,12 +1500,11 @@ export class Economy {
       tutorialSeen: sanitizeStringList(initial?.tutorialSeen),
       currentWorld: initial?.currentWorld === 2 ? 2 : 1,
       worldTwoPeakReached: Boolean(initial?.worldTwoPeakReached),
-      worldTwoResources: sanitizeWorldTwoCost(initial?.worldTwoResources),
-      worldTwoCargo: sanitizeWorldTwoCost(initial?.worldTwoCargo),
-      worldTwoTerracesUnlocked: Math.max(
-        1,
-        Math.min(11, nonNegativeInteger(initial?.worldTwoTerracesUnlocked) || 1),
-      ),
+      worldTwoMoney: nonNegativeInteger(initial?.worldTwoMoney),
+      worldTwoFangLevel: Math.max(1, Math.min(30, nonNegativeInteger(initial?.worldTwoFangLevel) || 1)),
+      worldTwoWolfFangLevel: Math.max(1, Math.min(30, nonNegativeInteger(initial?.worldTwoWolfFangLevel) || 1)),
+      worldTwoCargo: sanitizeWorldTwoCargo(initial?.worldTwoCargo),
+      worldTwoTerracesUnlocked: 11,
       worldTwoWolves: sanitizeWorldTwoWolves(initial?.worldTwoWolves),
       worldTwoSkills: sanitizeWorldTwoSkills(initial?.worldTwoSkills),
       worldTwoEnemyDefeats: nonNegativeInteger(initial?.worldTwoEnemyDefeats),
@@ -1402,58 +1538,62 @@ export class Economy {
     return unloaded;
   }
 
-  addWorldTwo(kind: WorldTwoResourceKind, amount = 1): void {
-    this.progress.worldTwoResources[kind] += nonNegativeInteger(amount);
+  addWorldTwoMoney(amount: number): void {
+    this.progress.worldTwoMoney += nonNegativeInteger(amount);
   }
 
-  carryWorldTwoForPlayer(kind: WorldTwoResourceKind, amount = 1): number {
+  addWorldTwo(kind: WorldTwoMineralId, amount = 1): void {
+    this.addWorldTwoMoney(getWorldTwoMineral(kind).saleValue * nonNegativeInteger(amount));
+  }
+
+  carryWorldTwoForPlayer(kind: WorldTwoMineralId, amount = 1): number {
     const free = Math.max(0, getWorldTwoCargoCapacity(this.progress) - getWorldTwoCargoTotal(this.progress));
     const carried = Math.min(free, nonNegativeInteger(amount));
-    this.progress.worldTwoCargo[kind] += carried;
+    this.progress.worldTwoCargo[kind] = (this.progress.worldTwoCargo[kind] ?? 0) + carried;
     return carried;
   }
 
-  depositWorldTwoCargo(kind: WorldTwoResourceKind, amount = 1): number {
-    const delivered = Math.min(this.progress.worldTwoCargo[kind], Math.max(1, nonNegativeInteger(amount)));
+  depositWorldTwoCargo(kind: WorldTwoMineralId, amount = 1): number {
+    const delivered = Math.min(this.progress.worldTwoCargo[kind] ?? 0, Math.max(1, nonNegativeInteger(amount)));
     if (delivered <= 0) return 0;
-    this.progress.worldTwoCargo[kind] -= delivered;
+    this.progress.worldTwoCargo[kind] = (this.progress.worldTwoCargo[kind] ?? 0) - delivered;
+    if ((this.progress.worldTwoCargo[kind] ?? 0) <= 0) delete this.progress.worldTwoCargo[kind];
     this.addWorldTwo(kind, delivered);
     return delivered;
   }
 
-  unloadWorldTwoCargo(kind: WorldTwoResourceKind, amount = 1): number {
-    const unloaded = Math.min(this.progress.worldTwoCargo[kind], Math.max(1, nonNegativeInteger(amount)));
+  unloadWorldTwoCargo(kind: WorldTwoMineralId, amount = 1): number {
+    const unloaded = Math.min(this.progress.worldTwoCargo[kind] ?? 0, Math.max(1, nonNegativeInteger(amount)));
     if (unloaded <= 0) return 0;
-    this.progress.worldTwoCargo[kind] -= unloaded;
+    this.progress.worldTwoCargo[kind] = (this.progress.worldTwoCargo[kind] ?? 0) - unloaded;
+    if ((this.progress.worldTwoCargo[kind] ?? 0) <= 0) delete this.progress.worldTwoCargo[kind];
     return unloaded;
   }
 
-  canAffordWorldTwo(value: WorldTwoCost): boolean {
-    return WORLD_TWO_RESOURCE_KINDS.every((kind) => this.progress.worldTwoResources[kind] >= value[kind]);
+  canAffordWorldTwo(value: number): boolean {
+    return this.progress.worldTwoMoney >= Math.max(0, nonNegativeInteger(value));
   }
 
-  missingWorldTwo(value: WorldTwoCost): WorldTwoCost {
-    return {
-      coal: Math.max(0, value.coal - this.progress.worldTwoResources.coal),
-      iron: Math.max(0, value.iron - this.progress.worldTwoResources.iron),
-      silver: Math.max(0, value.silver - this.progress.worldTwoResources.silver),
-      gold: Math.max(0, value.gold - this.progress.worldTwoResources.gold),
-    };
+  missingWorldTwo(value: number): number {
+    return Math.max(0, nonNegativeInteger(value) - this.progress.worldTwoMoney);
   }
 
-  private spendWorldTwo(value: WorldTwoCost): boolean {
+  private spendWorldTwo(value: number): boolean {
     if (!this.canAffordWorldTwo(value)) return false;
-    WORLD_TWO_RESOURCE_KINDS.forEach((kind) => {
-      this.progress.worldTwoResources[kind] -= value[kind];
-    });
+    this.progress.worldTwoMoney -= nonNegativeInteger(value);
     return true;
   }
 
   unlockWorldTwoTerrace(terraceIndex: number): boolean {
-    if (terraceIndex !== this.progress.worldTwoTerracesUnlocked || terraceIndex >= 11) return false;
-    const fogCost = getWorldTwoFogCost(terraceIndex);
-    if (!fogCost || !this.spendWorldTwo(fogCost)) return false;
-    this.progress.worldTwoTerracesUnlocked += 1;
+    this.progress.worldTwoTerracesUnlocked = 11;
+    return terraceIndex >= 0 && terraceIndex < 11;
+  }
+
+  upgradeWorldTwoFangs(actor: 'player' | 'wolf'): boolean {
+    const upgradeCost = getWorldTwoFangUpgradeCost(this.progress, actor);
+    if (upgradeCost === null || !this.spendWorldTwo(upgradeCost)) return false;
+    if (actor === 'player') this.progress.worldTwoFangLevel += 1;
+    else this.progress.worldTwoWolfFangLevel += 1;
     return true;
   }
 
@@ -1461,14 +1601,11 @@ export class Economy {
     if (this.progress.worldTwoWolves.length >= getWorldTwoWolfCapacity(this.progress)) return null;
     if (!this.spendWorldTwo(getWorldTwoRecruitCost(this.progress))) return null;
     const index = this.progress.worldTwoWolves.length;
-    const unlockedTasks = WORLD_TWO_RESOURCE_KINDS.slice(
-      0,
-      Math.min(4, Math.max(1, Math.ceil(this.progress.worldTwoTerracesUnlocked / 3))),
-    );
+    const unlockedTasks = WORLD_TWO_MINERAL_IDS.slice(0, this.progress.worldTwoWolfFangLevel);
     const worker: WorldTwoWorkerState = {
       id: `wolf-${index + 1}`,
       name: WOLF_NAMES[index] ?? `Loup ${index + 1}`,
-      task: unlockedTasks[index % unlockedTasks.length] ?? 'coal',
+      task: unlockedTasks[index % unlockedTasks.length] ?? 'stone',
       level: 1,
       health: 3,
     };
@@ -1750,9 +1887,10 @@ export class Economy {
     const lifetimeDeliveries = this.progress.lifetimeDeliveries;
     const tutorialSeen = [...this.progress.tutorialSeen];
     const worldTwoPeakReached = this.progress.worldTwoPeakReached;
-    const worldTwoResources = { ...this.progress.worldTwoResources };
+    const worldTwoMoney = this.progress.worldTwoMoney;
+    const worldTwoFangLevel = this.progress.worldTwoFangLevel;
+    const worldTwoWolfFangLevel = this.progress.worldTwoWolfFangLevel;
     const worldTwoCargo = { ...this.progress.worldTwoCargo };
-    const worldTwoTerracesUnlocked = this.progress.worldTwoTerracesUnlocked;
     const worldTwoWolves = this.progress.worldTwoWolves.map((wolf) => ({ ...wolf }));
     const worldTwoSkills = [...this.progress.worldTwoSkills];
     const worldTwoEnemyDefeats = this.progress.worldTwoEnemyDefeats;
@@ -1788,9 +1926,11 @@ export class Economy {
       tutorialSeen,
       currentWorld: 1,
       worldTwoPeakReached,
-      worldTwoResources,
+      worldTwoMoney,
+      worldTwoFangLevel,
+      worldTwoWolfFangLevel,
       worldTwoCargo,
-      worldTwoTerracesUnlocked,
+      worldTwoTerracesUnlocked: 11,
       worldTwoWolves,
       worldTwoSkills,
       worldTwoEnemyDefeats,
@@ -1826,16 +1966,43 @@ export class Economy {
         }
         return economy;
       };
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionNineProgress | VersionEightProgress | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 10) return restoreCompatible(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionTenProgress | VersionNineProgress | VersionEightProgress | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 11) return restoreCompatible(value as Partial<IslandProgress>);
+      if (value.version === 10) {
+        const previous = value as VersionTenProgress;
+        const {
+          version: _previousVersion,
+          worldTwoResources,
+          worldTwoCargo,
+          worldTwoWolves,
+          ...migrated
+        } = previous;
+        const migratedFangs = getLegacyFangLevel(worldTwoResources, worldTwoCargo);
+        return restoreCompatible({
+          ...migrated,
+          worldTwoMoney: getLegacyWorldTwoValue(worldTwoResources) + getLegacyWorldTwoValue(worldTwoCargo),
+          worldTwoFangLevel: migratedFangs,
+          worldTwoWolfFangLevel: migratedFangs,
+          worldTwoCargo: {},
+          worldTwoTerracesUnlocked: 11,
+          worldTwoWolves: (worldTwoWolves ?? []).map((wolf) => ({
+            ...wolf,
+            task: WORLD_TWO_MINERAL_IDS.includes(wolf.task as WorldTwoMineralId)
+              ? wolf.task as WorldTwoMineralId
+              : 'stone',
+          })),
+        });
+      }
       if (value.version === 9) {
         const previous = value as VersionNineProgress;
         const { version: _previousVersion, ...migrated } = previous;
         return restoreCompatible({
           ...migrated,
-          worldTwoResources: worldTwoCost(),
-          worldTwoCargo: worldTwoCost(),
-          worldTwoTerracesUnlocked: previous.worldTwoPeakReached ? 11 : 1,
+          worldTwoMoney: 0,
+          worldTwoFangLevel: 1,
+          worldTwoWolfFangLevel: 1,
+          worldTwoCargo: {},
+          worldTwoTerracesUnlocked: 11,
           worldTwoWolves: [],
           worldTwoSkills: [],
           worldTwoEnemyDefeats: 0,

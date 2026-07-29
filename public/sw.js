@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v17-world-two-zenith';
+const CACHE = 'ilota-v18-fangs-and-fortune';
 const CORE = [
   './',
   './index.html',
@@ -66,11 +66,13 @@ const CORE = [
   './assets/third-party/kaykit-resources/Stone_Chunks_Large.gltf',
   './assets/third-party/kaykit-resources/Stone_Chunks_Large.bin',
   './assets/third-party/kaykit-resources/resource_bits_texture.png',
-  './assets/third-party/quaternius-wolf/Wolf.fbx',
+  './assets/third-party/quaternius-ultimate-animals/Wolf.glb',
+  './assets/third-party/quaternius-ultimate-monsters/BlueDemon.glb',
+  './assets/third-party/quaternius-ultimate-monsters/Ghost_Skull.glb',
+  './assets/third-party/quaternius-ultimate-monsters/Yeti.glb',
   './assets/third-party/kaykit-bridge/building_bridge_A.gltf',
   './assets/third-party/kaykit-bridge/building_bridge_A.bin',
   './assets/third-party/kaykit-bridge/hexagons_medieval.png',
-  './assets/third-party/gobkit-minion/minion-a01.glb',
 ];
 
 self.addEventListener('install', (event) => {

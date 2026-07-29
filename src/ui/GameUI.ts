@@ -2,15 +2,14 @@ import {
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
-  WORLD_TWO_RESOURCE_ICONS,
-  WORLD_TWO_RESOURCE_KINDS,
-  WORLD_TWO_RESOURCE_LABELS,
   WORLD_TWO_SKILLS,
+  WORLD_TWO_MINERALS,
   ISLAND_PROJECTS,
   SKILL_BRANCH_LABELS,
   SKILL_DEFINITIONS,
   formatCost,
   formatWorldTwoCost,
+  formatWorldTwoMoney,
   getCompletedProjectCount,
   getCargoCapacity,
   getCycleMultiplier,
@@ -29,6 +28,7 @@ import {
   getWorkerYield,
   getWorldTwoCargoCapacity,
   getWorldTwoCargoTotal,
+  getWorldTwoFangUpgradeCost,
   hasProject,
   hasSkill,
   hasWorldTwoSkill,
@@ -69,6 +69,7 @@ interface TalentHandlers {
   onPowerNotificationsToggle: (enabled: boolean) => void;
   onPowerVfxToggle: (enabled: boolean) => void;
   onWorldTwoUnlock: (skill: WorldTwoSkillId) => void;
+  onWorldTwoFangUpgrade: (actor: 'player' | 'wolf') => void;
 }
 
 interface ProjectHandlers {
@@ -340,11 +341,15 @@ export class GameUI {
       if (event.target === this.worldTwoSkillPanel) this.hideWorldTwoSkills();
     });
     this.worldTwoSkillGrid.addEventListener('click', (event) => {
-      const target = event.target instanceof Element
-        ? event.target.closest<HTMLButtonElement>('button[data-world-two-skill]')
-        : null;
-      if (!target?.dataset.worldTwoSkill || target.disabled) return;
-      this.talentHandlers?.onWorldTwoUnlock(target.dataset.worldTwoSkill as WorldTwoSkillId);
+      const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button') : null;
+      if (!target || target.disabled) return;
+      if (target.dataset.worldTwoFang === 'player' || target.dataset.worldTwoFang === 'wolf') {
+        this.talentHandlers?.onWorldTwoFangUpgrade(target.dataset.worldTwoFang);
+        return;
+      }
+      if (target.dataset.worldTwoSkill) {
+        this.talentHandlers?.onWorldTwoUnlock(target.dataset.worldTwoSkill as WorldTwoSkillId);
+      }
     });
     this.skillBranches.addEventListener('click', (event) => {
       if (this.skillSuppressClick) {
@@ -563,7 +568,6 @@ export class GameUI {
     if (
       !this.latestProgress
       || this.latestProgress.currentWorld !== 2
-      || this.latestProgress.worldTwoTerracesUnlocked <= 3
     ) return;
     this.worldTwoSkillPanel.hidden = false;
     this.renderWorldTwoSkills(this.latestProgress);
@@ -580,19 +584,44 @@ export class GameUI {
 
   private renderWorldTwoSkills(progress: IslandProgress): void {
     this.worldTwoSkillResources.replaceChildren();
-    WORLD_TWO_RESOURCE_KINDS.forEach((kind) => {
-      const chip = element('span');
-      chip.textContent = `${WORLD_TWO_RESOURCE_ICONS[kind]} ${progress.worldTwoResources[kind]} ${WORLD_TWO_RESOURCE_LABELS[kind]}`;
-      this.worldTwoSkillResources.append(chip);
-    });
+    const money = element('span');
+    money.textContent = `◉ ${formatWorldTwoMoney(progress.worldTwoMoney)}`;
+    const playerFangs = element('span');
+    playerFangs.textContent = `🦷 Crocs ${progress.worldTwoFangLevel}/30`;
+    const wolfFangs = element('span');
+    wolfFangs.textContent = `🐺 Meute ${progress.worldTwoWolfFangLevel}/30`;
+    this.worldTwoSkillResources.append(money, playerFangs, wolfFangs);
 
     this.worldTwoSkillGrid.replaceChildren();
+    ([
+      { actor: 'player' as const, name: 'Crocs du voyageur', level: progress.worldTwoFangLevel, icon: '🦷' },
+      { actor: 'wolf' as const, name: 'Crocs de la meute', level: progress.worldTwoWolfFangLevel, icon: '🐺' },
+    ]).forEach(({ actor, name, level, icon }) => {
+      const upgradeCost = getWorldTwoFangUpgradeCost(progress, actor);
+      const nextMineral = WORLD_TWO_MINERALS[level];
+      const maximum = upgradeCost === null;
+      const card = element('button', `world-two-skill-card${maximum ? ' owned' : ''}`);
+      card.type = 'button';
+      card.dataset.worldTwoFang = actor;
+      card.disabled = maximum || progress.worldTwoMoney < upgradeCost;
+      const cardIcon = element('b');
+      cardIcon.textContent = icon;
+      const cardName = element('strong');
+      cardName.textContent = `${name} · ${level}/30`;
+      const detail = element('small');
+      detail.textContent = maximum
+        ? 'Tous les minerais de la montagne peuvent être mordus.'
+        : `Débloque ${nextMineral?.name ?? 'le prochain minerai'} · dureté ${nextMineral?.hardness ?? level + 1}.`;
+      const price = element('em');
+      price.textContent = maximum ? '✓ NIVEAU MAXIMUM' : formatWorldTwoMoney(upgradeCost);
+      card.append(cardIcon, cardName, detail, price);
+      this.worldTwoSkillGrid.append(card);
+    });
+
     WORLD_TWO_SKILLS.forEach((skill) => {
       const owned = hasWorldTwoSkill(progress, skill.id);
       const prerequisites = worldTwoSkillPrerequisitesMet(progress, skill);
-      const affordable = WORLD_TWO_RESOURCE_KINDS.every(
-        (kind) => progress.worldTwoResources[kind] >= skill.cost[kind],
-      );
+      const affordable = progress.worldTwoMoney >= skill.cost;
       const card = element('button', `world-two-skill-card${owned ? ' owned' : prerequisites ? '' : ' locked'}`);
       card.type = 'button';
       card.dataset.worldTwoSkill = skill.id;
@@ -757,21 +786,31 @@ export class GameUI {
     this.latestProgress = progress;
     RESOURCE_KINDS.forEach((kind, index) => {
       const count = this.resourceCounts[kind];
-      const worldTwoKind = WORLD_TWO_RESOURCE_KINDS[index]!;
-      count.textContent = String(progress.currentWorld === 2 ? progress.worldTwoResources[worldTwoKind] : progress[kind]);
       const chip = count.closest<HTMLElement>('.resource-chip');
       const icon = chip?.querySelector<HTMLElement>('.resource-icon');
       const label = chip?.querySelector<HTMLElement>('small');
-      if (icon) icon.textContent = progress.currentWorld === 2 ? WORLD_TWO_RESOURCE_ICONS[worldTwoKind] : RESOURCE_ICONS[kind];
-      if (label) label.textContent = progress.currentWorld === 2 ? WORLD_TWO_RESOURCE_LABELS[worldTwoKind] : RESOURCE_LABELS[kind];
+      if (progress.currentWorld === 2) {
+        if (chip) chip.hidden = index > 0;
+        if (index === 0) {
+          count.textContent = progress.worldTwoMoney.toLocaleString('fr-FR');
+          if (icon) icon.textContent = '◉';
+          if (label) label.textContent = 'argent';
+        }
+      } else {
+        if (chip) chip.hidden = false;
+        count.textContent = String(progress[kind]);
+        if (icon) icon.textContent = RESOURCE_ICONS[kind];
+        if (label) label.textContent = RESOURCE_LABELS[kind];
+      }
       chip?.classList.toggle('world-two-resource', progress.currentWorld === 2);
     });
     const knowledgeChip = this.knowledgeCount.closest<HTMLElement>('.resource-chip');
     const knowledgeIcon = knowledgeChip?.querySelector<HTMLElement>('.resource-icon');
     const knowledgeLabel = knowledgeChip?.querySelector<HTMLElement>('small');
-    this.knowledgeCount.textContent = String(progress.currentWorld === 2 ? progress.worldTwoEnemyDefeats : progress.knowledge);
-    if (knowledgeIcon) knowledgeIcon.textContent = progress.currentWorld === 2 ? '⚔' : '✧';
-    if (knowledgeLabel) knowledgeLabel.textContent = progress.currentWorld === 2 ? 'victoires' : 'savoir';
+    if (knowledgeChip) knowledgeChip.hidden = progress.currentWorld === 2;
+    this.knowledgeCount.textContent = String(progress.knowledge);
+    if (knowledgeIcon) knowledgeIcon.textContent = '✧';
+    if (knowledgeLabel) knowledgeLabel.textContent = 'savoir';
     this.updateCargo(
       progress.currentWorld === 2 ? getWorldTwoCargoTotal(progress) : RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0),
       progress.currentWorld === 2 ? getWorldTwoCargoCapacity(progress) : getCargoCapacity(progress),
@@ -781,10 +820,10 @@ export class GameUI {
       this.objectiveEyebrow.textContent = 'WORLD 2 · MONTAGNE DU ZÉNITH';
       this.objectiveTitle.textContent = progress.worldTwoPeakReached
         ? 'Le sommet se souvient de toi'
-        : `Dissipe les brumes · ${progress.worldTwoTerracesUnlocked}/11`;
+        : `Durcis tes crocs · niveau ${progress.worldTwoFangLevel}/30`;
       this.objectiveDetail.textContent = progress.worldTwoPeakReached
         ? 'Le Cœur du Zénith est éveillé. Explore librement ou emprunte le portail du Refuge des Échos.'
-        : `${progress.worldTwoWolves.length} loup${progress.worldTwoWolves.length > 1 ? 's' : ''} dans la meute · ${progress.worldTwoEnemyDefeats} créature${progress.worldTwoEnemyDefeats > 1 ? 's' : ''} vaincue${progress.worldTwoEnemyDefeats > 1 ? 's' : ''}.`;
+        : `${formatWorldTwoMoney(progress.worldTwoMoney)} · minerais noirs = crocs insuffisants · ${progress.worldTwoWolves.length} loup${progress.worldTwoWolves.length > 1 ? 's' : ''}.`;
     } else {
       const objective = getObjective(progress);
       this.objectiveEyebrow.textContent = objective.eyebrow;
@@ -1477,8 +1516,16 @@ export class GameUI {
         done: true,
       },
       {
-        label: `Dissiper les brumes · ${Math.max(0, progress.worldTwoTerracesUnlocked - 1)}/10`,
-        done: progress.worldTwoTerracesUnlocked >= WORLD_TWO_TERRACES.length,
+        label: 'Explorer la montagne · toutes les rampes sont ouvertes',
+        done: true,
+      },
+      {
+        label: `Durcir tes crocs · ${progress.worldTwoFangLevel}/30`,
+        done: progress.worldTwoFangLevel >= 30,
+      },
+      {
+        label: `Durcir les crocs de la meute · ${progress.worldTwoWolfFangLevel}/30`,
+        done: progress.worldTwoWolfFangLevel >= 30,
       },
       {
         label: `Former une meute · ${progress.worldTwoWolves.length}/2 loups`,
@@ -1501,7 +1548,9 @@ export class GameUI {
       'world-2',
       currentIndex,
       peakReached,
-      progress.worldTwoTerracesUnlocked,
+      progress.worldTwoFangLevel,
+      progress.worldTwoWolfFangLevel,
+      progress.worldTwoMoney,
       progress.worldTwoWolves.length,
       progress.worldTwoEnemyDefeats,
       progress.worldTwoSkills.length,
@@ -1511,7 +1560,6 @@ export class GameUI {
     if (key === this.lastGoalKey) return;
     this.lastGoalKey = key;
 
-    const done = milestones.filter((item) => item.done).length;
     this.islandGoal.classList.toggle('completed', peakReached);
     this.islandGoalToggle.disabled = false;
     this.islandGoalToggle.setAttribute('aria-expanded', String(this.islandGoalExpanded));
@@ -1524,10 +1572,8 @@ export class GameUI {
     this.islandGoalCount.textContent = `${currentIndex + 1}/${WORLD_TWO_TERRACES.length}`;
     this.islandGoalNextLabel.textContent = peakReached
       ? 'Le sommet est éveillé · les minerais du World 2 restent accessibles.'
-      : progress.worldTwoTerracesUnlocked < WORLD_TWO_TERRACES.length
-        ? `Brume suivante · ${WORLD_TWO_TERRACES[progress.worldTwoTerracesUnlocked]?.name ?? next?.name ?? 'Sommet'}`
-        : next
-          ? `Prochaine terrasse · ${next.name}`
+      : next
+        ? `Prochaine terrasse · ${next.name} · les filons noirs attendent de meilleurs crocs`
         : 'Approche du Cœur du Zénith pour achever l’ascension.';
     this.islandGoalList.replaceChildren();
     milestones.forEach((item) => {

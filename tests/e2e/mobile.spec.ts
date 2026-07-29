@@ -44,6 +44,14 @@ interface IlotaDiagnostics {
   worldTwoTerrace: number;
   worldTwoPortalUnlocked: boolean;
   worldTwoPeakReached: boolean;
+  worldTwoMoney: number;
+  worldTwoFangLevel: number;
+  worldTwoWolfFangLevel: number;
+  worldTwoMinerals: number;
+  worldTwoLockedMinerals: number;
+  worldTwoWolfAnimations: string;
+  worldTwoEnemyAnimations: string;
+  worldTravelPathVisible: boolean;
   interaction: string;
   assemblingBuildings: number;
   visibleIslands: number;
@@ -100,7 +108,7 @@ const waitForGame = async (page: Page): Promise<void> => {
 };
 
 const richSave = () => ({
-  version: 10,
+  version: 11,
   wood: 9_999,
   stone: 9_999,
   copper: 9_999,
@@ -132,9 +140,11 @@ const richSave = () => ({
   tutorialSeen: [],
   currentWorld: 1 as const,
   worldTwoPeakReached: false,
-  worldTwoResources: { coal: 0, iron: 0, silver: 0, gold: 0 },
-  worldTwoCargo: { coal: 0, iron: 0, silver: 0, gold: 0 },
-  worldTwoTerracesUnlocked: 1,
+  worldTwoMoney: 0,
+  worldTwoFangLevel: 1,
+  worldTwoWolfFangLevel: 1,
+  worldTwoCargo: {},
+  worldTwoTerracesUnlocked: 11,
   worldTwoWolves: [],
   worldTwoSkills: [],
   worldTwoEnemyDefeats: 0,
@@ -163,7 +173,11 @@ const createNavigator = (page: Page) => {
     await page.mouse.move(centerX, centerY);
     await page.mouse.down();
     pointerDown = true;
-    for (let step = 0; step < 120; step += 1) {
+    let previous: { x: number; z: number } | null = null;
+    let stalledSteps = 0;
+    let avoidanceSteps = 0;
+    let avoidanceAttempt = 0;
+    for (let step = 0; step < 180; step += 1) {
       const player = await page.evaluate(() => (
         window as typeof window & { __ILOTA__: IlotaDiagnostics }
       ).__ILOTA__.player);
@@ -174,8 +188,30 @@ const createNavigator = (page: Page) => {
         await release();
         return;
       }
-      const screenX = 0.828 * dx - 0.561 * dz;
-      const screenY = -0.561 * dx - 0.828 * dz;
+      if (previous && Math.hypot(player.x - previous.x, player.z - previous.z) < 0.018) {
+        stalledSteps += 1;
+      } else {
+        stalledSteps = 0;
+      }
+      previous = player;
+      if (stalledSteps >= 5 && avoidanceSteps <= 0) {
+        avoidanceSteps = 14;
+        avoidanceAttempt += 1;
+        stalledSteps = 0;
+      }
+
+      let steerX = dx;
+      let steerZ = dz;
+      if (avoidanceSteps > 0) {
+        const directX = dx / Math.max(0.001, distance);
+        const directZ = dz / Math.max(0.001, distance);
+        const side = avoidanceAttempt % 2 === 1 ? 1 : -1;
+        steerX = directX * 0.22 + -directZ * side;
+        steerZ = directZ * 0.22 + directX * side;
+        avoidanceSteps -= 1;
+      }
+      const screenX = 0.828 * steerX - 0.561 * steerZ;
+      const screenY = -0.561 * steerX - 0.828 * steerZ;
       const screenLength = Math.max(0.001, Math.hypot(screenX, screenY));
       const steeringRadius = radius * Math.min(1, Math.max(0.14, distance / 3.5));
       await page.mouse.move(
@@ -383,7 +419,11 @@ test('le portail anime l’aller vers le World 2 puis permet le retour au World 
   await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('Ascension du Zénith');
   await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).worldTravelPathVisible).toBe(true);
+  await page.waitForTimeout(1_250);
+  await page.screenshot({ path: 'test-results/ilota-world-2-grounded-travel.png' });
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
+  await expect.poll(async () => (await diagnostics(page)).worldTravelPathVisible).toBe(false);
   await expect(page.locator('#objective-eyebrow')).toHaveText('WORLD 2 · MONTAGNE DU ZÉNITH');
   await expect(page.locator('#island-goal-island')).toContainText('CAMP DES ÉCHOS');
 
@@ -416,6 +456,8 @@ test.describe('traversée physique du World 2', () => {
       tutorialSeen: ['welcome', 'world-2'],
     });
     await waitForGame(page);
+    await expect.poll(async () => (await diagnostics(page)).worldTwoMinerals).toBe(30);
+    await expect.poll(async () => (await diagnostics(page)).worldTwoLockedMinerals).toBe(29);
     const { moveTo } = createNavigator(page);
     for (const [index, terrace] of WORLD_TWO_TERRACES.entries()) {
       const isSummit = index === WORLD_TWO_TERRACES.length - 1;
@@ -429,6 +471,68 @@ test.describe('traversée physique du World 2', () => {
     await expect(page.locator('#island-goal-count')).toHaveText('11/11');
     await page.screenshot({ path: 'test-results/ilota-world-2-zenith.png' });
   });
+});
+
+test('le World 2 vend la pierre et améliore les crocs avec son argent', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    ...maximizedSkillTree(),
+    rebirths: 5,
+    currentWorld: 2,
+    worldTwoMoney: 1_000,
+    tutorialSeen: ['welcome', 'world-2'],
+  });
+  await waitForGame(page);
+  const { moveTo } = createNavigator(page);
+
+  // Le premier filon de pierre est le seul minerai coloré au départ.
+  await moveTo(162.45, 1.75, 0.7);
+  await expect(page.locator('#context-prompt')).toContainText('Pierre');
+  for (let index = 0; index < 8; index += 1) {
+    await page.locator('#action-button').tap();
+    await page.waitForTimeout(460);
+  }
+  await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(8);
+
+  await moveTo(156.3, -1.4, 0.72);
+  await expect(page.locator('#action-button')).toContainText('VENDRE');
+  await page.keyboard.press('KeyE');
+  await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(0);
+  await expect.poll(async () => (await diagnostics(page)).worldTwoMoney).toBe(1_040);
+
+  for (const terrace of WORLD_TWO_TERRACES.slice(1, 4)) {
+    await moveTo(terrace.x, terrace.z, 0.82);
+  }
+  const shrine = WORLD_TWO_TERRACES[3]!;
+  await moveTo(shrine.x - 2.55, shrine.z + 1.2, 0.75);
+  await expect(page.locator('#action-button')).toContainText('MÉDITER');
+  await page.keyboard.press('KeyE');
+  const fangCard = page.getByRole('button', { name: /Crocs du voyageur/ });
+  await expect(fangCard).toBeEnabled();
+  await fangCard.click();
+  await expect.poll(async () => (await diagnostics(page)).worldTwoFangLevel).toBe(2);
+  await expect.poll(async () => (await diagnostics(page)).worldTwoLockedMinerals).toBe(28);
+  await page.screenshot({ path: 'test-results/ilota-world-2-fang-economy.png' });
+});
+
+test('la tanière recrute avec de l’argent et lance les animations du nouveau loup', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    ...maximizedSkillTree(),
+    rebirths: 5,
+    currentWorld: 2,
+    worldTwoMoney: 1_000,
+    tutorialSeen: ['welcome', 'world-2'],
+  });
+  await waitForGame(page);
+  const { moveTo } = createNavigator(page);
+  await moveTo(163.55, -1.4, 0.72);
+  await expect(page.locator('#action-button')).toContainText('RECRUTER');
+  await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).worldTwoWolfAnimations).toMatch(/run|act|walk/);
+  await page.screenshot({ path: 'test-results/ilota-world-2-professional-wolf.png' });
 });
 
 test('le Savoir reste visible et une ancienne île ne rouvre jamais ses objectifs payés', async ({ page }) => {
@@ -1344,6 +1448,9 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.getByRole('heading', { name: 'Recrute et place tes renards' })).toBeVisible();
   await recruitUntil(page, 2);
   await closeCrew(page);
+  // Rejoindre l'allée est de la place avant de viser la Maison : le Camp,
+  // la nurserie et les arbres forment désormais de vrais volumes solides.
+  await moveTo(8, 1, 0.75);
   await completeProjectsUntil(page, 3, moveTo);
   await expect.poll(async () => (await diagnostics(page)).bridgeGuides).toBe(1);
   // La Maison des Travaux est désormais un véritable obstacle. On quitte
@@ -1393,6 +1500,9 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await upgradeWorker(page, 'Milo');
   await upgradeWorker(page, 'Nila');
   await closeCrew(page);
+  // La fonderie est désormais solide : longer sa façade sud au lieu de
+  // demander au navigateur tactile de couper à travers son volume.
+  await moveTo(17.5, -56.2, 0.65);
   await moveTo(13, -56, 0.65);
   await moveTo(15, -48, 0.65);
   await moveTo(16, -44, 0.65);

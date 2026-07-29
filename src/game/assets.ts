@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export type NatureKind = 'treeA' | 'treeB' | 'rock' | 'bush' | 'grass';
+export type WorldTwoEnemyKind = 'enemyDemon' | 'enemyYeti' | 'enemyWraith';
 export type WorldTwoAssetKind =
   | 'portal'
   | 'gateRock'
@@ -17,7 +17,7 @@ export type WorldTwoAssetKind =
   | 'gold'
   | 'coal'
   | 'bridge'
-  | 'enemy';
+  | WorldTwoEnemyKind;
 export type BuildingKind =
   | 'camp'
   | 'workshop'
@@ -80,10 +80,12 @@ const WORLD_TWO_ASSET_PATHS: Record<WorldTwoAssetKind, string> = {
   gold: 'assets/third-party/kaykit-resources/Gold_Nuggets.gltf',
   coal: 'assets/third-party/kaykit-resources/Stone_Chunks_Large.gltf',
   bridge: 'assets/third-party/kaykit-bridge/building_bridge_A.gltf',
-  enemy: 'assets/third-party/gobkit-minion/minion-a01.glb',
+  enemyDemon: 'assets/third-party/quaternius-ultimate-monsters/BlueDemon.glb',
+  enemyYeti: 'assets/third-party/quaternius-ultimate-monsters/Yeti.glb',
+  enemyWraith: 'assets/third-party/quaternius-ultimate-monsters/Ghost_Skull.glb',
 };
 
-const WOLF_PATH = 'assets/third-party/quaternius-wolf/Wolf.fbx';
+const WOLF_PATH = 'assets/third-party/quaternius-ultimate-animals/Wolf.glb';
 const PORTAL_SPIRAL_PATH = 'assets/third-party/portal/spiral_portal.png';
 
 const prepareMeshes = (root: THREE.Object3D, receiveShadow = true): void => {
@@ -97,13 +99,12 @@ const prepareMeshes = (root: THREE.Object3D, receiveShadow = true): void => {
 
 export class AssetLibrary {
   private readonly loader = new GLTFLoader();
-  private readonly fbxLoader = new FBXLoader();
   private readonly textureLoader = new THREE.TextureLoader();
   private readonly nature = new Map<NatureKind, THREE.Object3D>();
   private readonly buildings = new Map<BuildingKind, THREE.Object3D>();
   private readonly worldTwoAssets = new Map<WorldTwoAssetKind, GLTF>();
   private fox: GLTF | null = null;
-  private wolf: THREE.Group | null = null;
+  private wolf: GLTF | null = null;
   private portalSpiral: THREE.Texture | null = null;
 
   get loadedCount(): number {
@@ -138,7 +139,7 @@ export class AssetLibrary {
         this.buildings.set(kind, gltf.scene);
       } else if (key.startsWith('world-two:')) {
         const kind = key.slice('world-two:'.length) as WorldTwoAssetKind;
-        prepareMeshes(gltf.scene, kind !== 'enemy');
+        prepareMeshes(gltf.scene, !kind.startsWith('enemy'));
         this.worldTwoAssets.set(kind, gltf);
       } else {
         const kind = key as NatureKind;
@@ -150,10 +151,10 @@ export class AssetLibrary {
     }));
 
     const [wolf, portalSpiral] = await Promise.all([
-      this.fbxLoader.loadAsync(`${import.meta.env.BASE_URL}${WOLF_PATH}`),
+      this.loader.loadAsync(`${import.meta.env.BASE_URL}${WOLF_PATH}`),
       this.textureLoader.loadAsync(`${import.meta.env.BASE_URL}${PORTAL_SPIRAL_PATH}`),
     ]);
-    prepareMeshes(wolf, false);
+    prepareMeshes(wolf.scene, false);
     this.wolf = wolf;
     done += 1;
     onProgress?.(done / total, 'loups');
@@ -206,7 +207,7 @@ export class AssetLibrary {
   }
 
   createWorldTwoAsset(
-    kind: Exclude<WorldTwoAssetKind, 'enemy'>,
+    kind: Exclude<WorldTwoAssetKind, WorldTwoEnemyKind>,
     height?: number,
   ): THREE.Object3D {
     const source = this.worldTwoAssets.get(kind);
@@ -219,15 +220,18 @@ export class AssetLibrary {
 
   createWolf(height = 1.45): { root: THREE.Object3D; clips: THREE.AnimationClip[] } {
     if (!this.wolf) throw new Error('Asset loup absent.');
-    const root = SkeletonUtils.clone(this.wolf);
+    const root = SkeletonUtils.clone(this.wolf.scene);
     prepareMeshes(root, false);
     this.normalizeAsset(root, height, false);
     return { root, clips: this.wolf.animations };
   }
 
-  createWorldTwoEnemy(height = 1.7): { root: THREE.Object3D; clips: THREE.AnimationClip[] } {
-    const source = this.worldTwoAssets.get('enemy');
-    if (!source) throw new Error('Asset ennemi absent.');
+  createWorldTwoEnemy(
+    kind: WorldTwoEnemyKind = 'enemyDemon',
+    height = 1.7,
+  ): { root: THREE.Object3D; clips: THREE.AnimationClip[] } {
+    const source = this.worldTwoAssets.get(kind);
+    if (!source) throw new Error(`Asset ennemi absent : ${kind}.`);
     const root = SkeletonUtils.clone(source.scene);
     prepareMeshes(root, false);
     this.normalizeAsset(root, height, false);

@@ -50,17 +50,20 @@ Les notices et liens de provenance détaillés sont conservés à côté des fic
   https://opengameart.org/content/low-poly-portal
 - **Modular Cave Kit**, Kenney — rampes, refuge, sanctuaire, arches et parois
   rocheuses, CC0 : https://kenney.nl/assets/modular-cave-kit
-- **KayKit Resource Bits**, Kay Lousberg — charbon, fer, argent et or, CC0 :
+- **KayKit Resource Bits**, Kay Lousberg — quatre silhouettes de filons
+  recolorées localement pour les trente niveaux de minerais, CC0 :
   https://kaylousberg.itch.io/resource-bits
-- **Animated Animals Low Poly — Wolf**, Quaternius — meute animée, CC0 :
-  https://opengameart.org/content/animated-animales-low-poly
-- **Minion A01**, Gobkit — créatures hostiles animées, CC0 :
-  https://gobkit.com/free
+- **Ultimate Animated Animal Pack**, Quaternius — nouveau loup de meute avec
+  douze animations nommées, CC0 :
+  https://quaternius.com/packs/ultimateanimatedanimals.html
+- **Ultimate Monsters**, Quaternius — démon bleu, spectre volant et yéti avec
+  locomotion, attaque, réaction et mort, CC0 :
+  https://quaternius.com/packs/ultimatemonsters.html
 - **KayKit Medieval Hexagon Bridge**, Kay Lousberg — pontons du World 1, CC0 :
   https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
 
 ## Créations originales
 
-Le monde, les plateformes fonctionnelles, la progression des rampes, le
-brouillard animé, les effets, l’interface et l’icône d’Ilota ont été créés
-spécialement pour ce projet.
+Le monde, les plateformes fonctionnelles, la progression par dureté de crocs,
+le sentier terrestre de la transition, les effets, l’interface et l’icône
+d’Ilota ont été créés spécialement pour ce projet.

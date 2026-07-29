@@ -15,6 +15,7 @@ import {
   pickResourceKindForIsland,
 } from './world';
 import { BRIDGE_GEOMETRIES } from './pathfinding';
+import { WORLD_TWO_MINERALS } from './economy';
 
 const distanceToSegment = (
   point: { x: number; z: number },
@@ -161,11 +162,15 @@ describe('World 2 · montagne du Zénith', () => {
     });
   });
 
-  it('réserve l’argent et l’or aux hauteurs sans réutiliser les ressources du World 1', () => {
+  it('répartit les trente duretés du pied au sommet sans bloquer les rampes', () => {
     const lowResources = WORLD_TWO_RESOURCES.filter((spawn) => spawn.terraceIndex <= 2);
     const highResources = WORLD_TWO_RESOURCES.filter((spawn) => spawn.terraceIndex >= 8);
-    expect(lowResources.every((spawn) => spawn.kind === 'coal' || spawn.kind === 'iron')).toBe(true);
-    expect(highResources.some((spawn) => spawn.kind === 'gold')).toBe(true);
-    expect(highResources.some((spawn) => spawn.rarity === 'Cœur doré du Zénith')).toBe(true);
+    const hardness = new Map(WORLD_TWO_MINERALS.map((mineral) => [mineral.id, mineral.hardness]));
+    expect(WORLD_TWO_RESOURCES).toHaveLength(30);
+    expect(new Set(WORLD_TWO_RESOURCES.map((spawn) => spawn.kind)).size).toBe(30);
+    expect(lowResources.every((spawn) => (hardness.get(spawn.kind) ?? 99) <= 9)).toBe(true);
+    expect(highResources.every((spawn) => (hardness.get(spawn.kind) ?? 0) >= 23)).toBe(true);
+    expect(highResources.some((spawn) => spawn.kind === 'diamond')).toBe(true);
+    expect(highResources.some((spawn) => spawn.rarity === 'Cœur de Célestium')).toBe(true);
   });
 });

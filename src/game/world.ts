@@ -3,7 +3,7 @@ import {
   type Cost,
   type ResourceKind,
   type StructureKind,
-  type WorldTwoResourceKind,
+  type WorldTwoMineralId,
 } from './economy';
 import type { NatureKind } from './assets';
 
@@ -96,7 +96,7 @@ export interface WorldTwoRampDefinition {
 
 export interface WorldTwoResourceSpawn {
   terraceIndex: number;
-  kind: WorldTwoResourceKind;
+  kind: WorldTwoMineralId;
   dx: number;
   dz: number;
   capacity: number;
@@ -132,27 +132,36 @@ export const WORLD_TWO_RAMPS: readonly WorldTwoRampDefinition[] = WORLD_TWO_TERR
   .map((_, index) => ({ from: index, to: index + 1, width: index >= 7 ? 3.6 : 4.2 }));
 
 export const WORLD_TWO_RESOURCES: readonly WorldTwoResourceSpawn[] = [
-  { terraceIndex: 0, kind: 'coal', dx: -3.8, dz: -3.6, capacity: 12, scale: 0.92, respawnSeconds: 12, rarity: 'Charbon noir' },
-  { terraceIndex: 0, kind: 'coal', dx: 3.8, dz: -3.5, capacity: 12, scale: 0.98, respawnSeconds: 13, rarity: 'Charbon noir' },
-  { terraceIndex: 1, kind: 'coal', dx: -3.6, dz: -1.4, capacity: 14, scale: 1.02, respawnSeconds: 14, rarity: 'Anthracite' },
-  { terraceIndex: 1, kind: 'iron', dx: 3.5, dz: -1.3, capacity: 10, scale: 0.96, respawnSeconds: 16, rarity: 'Fer brut' },
-  { terraceIndex: 2, kind: 'iron', dx: -3.6, dz: -1.3, capacity: 13, scale: 1.06, respawnSeconds: 17, rarity: 'Fer profond' },
-  { terraceIndex: 2, kind: 'coal', dx: 3.5, dz: -1.1, capacity: 15, scale: 1.06, respawnSeconds: 15, rarity: 'Anthracite' },
-  { terraceIndex: 3, kind: 'iron', dx: -3.7, dz: -1.2, capacity: 15, scale: 1.1, respawnSeconds: 18, rarity: 'Magnétite' },
-  { terraceIndex: 3, kind: 'silver', dx: 3.7, dz: -1.1, capacity: 9, scale: 0.92, respawnSeconds: 21, rarity: 'Argent brut' },
-  { terraceIndex: 4, kind: 'iron', dx: -3.4, dz: -1.2, capacity: 16, scale: 1.12, respawnSeconds: 19, rarity: 'Magnétite' },
-  { terraceIndex: 4, kind: 'silver', dx: 3.4, dz: -1, capacity: 11, scale: 1, respawnSeconds: 22, rarity: 'Filon d’argent' },
-  { terraceIndex: 5, kind: 'silver', dx: -3.6, dz: -1.1, capacity: 14, scale: 1.08, respawnSeconds: 23, rarity: 'Argent lunaire' },
-  { terraceIndex: 5, kind: 'iron', dx: 3.6, dz: -1, capacity: 17, scale: 1.13, respawnSeconds: 20, rarity: 'Fer de galerie' },
-  { terraceIndex: 6, kind: 'silver', dx: -3.3, dz: -1, capacity: 15, scale: 1.12, respawnSeconds: 24, rarity: 'Argent lunaire' },
-  { terraceIndex: 6, kind: 'gold', dx: 3.3, dz: -0.8, capacity: 8, scale: 0.9, respawnSeconds: 27, rarity: 'Or pâle' },
-  { terraceIndex: 7, kind: 'silver', dx: -3.5, dz: -1.1, capacity: 16, scale: 1.15, respawnSeconds: 25, rarity: 'Argent des nuages' },
-  { terraceIndex: 7, kind: 'gold', dx: 3.5, dz: -1, capacity: 10, scale: 1, respawnSeconds: 29, rarity: 'Or d’altitude' },
-  { terraceIndex: 8, kind: 'gold', dx: -3.2, dz: -0.9, capacity: 13, scale: 1.12, respawnSeconds: 30, rarity: 'Or solaire' },
-  { terraceIndex: 8, kind: 'silver', dx: 3.2, dz: -0.8, capacity: 17, scale: 1.16, respawnSeconds: 26, rarity: 'Argent astral' },
-  { terraceIndex: 9, kind: 'gold', dx: -3.4, dz: -1, capacity: 16, scale: 1.2, respawnSeconds: 32, rarity: 'Or astral' },
-  { terraceIndex: 9, kind: 'gold', dx: 3.4, dz: -0.7, capacity: 16, scale: 1.2, respawnSeconds: 33, rarity: 'Or astral' },
-  { terraceIndex: 10, kind: 'gold', dx: 0, dz: -1.4, capacity: 24, scale: 1.42, respawnSeconds: 38, rarity: 'Cœur doré du Zénith' },
+  { terraceIndex: 0, kind: 'stone', dx: -3.5, dz: 3.4, capacity: 16, scale: 0.9, respawnSeconds: 10, rarity: 'Pierre de contrefort' },
+  { terraceIndex: 1, kind: 'slate', dx: -3.5, dz: -1.4, capacity: 15, scale: 0.94, respawnSeconds: 11, rarity: 'Ardoise sombre' },
+  { terraceIndex: 1, kind: 'coal', dx: 3.5, dz: -1.3, capacity: 14, scale: 0.98, respawnSeconds: 12, rarity: 'Charbon noir' },
+  { terraceIndex: 1, kind: 'tin', dx: 0, dz: 3.5, capacity: 14, scale: 0.96, respawnSeconds: 13, rarity: 'Étain brut' },
+  { terraceIndex: 2, kind: 'copper', dx: -3.5, dz: -1.4, capacity: 13, scale: 1, respawnSeconds: 14, rarity: 'Cuivre rouge' },
+  { terraceIndex: 2, kind: 'iron', dx: 3.5, dz: -1.3, capacity: 13, scale: 1.04, respawnSeconds: 15, rarity: 'Fer de gorge' },
+  { terraceIndex: 2, kind: 'zinc', dx: 0, dz: 3.5, capacity: 13, scale: 1, respawnSeconds: 16, rarity: 'Zinc mat' },
+  { terraceIndex: 3, kind: 'nickel', dx: -3.5, dz: -1.4, capacity: 12, scale: 1.02, respawnSeconds: 17, rarity: 'Nickel alpin' },
+  { terraceIndex: 3, kind: 'cobalt', dx: 3.5, dz: -1.3, capacity: 12, scale: 1.04, respawnSeconds: 18, rarity: 'Cobalt profond' },
+  { terraceIndex: 3, kind: 'silver', dx: 0, dz: 3.4, capacity: 12, scale: 1.02, respawnSeconds: 19, rarity: 'Argent brut' },
+  { terraceIndex: 4, kind: 'quartz', dx: -3.3, dz: -1.2, capacity: 11, scale: 1.06, respawnSeconds: 20, rarity: 'Quartz du vent' },
+  { terraceIndex: 4, kind: 'amethyst', dx: 3.3, dz: -1.1, capacity: 11, scale: 1.08, respawnSeconds: 21, rarity: 'Améthyste vive' },
+  { terraceIndex: 4, kind: 'garnet', dx: 0, dz: 3.3, capacity: 11, scale: 1.06, respawnSeconds: 22, rarity: 'Grenat du vent' },
+  { terraceIndex: 5, kind: 'topaz', dx: -3.4, dz: -1.2, capacity: 10, scale: 1.08, respawnSeconds: 23, rarity: 'Topaze solaire' },
+  { terraceIndex: 5, kind: 'emerald', dx: 3.4, dz: -1.1, capacity: 10, scale: 1.1, respawnSeconds: 24, rarity: 'Émeraude alpine' },
+  { terraceIndex: 5, kind: 'sapphire', dx: 0, dz: 3.4, capacity: 10, scale: 1.08, respawnSeconds: 25, rarity: 'Saphir de galerie' },
+  { terraceIndex: 6, kind: 'ruby', dx: -3.2, dz: -1.1, capacity: 9, scale: 1.1, respawnSeconds: 26, rarity: 'Rubis ardent' },
+  { terraceIndex: 6, kind: 'platinum', dx: 3.2, dz: -1, capacity: 9, scale: 1.12, respawnSeconds: 27, rarity: 'Platine blanc' },
+  { terraceIndex: 6, kind: 'obsidian', dx: 0, dz: 3.2, capacity: 9, scale: 1.1, respawnSeconds: 28, rarity: 'Obsidienne volcanique' },
+  { terraceIndex: 7, kind: 'opal', dx: -3.3, dz: -1.1, capacity: 9, scale: 1.12, respawnSeconds: 29, rarity: 'Opale spectrale' },
+  { terraceIndex: 7, kind: 'jade', dx: 3.3, dz: -1, capacity: 8, scale: 1.14, respawnSeconds: 30, rarity: 'Jade des sentinelles' },
+  { terraceIndex: 7, kind: 'onyx', dx: 0, dz: 3.2, capacity: 8, scale: 1.12, respawnSeconds: 31, rarity: 'Onyx des nuages' },
+  { terraceIndex: 8, kind: 'moonstone', dx: -3.1, dz: -1, capacity: 8, scale: 1.14, respawnSeconds: 32, rarity: 'Pierre de lune' },
+  { terraceIndex: 8, kind: 'star_iron', dx: 3.1, dz: -0.9, capacity: 8, scale: 1.16, respawnSeconds: 33, rarity: 'Fer stellaire' },
+  { terraceIndex: 8, kind: 'mithril', dx: 0, dz: 3.1, capacity: 8, scale: 1.14, respawnSeconds: 34, rarity: 'Mithril pur' },
+  { terraceIndex: 9, kind: 'adamantite', dx: -3.3, dz: -1, capacity: 7, scale: 1.16, respawnSeconds: 35, rarity: 'Adamantite rouge' },
+  { terraceIndex: 9, kind: 'void_crystal', dx: 3.3, dz: -0.9, capacity: 7, scale: 1.18, respawnSeconds: 36, rarity: 'Cristal du Vide' },
+  { terraceIndex: 9, kind: 'solarite', dx: 0, dz: 3.1, capacity: 7, scale: 1.2, respawnSeconds: 37, rarity: 'Solarite' },
+  { terraceIndex: 10, kind: 'diamond', dx: -3.4, dz: 0, capacity: 6, scale: 1.24, respawnSeconds: 39, rarity: 'Diamant du Zénith' },
+  { terraceIndex: 10, kind: 'celestium', dx: 3.4, dz: 0, capacity: 8, scale: 1.42, respawnSeconds: 44, rarity: 'Cœur de Célestium' },
 ];
 
 const distanceToWorldTwoSegment = (

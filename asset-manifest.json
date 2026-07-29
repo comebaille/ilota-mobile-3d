@@ -1,0 +1,237 @@
+{
+  "version": 1,
+  "art_direction": "Low-poly mobile archipelago evolving into a dark, enclosed alpine ascent; moss and ochre in World 1, slate, black stone, mineral color and warm path lighting in World 2",
+  "assets": [
+    {
+      "id": "quaternius-fox",
+      "origin": "downloaded",
+      "kind": "animated-3d-character",
+      "source_url": "https://quaternius.com/packs/ultimateanimatedanimals.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/fox"
+      ],
+      "used_for": [
+        "player fox",
+        "World 1 workers"
+      ],
+      "modifications": "Converted and optimized to a self-contained GLB while preserving twelve named animation clips"
+    },
+    {
+      "id": "quaternius-professional-wolf",
+      "origin": "downloaded",
+      "kind": "animated-3d-character",
+      "source_url": "https://quaternius.com/packs/ultimateanimatedanimals.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/quaternius-ultimate-animals"
+      ],
+      "used_for": [
+        "World 2 recruitable wolf pack",
+        "mining and combat animation state machine"
+      ],
+      "modifications": "Converted Wolf.gltf to a self-contained GLB; preserved Attack, Death, Gallop, Idle, hit reactions, and Walk clips"
+    },
+    {
+      "id": "quaternius-ultimate-monsters",
+      "origin": "downloaded",
+      "kind": "animated-3d-character-pack",
+      "source_url": "https://quaternius.com/packs/ultimatemonsters.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/quaternius-ultimate-monsters"
+      ],
+      "used_for": [
+        "Blue Demon encounters",
+        "flying skull wraith encounters",
+        "Yeti summit guardians"
+      ],
+      "modifications": "Converted selected glTF models to self-contained GLB files and retained named locomotion, attack, hit, and death clips"
+    },
+    {
+      "id": "kaykit-resource-bits",
+      "origin": "downloaded",
+      "kind": "3d-prop-pack",
+      "source_url": "https://kaylousberg.itch.io/resource-bits",
+      "author": "Kay Lousberg / KayKit",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/kaykit-resources"
+      ],
+      "used_for": [
+        "thirty World 2 mineral silhouettes",
+        "carried mineral readability"
+      ],
+      "modifications": "Four source nugget silhouettes are cloned and recolored per mineral; unavailable tiers receive a near-black locked material"
+    },
+    {
+      "id": "kenney-modular-cave",
+      "origin": "downloaded",
+      "kind": "3d-environment-pack",
+      "source_url": "https://kenney.nl/assets/modular-cave-kit",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/kenney-cave"
+      ],
+      "used_for": [
+        "World 2 ramps",
+        "mountain walls",
+        "wolf den",
+        "fang shrine"
+      ],
+      "modifications": "Selected GLB modules are scaled, rotated, and combined with collision-safe terrace openings"
+    },
+    {
+      "id": "hippo-low-poly-portal",
+      "origin": "downloaded",
+      "kind": "3d-environment-prop",
+      "source_url": "https://opengameart.org/content/low-poly-portal",
+      "author": "HippoDevelopment",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/portal"
+      ],
+      "used_for": [
+        "World 1 to World 2 portal",
+        "World 2 return portal"
+      ],
+      "modifications": "Combined the portal model and spiral texture with local emissive rings, lighting, and interaction labels"
+    },
+    {
+      "id": "quaternius-simple-nature",
+      "origin": "downloaded",
+      "kind": "3d-environment-pack",
+      "source_url": "https://quaternius.com/packs/simplenature.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/nature"
+      ],
+      "used_for": [
+        "World 1 trees",
+        "World 1 rocks",
+        "island decoration"
+      ],
+      "modifications": "Selected Blender sources were exported to individual GLB files"
+    },
+    {
+      "id": "kaykit-medieval-buildings",
+      "origin": "downloaded",
+      "kind": "3d-building-pack",
+      "source_url": "https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0",
+      "author": "Kay Lousberg / KayKit",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/kaykit-buildings",
+        "public/assets/third-party/kaykit-bridge"
+      ],
+      "used_for": [
+        "World 1 buildings",
+        "World 1 bridges"
+      ],
+      "modifications": "Original glTF modules are normalized, oriented toward island centers, and assembled with local construction animation"
+    },
+    {
+      "id": "kenney-particle-pack",
+      "origin": "downloaded",
+      "kind": "vfx-texture-pack",
+      "source_url": "https://kenney.nl/assets/particle-pack",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_paths": [
+        "public/assets/third-party/kenney-particles"
+      ],
+      "used_for": [
+        "World 1 lightning power",
+        "tide power",
+        "skill convergence"
+      ],
+      "modifications": "Textures are bundled locally and composited by the game UI"
+    }
+  ],
+  "visual_requirements": [
+    {
+      "id": "hero-fox",
+      "role": "Animated player and worker foxes",
+      "priority": "hero",
+      "strategy": "downloaded",
+      "asset_ids": [
+        "quaternius-fox"
+      ]
+    },
+    {
+      "id": "world-two-wolves",
+      "role": "Readable professional wolf pack with complete locomotion and combat states",
+      "priority": "hero",
+      "strategy": "downloaded",
+      "asset_ids": [
+        "quaternius-professional-wolf"
+      ]
+    },
+    {
+      "id": "world-two-monsters",
+      "role": "Distinct demon, flying wraith, and Yeti encounters",
+      "priority": "major",
+      "strategy": "downloaded",
+      "asset_ids": [
+        "quaternius-ultimate-monsters"
+      ]
+    },
+    {
+      "id": "world-two-mineral-ladder",
+      "role": "Thirty visually tiered mineral deposits with black locked state",
+      "priority": "major",
+      "strategy": "downloaded",
+      "asset_ids": [
+        "kaykit-resource-bits"
+      ]
+    },
+    {
+      "id": "world-two-mountain-kit",
+      "role": "Mountain ramps, den, shrine, cliff edges, and architectural language",
+      "priority": "major",
+      "strategy": "downloaded",
+      "asset_ids": [
+        "kenney-modular-cave"
+      ]
+    },
+    {
+      "id": "world-portal",
+      "role": "Recognizable two-way temporal portal",
+      "priority": "major",
+      "strategy": "downloaded",
+      "asset_ids": [
+        "hippo-low-poly-portal"
+      ]
+    },
+    {
+      "id": "world-travel-ground",
+      "role": "Continuous visible dirt path under the player during the World transition",
+      "priority": "structural",
+      "strategy": "code-primitive",
+      "asset_ids": [],
+      "exception": "A generated Catmull-Rom-aligned causeway guarantees exact ground continuity and camera-safe collision-free travel between two distant world coordinates"
+    },
+    {
+      "id": "terrace-collision-base",
+      "role": "Walkable circular terraces and continuous ramp collision surfaces",
+      "priority": "structural",
+      "strategy": "code-primitive",
+      "asset_ids": [],
+      "exception": "Deterministic cylinders and support boxes provide exact gameplay surfaces beneath the downloaded cave dressing"
+    }
+  ]
+}
