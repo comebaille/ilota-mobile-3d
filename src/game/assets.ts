@@ -1,8 +1,23 @@
 import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export type NatureKind = 'treeA' | 'treeB' | 'rock' | 'bush' | 'grass';
+export type WorldTwoAssetKind =
+  | 'portal'
+  | 'gateRock'
+  | 'ramp'
+  | 'corridor'
+  | 'den'
+  | 'cliffTop'
+  | 'cliffDetail'
+  | 'iron'
+  | 'silver'
+  | 'gold'
+  | 'coal'
+  | 'bridge'
+  | 'enemy';
 export type BuildingKind =
   | 'camp'
   | 'workshop'
@@ -52,6 +67,25 @@ const BUILDING_PATHS: Record<BuildingKind, string> = {
   unityLighthouse: 'assets/third-party/kaykit-buildings/building_tower_B_yellow.gltf',
 };
 
+const WORLD_TWO_ASSET_PATHS: Record<WorldTwoAssetKind, string> = {
+  portal: 'assets/third-party/portal/Portal.glb',
+  gateRock: 'assets/third-party/kenney-cave/gate-rock.glb',
+  ramp: 'assets/third-party/kenney-cave/stairs-wide.glb',
+  corridor: 'assets/third-party/kenney-cave/corridor-wide.glb',
+  den: 'assets/third-party/kenney-cave/room-small.glb',
+  cliffTop: 'assets/third-party/kenney-cave/template-wall-top.glb',
+  cliffDetail: 'assets/third-party/kenney-cave/template-wall-detail-a.glb',
+  iron: 'assets/third-party/kaykit-resources/Iron_Nuggets.gltf',
+  silver: 'assets/third-party/kaykit-resources/Silver_Nuggets.gltf',
+  gold: 'assets/third-party/kaykit-resources/Gold_Nuggets.gltf',
+  coal: 'assets/third-party/kaykit-resources/Stone_Chunks_Large.gltf',
+  bridge: 'assets/third-party/kaykit-bridge/building_bridge_A.gltf',
+  enemy: 'assets/third-party/gobkit-minion/minion-a01.glb',
+};
+
+const WOLF_PATH = 'assets/third-party/quaternius-wolf/Wolf.fbx';
+const PORTAL_SPIRAL_PATH = 'assets/third-party/portal/spiral_portal.png';
+
 const prepareMeshes = (root: THREE.Object3D, receiveShadow = true): void => {
   root.traverse((node) => {
     if (!(node instanceof THREE.Mesh)) return;
@@ -63,12 +97,22 @@ const prepareMeshes = (root: THREE.Object3D, receiveShadow = true): void => {
 
 export class AssetLibrary {
   private readonly loader = new GLTFLoader();
+  private readonly fbxLoader = new FBXLoader();
+  private readonly textureLoader = new THREE.TextureLoader();
   private readonly nature = new Map<NatureKind, THREE.Object3D>();
   private readonly buildings = new Map<BuildingKind, THREE.Object3D>();
+  private readonly worldTwoAssets = new Map<WorldTwoAssetKind, GLTF>();
   private fox: GLTF | null = null;
+  private wolf: THREE.Group | null = null;
+  private portalSpiral: THREE.Texture | null = null;
 
   get loadedCount(): number {
-    return (this.fox ? 1 : 0) + this.nature.size + this.buildings.size;
+    return (this.fox ? 1 : 0)
+      + (this.wolf ? 1 : 0)
+      + (this.portalSpiral ? 1 : 0)
+      + this.nature.size
+      + this.buildings.size
+      + this.worldTwoAssets.size;
   }
 
   async load(onProgress?: (progress: number, label: string) => void): Promise<void> {
@@ -76,8 +120,11 @@ export class AssetLibrary {
       ['renards', 'assets/third-party/fox/Fox.glb'],
       ...Object.entries(NATURE_PATHS),
       ...Object.entries(BUILDING_PATHS).map(([kind, path]) => [`building:${kind}`, path] as [string, string]),
+      ...Object.entries(WORLD_TWO_ASSET_PATHS).map(([kind, path]) => [`world-two:${kind}`, path] as [string, string]),
     ];
+    const specialEntries = 2;
     let done = 0;
+    const total = entries.length + specialEntries;
 
     await Promise.all(entries.map(async ([key, path]) => {
       const url = `${import.meta.env.BASE_URL}${path}`;
@@ -89,14 +136,33 @@ export class AssetLibrary {
         const kind = key.slice('building:'.length) as BuildingKind;
         prepareMeshes(gltf.scene);
         this.buildings.set(kind, gltf.scene);
+      } else if (key.startsWith('world-two:')) {
+        const kind = key.slice('world-two:'.length) as WorldTwoAssetKind;
+        prepareMeshes(gltf.scene, kind !== 'enemy');
+        this.worldTwoAssets.set(kind, gltf);
       } else {
         const kind = key as NatureKind;
         prepareMeshes(gltf.scene);
         this.nature.set(kind, gltf.scene);
       }
       done += 1;
-      onProgress?.(done / entries.length, key);
+      onProgress?.(done / total, key);
     }));
+
+    const [wolf, portalSpiral] = await Promise.all([
+      this.fbxLoader.loadAsync(`${import.meta.env.BASE_URL}${WOLF_PATH}`),
+      this.textureLoader.loadAsync(`${import.meta.env.BASE_URL}${PORTAL_SPIRAL_PATH}`),
+    ]);
+    prepareMeshes(wolf, false);
+    this.wolf = wolf;
+    done += 1;
+    onProgress?.(done / total, 'loups');
+    portalSpiral.colorSpace = THREE.SRGBColorSpace;
+    portalSpiral.wrapS = THREE.RepeatWrapping;
+    portalSpiral.wrapT = THREE.RepeatWrapping;
+    this.portalSpiral = portalSpiral;
+    done += 1;
+    onProgress?.(done / total, 'portail temporel');
   }
 
   createNature(kind: NatureKind): THREE.Object3D {
@@ -137,6 +203,67 @@ export class AssetLibrary {
     root.position.y -= normalized.min.y;
     // Le renard est déjà orienté vers +Z, comme les groupes qui pilotent son déplacement.
     return { root, clips: this.fox.animations };
+  }
+
+  createWorldTwoAsset(
+    kind: Exclude<WorldTwoAssetKind, 'enemy'>,
+    height?: number,
+  ): THREE.Object3D {
+    const source = this.worldTwoAssets.get(kind);
+    if (!source) throw new Error(`Asset World 2 absent: ${kind}`);
+    const root = source.scene.clone(true);
+    prepareMeshes(root);
+    this.normalizeAsset(root, height);
+    return root;
+  }
+
+  createWolf(height = 1.45): { root: THREE.Object3D; clips: THREE.AnimationClip[] } {
+    if (!this.wolf) throw new Error('Asset loup absent.');
+    const root = SkeletonUtils.clone(this.wolf);
+    prepareMeshes(root, false);
+    this.normalizeAsset(root, height, false);
+    return { root, clips: this.wolf.animations };
+  }
+
+  createWorldTwoEnemy(height = 1.7): { root: THREE.Object3D; clips: THREE.AnimationClip[] } {
+    const source = this.worldTwoAssets.get('enemy');
+    if (!source) throw new Error('Asset ennemi absent.');
+    const root = SkeletonUtils.clone(source.scene);
+    prepareMeshes(root, false);
+    this.normalizeAsset(root, height, false);
+    return { root, clips: source.animations };
+  }
+
+  createPortalSpiralMaterial(color = 0x8fe8ff): THREE.MeshBasicMaterial {
+    if (!this.portalSpiral) throw new Error('Texture de portail absente.');
+    const texture = this.portalSpiral.clone();
+    texture.needsUpdate = true;
+    return new THREE.MeshBasicMaterial({
+      color,
+      map: texture,
+      transparent: true,
+      opacity: 0.92,
+      alphaTest: 0.08,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+  }
+
+  private normalizeAsset(root: THREE.Object3D, height?: number, center = true): void {
+    root.updateMatrixWorld(true);
+    let bounds = new THREE.Box3().setFromObject(root);
+    if (height) {
+      const sourceHeight = Math.max(0.001, bounds.max.y - bounds.min.y);
+      root.scale.multiplyScalar(height / sourceHeight);
+      root.updateMatrixWorld(true);
+      bounds = new THREE.Box3().setFromObject(root);
+    }
+    root.position.y -= bounds.min.y;
+    if (center) {
+      root.position.x -= (bounds.min.x + bounds.max.x) / 2;
+      root.position.z -= (bounds.min.z + bounds.max.z) / 2;
+    }
   }
 }
 

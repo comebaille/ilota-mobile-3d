@@ -1,0 +1,4 @@
+CC0 1.0 Universal
+
+The creator has dedicated this work to the public domain. A copy of the
+license is available at https://creativecommons.org/publicdomain/zero/1.0/

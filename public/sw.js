@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v16-triangle-work-houses';
+const CACHE = 'ilota-v17-world-two-zenith';
 const CORE = [
   './',
   './index.html',
@@ -47,6 +47,30 @@ const CORE = [
   './assets/third-party/kenney-particles/lightning.png',
   './assets/third-party/kenney-particles/tide.png',
   './assets/third-party/kenney-particles/convergence.png',
+  './assets/third-party/portal/Portal.glb',
+  './assets/third-party/portal/portal_texture.png',
+  './assets/third-party/portal/spiral_portal.png',
+  './assets/third-party/kenney-cave/gate-rock.glb',
+  './assets/third-party/kenney-cave/stairs-wide.glb',
+  './assets/third-party/kenney-cave/corridor-wide.glb',
+  './assets/third-party/kenney-cave/room-small.glb',
+  './assets/third-party/kenney-cave/template-wall-top.glb',
+  './assets/third-party/kenney-cave/template-wall-detail-a.glb',
+  './assets/third-party/kenney-cave/Textures/colormap.png',
+  './assets/third-party/kaykit-resources/Iron_Nuggets.gltf',
+  './assets/third-party/kaykit-resources/Iron_Nuggets.bin',
+  './assets/third-party/kaykit-resources/Silver_Nuggets.gltf',
+  './assets/third-party/kaykit-resources/Silver_Nuggets.bin',
+  './assets/third-party/kaykit-resources/Gold_Nuggets.gltf',
+  './assets/third-party/kaykit-resources/Gold_Nuggets.bin',
+  './assets/third-party/kaykit-resources/Stone_Chunks_Large.gltf',
+  './assets/third-party/kaykit-resources/Stone_Chunks_Large.bin',
+  './assets/third-party/kaykit-resources/resource_bits_texture.png',
+  './assets/third-party/quaternius-wolf/Wolf.fbx',
+  './assets/third-party/kaykit-bridge/building_bridge_A.gltf',
+  './assets/third-party/kaykit-bridge/building_bridge_A.bin',
+  './assets/third-party/kaykit-bridge/hexagons_medieval.png',
+  './assets/third-party/gobkit-minion/minion-a01.glb',
 ];
 
 self.addEventListener('install', (event) => {

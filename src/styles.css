@@ -3583,6 +3583,236 @@ button:focus-visible {
   }
 }
 
+.resource-chip.world-two-resource {
+  background: linear-gradient(145deg, rgba(30, 43, 51, 0.94), rgba(54, 66, 72, 0.9));
+  border-color: rgba(160, 205, 218, 0.42);
+}
+
+.world-two-skill-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 175;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right))
+    max(18px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 50% 15%, rgba(115, 164, 178, 0.22), transparent 42%),
+    rgba(9, 17, 22, 0.88);
+  backdrop-filter: blur(12px);
+}
+
+.world-two-skill-panel[hidden] {
+  display: none;
+}
+
+.world-two-skill-sheet {
+  width: min(980px, 100%);
+  max-height: min(760px, 94vh);
+  overflow: auto;
+  padding: 22px;
+  color: #f7f3e7;
+  border: 1px solid rgba(166, 211, 222, 0.42);
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(38, 52, 60, 0.98), rgba(19, 28, 34, 0.98));
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.48), inset 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.world-two-skill-intro {
+  margin: 8px 0 18px;
+  color: rgba(229, 242, 245, 0.76);
+}
+
+.world-two-skill-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.world-two-skill-resources span {
+  padding: 8px 12px;
+  border: 1px solid rgba(166, 211, 222, 0.24);
+  border-radius: 999px;
+  background: rgba(7, 14, 18, 0.42);
+  font-weight: 850;
+}
+
+.world-two-skill-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.world-two-skill-card {
+  position: relative;
+  min-height: 168px;
+  padding: 16px;
+  text-align: left;
+  color: #f7f3e7;
+  border: 1px solid rgba(166, 211, 222, 0.26);
+  border-radius: 20px;
+  background: linear-gradient(155deg, rgba(75, 96, 106, 0.72), rgba(29, 40, 46, 0.9));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.world-two-skill-card:not(:disabled) {
+  cursor: pointer;
+}
+
+.world-two-skill-card:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+.world-two-skill-card.locked {
+  opacity: 0.5;
+}
+
+.world-two-skill-card.owned {
+  border-color: rgba(245, 205, 108, 0.74);
+  background: linear-gradient(155deg, rgba(109, 91, 52, 0.84), rgba(43, 42, 39, 0.92));
+}
+
+.world-two-skill-card > b {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: rgba(7, 14, 18, 0.5);
+  font-size: 22px;
+}
+
+.world-two-skill-card strong,
+.world-two-skill-card small,
+.world-two-skill-card em {
+  display: block;
+}
+
+.world-two-skill-card strong {
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+.world-two-skill-card small {
+  color: rgba(229, 242, 245, 0.72);
+  line-height: 1.35;
+}
+
+.world-two-skill-card em {
+  margin-top: 12px;
+  color: #f3cc74;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+html.world-travel::after {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at center, transparent 30%, rgba(24, 38, 48, 0.58) 90%),
+    repeating-conic-gradient(from 0deg, rgba(128, 221, 238, 0.08) 0 5deg, transparent 5deg 15deg);
+  mix-blend-mode: screen;
+  animation: world-travel-spin 1.8s linear infinite;
+}
+
+@keyframes world-travel-spin {
+  to { transform: rotate(1turn) scale(1.15); }
+}
+
+@media (max-width: 760px) {
+  .world-two-skill-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .world-two-skill-card {
+    min-height: 146px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .world-two-skill-panel {
+    padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
+  }
+
+  .world-two-skill-sheet {
+    max-height: calc(100vh - 12px);
+    padding: 12px 14px;
+    border-radius: 20px;
+  }
+
+  .world-two-skill-sheet .crew-header h2 {
+    font-size: 24px;
+  }
+
+  .world-two-skill-sheet .kicker {
+    font-size: 8px;
+  }
+
+  .world-two-skill-sheet .icon-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .world-two-skill-intro {
+    margin: 3px 0 8px;
+    font-size: 11px;
+  }
+
+  .world-two-skill-resources {
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+
+  .world-two-skill-resources span {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .world-two-skill-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .world-two-skill-card {
+    min-height: 116px;
+    padding: 9px 10px;
+    border-radius: 15px;
+  }
+
+  .world-two-skill-card > b {
+    float: left;
+    width: 32px;
+    height: 32px;
+    margin: 0 8px 4px 0;
+    border-radius: 10px;
+    font-size: 17px;
+  }
+
+  .world-two-skill-card strong {
+    min-height: 32px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    line-height: 1.15;
+  }
+
+  .world-two-skill-card small {
+    clear: both;
+    font-size: 9px;
+    line-height: 1.25;
+  }
+
+  .world-two-skill-card em {
+    margin-top: 6px;
+    font-size: 9px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

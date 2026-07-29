@@ -23,7 +23,10 @@ import {
   getWorkerDepositValue,
   getWorkerYield,
   getWarehouseCost,
+  getWorldTwoCargoCapacity,
+  getWorldTwoCargoTotal,
   hasSkill,
+  hasWorldTwoSkill,
   isProjectVisible,
   isProjectHallBuilt,
   isSkillVisible,
@@ -58,7 +61,7 @@ const maximizedSkillTree = (): Pick<IslandProgress, 'skills' | 'skillRanks'> => 
   ),
 });
 
-describe('Economy v9', () => {
+describe('Economy v10', () => {
   it('préserve le chapitre 2 des anciennes sauvegardes ayant déjà franchi le pont des Pins', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 1,
@@ -230,7 +233,7 @@ describe('Economy v9', () => {
       completed: true,
       elapsedSeconds: 42,
     }));
-    expect(restored.progress).toMatchObject({ version: 9, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress).toMatchObject({ version: 10, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
     expect(restored.progress.warehousesBuilt).toEqual([true, false, false, false, false]);
     expect(restored.progress.projectsCompleted).toEqual([
       'starter_tools',
@@ -263,7 +266,7 @@ describe('Economy v9', () => {
       completed: true,
       elapsedSeconds: 600,
     }));
-    expect(restored.progress).toMatchObject({ version: 9, completed: true, knowledge: 10, rebirths: 0 });
+    expect(restored.progress).toMatchObject({ version: 10, completed: true, knowledge: 10, rebirths: 0 });
     expect(restored.progress.cycleMilestones).toHaveLength(10);
   });
 
@@ -280,7 +283,7 @@ describe('Economy v9', () => {
       skillRanks: { trail_sense: 1 },
     }));
     expect(restored.progress).toMatchObject({
-      version: 9,
+      version: 10,
       wood: 73,
       stone: 51,
       campBuilt: true,
@@ -303,7 +306,7 @@ describe('Economy v9', () => {
       tutorialSeen: [],
     }));
     expect(restored.progress).toMatchObject({
-      version: 9,
+      version: 10,
       knowledge: 9,
       autoRegulation: true,
       powerNotifications: false,
@@ -325,7 +328,7 @@ describe('Economy v9', () => {
     delete legacy.worldTwoPeakReached;
     const restored = Economy.restore(JSON.stringify(legacy));
     expect(restored.progress).toMatchObject({
-      version: 9,
+      version: 10,
       rebirths: 5,
       knowledge: 21,
       completed: true,
@@ -360,7 +363,7 @@ describe('Economy v9', () => {
     });
     economy.rebirth();
     expect(economy.progress).toMatchObject({
-      version: 9,
+      version: 10,
       rebirths: 6,
       currentWorld: 1,
       worldTwoPeakReached: true,
@@ -515,7 +518,7 @@ describe('Economy v9', () => {
       skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
       autoRegulation: true,
     }));
-    expect(restored.progress.version).toBe(9);
+    expect(restored.progress.version).toBe(10);
     expect(restored.progress.skills).toEqual(expect.arrayContaining([
       'awakening',
       'insight_gateway',
@@ -641,7 +644,7 @@ describe('Economy v9', () => {
     });
     const reward = economy.rebirth();
     expect(reward).toBe(3);
-    expect(economy.progress).toMatchObject({ version: 9, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
+    expect(economy.progress).toMatchObject({ version: 10, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
     expect(economy.progress.skills).toContain('tidal_memory');
     expect(economy.progress).toMatchObject({ powerNotifications: true, powerVfx: false });
     expect(economy.progress.workers).toEqual([]);
@@ -701,5 +704,50 @@ describe('Economy v9', () => {
     expect(economy.buildWarehouse(1)).toBe(true);
     expect(economy.progress.warehousesBuilt).toEqual([true, true, false, false, false]);
     expect(economy.buildWarehouse(2)).toBe(false);
+  });
+
+  it('garde les minerais et la cargaison du monde 2 entièrement séparés du monde 1', () => {
+    const economy = new Economy({ wood: 12, stone: 7 });
+    expect(getWorldTwoCargoCapacity(economy.progress)).toBe(8);
+    expect(economy.carryWorldTwoForPlayer('coal', 6)).toBe(6);
+    expect(economy.carryWorldTwoForPlayer('iron', 5)).toBe(2);
+    expect(getWorldTwoCargoTotal(economy.progress)).toBe(8);
+    expect(economy.progress).toMatchObject({ wood: 12, stone: 7 });
+    expect(economy.progress.worldTwoResources).toEqual({ coal: 0, iron: 0, silver: 0, gold: 0 });
+
+    expect(economy.depositWorldTwoCargo('coal', 4)).toBe(4);
+    expect(economy.progress.worldTwoResources.coal).toBe(4);
+    expect(economy.progress.worldTwoCargo).toEqual({ coal: 2, iron: 2, silver: 0, gold: 0 });
+    expect(economy.progress).toMatchObject({ wood: 12, stone: 7 });
+  });
+
+  it('ouvre les brouillards du monde 2 uniquement dans l’ordre et en payant le bon minerai', () => {
+    const economy = new Economy({
+      worldTwoResources: { coal: 50, iron: 8, silver: 0, gold: 0 },
+    });
+    expect(economy.unlockWorldTwoTerrace(2)).toBe(false);
+    expect(economy.unlockWorldTwoTerrace(1)).toBe(true);
+    expect(economy.progress.worldTwoTerracesUnlocked).toBe(2);
+    expect(economy.progress.worldTwoResources.coal).toBe(32);
+    expect(economy.unlockWorldTwoTerrace(2)).toBe(true);
+    expect(economy.progress.worldTwoTerracesUnlocked).toBe(3);
+    expect(economy.progress.worldTwoResources).toEqual({ coal: 4, iron: 0, silver: 0, gold: 0 });
+  });
+
+  it('recrute une vraie meute et applique les talents du Zénith dans leur ordre', () => {
+    const economy = new Economy({
+      worldTwoResources: { coal: 500, iron: 500, silver: 500, gold: 500 },
+    });
+    const firstWolf = economy.hireWorldTwoWolf();
+    expect(firstWolf).toMatchObject({ id: 'wolf-1', task: 'coal', level: 1, health: 3 });
+    expect(economy.unlockWorldTwoSkill('mountain_tools')).toBe(false);
+    expect(economy.unlockWorldTwoSkill('pack_instinct')).toBe(true);
+    expect(economy.unlockWorldTwoSkill('mountain_tools')).toBe(true);
+    expect(economy.unlockWorldTwoSkill('loaded_saddles')).toBe(true);
+    expect(hasWorldTwoSkill(economy.progress, 'loaded_saddles')).toBe(true);
+    expect(getWorldTwoCargoCapacity(economy.progress)).toBe(12);
+    expect(economy.damageWorldTwoWolf(firstWolf!.id, 2)).toBe(false);
+    expect(economy.damageWorldTwoWolf(firstWolf!.id, 1)).toBe(true);
+    expect(economy.progress.worldTwoWolves).toEqual([]);
   });
 });

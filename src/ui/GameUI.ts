@@ -2,10 +2,15 @@ import {
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
+  WORLD_TWO_RESOURCE_ICONS,
+  WORLD_TWO_RESOURCE_KINDS,
+  WORLD_TWO_RESOURCE_LABELS,
+  WORLD_TWO_SKILLS,
   ISLAND_PROJECTS,
   SKILL_BRANCH_LABELS,
   SKILL_DEFINITIONS,
   formatCost,
+  formatWorldTwoCost,
   getCompletedProjectCount,
   getCargoCapacity,
   getCycleMultiplier,
@@ -22,19 +27,24 @@ import {
   getWorkerCapacity,
   getWorkerLevelCap,
   getWorkerYield,
+  getWorldTwoCargoCapacity,
+  getWorldTwoCargoTotal,
   hasProject,
   hasSkill,
+  hasWorldTwoSkill,
   isProjectVisible,
   isProjectHallBuilt,
   isSkillVisible,
   projectPrerequisitesMet,
   skillPrerequisitesMet,
+  worldTwoSkillPrerequisitesMet,
   type IslandProgress,
   type IslandGoal,
   type ProjectId,
   type ResourceKind,
   type SkillBranch,
   type SkillId,
+  type WorldTwoSkillId,
 } from '../game/economy';
 import { ISLANDS, RESOURCE_SPAWN_PROFILES, WORLD_TWO_TERRACES } from '../game/world';
 
@@ -58,6 +68,7 @@ interface TalentHandlers {
   onExplorationToggle: (enabled: boolean) => void;
   onPowerNotificationsToggle: (enabled: boolean) => void;
   onPowerVfxToggle: (enabled: boolean) => void;
+  onWorldTwoUnlock: (skill: WorldTwoSkillId) => void;
 }
 
 interface ProjectHandlers {
@@ -188,6 +199,10 @@ export class GameUI {
   private readonly explorationFlowButton = byId<HTMLButtonElement>('exploration-flow-button');
   private readonly powerMessagesButton = byId<HTMLButtonElement>('power-messages-button');
   private readonly powerVfxButton = byId<HTMLButtonElement>('power-vfx-button');
+  private readonly worldTwoSkillPanel = byId<HTMLElement>('world-two-skill-panel');
+  private readonly worldTwoSkillClose = byId<HTMLButtonElement>('world-two-skill-close');
+  private readonly worldTwoSkillResources = byId<HTMLElement>('world-two-skill-resources');
+  private readonly worldTwoSkillGrid = byId<HTMLElement>('world-two-skill-grid');
   private readonly menuButton = byId<HTMLButtonElement>('menu-button');
   private readonly menuPanel = byId<HTMLElement>('menu-panel');
   private readonly menuCloseButton = byId<HTMLButtonElement>('menu-close-button');
@@ -320,6 +335,17 @@ export class GameUI {
     this.talentPanel.addEventListener('pointerdown', (event) => {
       if (event.target === this.talentPanel) this.hideTalents();
     });
+    this.worldTwoSkillClose.addEventListener('click', () => this.hideWorldTwoSkills());
+    this.worldTwoSkillPanel.addEventListener('pointerdown', (event) => {
+      if (event.target === this.worldTwoSkillPanel) this.hideWorldTwoSkills();
+    });
+    this.worldTwoSkillGrid.addEventListener('click', (event) => {
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>('button[data-world-two-skill]')
+        : null;
+      if (!target?.dataset.worldTwoSkill || target.disabled) return;
+      this.talentHandlers?.onWorldTwoUnlock(target.dataset.worldTwoSkill as WorldTwoSkillId);
+    });
     this.skillBranches.addEventListener('click', (event) => {
       if (this.skillSuppressClick) {
         this.skillSuppressClick = false;
@@ -377,6 +403,7 @@ export class GameUI {
       else if (!this.crewPanel.hidden) this.hideCrew();
       else if (!this.projectsPanel.hidden) this.hideProjects();
       else if (!this.talentPanel.hidden) this.hideTalents();
+      else if (!this.worldTwoSkillPanel.hidden) this.hideWorldTwoSkills();
       else if (!this.menuPanel.hidden) this.hideMenu();
     });
 
@@ -458,6 +485,10 @@ export class GameUI {
     return !this.talentPanel.hidden;
   }
 
+  get isWorldTwoSkillOpen(): boolean {
+    return !this.worldTwoSkillPanel.hidden;
+  }
+
   get isProjectsOpen(): boolean {
     return !this.projectsPanel.hidden;
   }
@@ -528,11 +559,67 @@ export class GameUI {
     this.menuButton.focus({ preventScroll: true });
   }
 
+  showWorldTwoSkills(): void {
+    if (
+      !this.latestProgress
+      || this.latestProgress.currentWorld !== 2
+      || this.latestProgress.worldTwoTerracesUnlocked <= 3
+    ) return;
+    this.worldTwoSkillPanel.hidden = false;
+    this.renderWorldTwoSkills(this.latestProgress);
+    this.talentHandlers?.onOpenChange(true);
+    window.setTimeout(() => this.worldTwoSkillClose.focus(), 0);
+  }
+
+  hideWorldTwoSkills(): void {
+    if (this.worldTwoSkillPanel.hidden) return;
+    this.worldTwoSkillPanel.hidden = true;
+    this.talentHandlers?.onOpenChange(false);
+    this.menuButton.focus({ preventScroll: true });
+  }
+
+  private renderWorldTwoSkills(progress: IslandProgress): void {
+    this.worldTwoSkillResources.replaceChildren();
+    WORLD_TWO_RESOURCE_KINDS.forEach((kind) => {
+      const chip = element('span');
+      chip.textContent = `${WORLD_TWO_RESOURCE_ICONS[kind]} ${progress.worldTwoResources[kind]} ${WORLD_TWO_RESOURCE_LABELS[kind]}`;
+      this.worldTwoSkillResources.append(chip);
+    });
+
+    this.worldTwoSkillGrid.replaceChildren();
+    WORLD_TWO_SKILLS.forEach((skill) => {
+      const owned = hasWorldTwoSkill(progress, skill.id);
+      const prerequisites = worldTwoSkillPrerequisitesMet(progress, skill);
+      const affordable = WORLD_TWO_RESOURCE_KINDS.every(
+        (kind) => progress.worldTwoResources[kind] >= skill.cost[kind],
+      );
+      const card = element('button', `world-two-skill-card${owned ? ' owned' : prerequisites ? '' : ' locked'}`);
+      card.type = 'button';
+      card.dataset.worldTwoSkill = skill.id;
+      card.disabled = owned || !prerequisites || !affordable;
+      const icon = element('b');
+      icon.textContent = skill.icon;
+      const name = element('strong');
+      name.textContent = skill.name;
+      const detail = element('small');
+      detail.textContent = skill.detail;
+      const price = element('em');
+      price.textContent = owned
+        ? '✓ ACQUIS'
+        : prerequisites
+          ? formatWorldTwoCost(skill.cost)
+          : `REQUIS · ${(skill.requires ?? []).map((id) => WORLD_TWO_SKILLS.find((entry) => entry.id === id)?.name).filter(Boolean).join(' + ')}`;
+      card.append(icon, name, detail, price);
+      this.worldTwoSkillGrid.append(card);
+    });
+  }
+
   showMenu(): void {
     if (!this.latestProgress || !this.startScreen.hidden || !this.loadingScreen.hidden) return;
     this.hideCrew();
     this.hideProjects();
     this.hideTalents();
+    this.hideWorldTwoSkills();
     this.resetMenuConfirmations();
     this.renderMenu(this.latestProgress);
     this.menuPanel.hidden = false;
@@ -668,21 +755,36 @@ export class GameUI {
 
   update(progress: IslandProgress): void {
     this.latestProgress = progress;
-    RESOURCE_KINDS.forEach((kind) => { this.resourceCounts[kind].textContent = String(progress[kind]); });
-    this.knowledgeCount.textContent = String(progress.knowledge);
+    RESOURCE_KINDS.forEach((kind, index) => {
+      const count = this.resourceCounts[kind];
+      const worldTwoKind = WORLD_TWO_RESOURCE_KINDS[index]!;
+      count.textContent = String(progress.currentWorld === 2 ? progress.worldTwoResources[worldTwoKind] : progress[kind]);
+      const chip = count.closest<HTMLElement>('.resource-chip');
+      const icon = chip?.querySelector<HTMLElement>('.resource-icon');
+      const label = chip?.querySelector<HTMLElement>('small');
+      if (icon) icon.textContent = progress.currentWorld === 2 ? WORLD_TWO_RESOURCE_ICONS[worldTwoKind] : RESOURCE_ICONS[kind];
+      if (label) label.textContent = progress.currentWorld === 2 ? WORLD_TWO_RESOURCE_LABELS[worldTwoKind] : RESOURCE_LABELS[kind];
+      chip?.classList.toggle('world-two-resource', progress.currentWorld === 2);
+    });
+    const knowledgeChip = this.knowledgeCount.closest<HTMLElement>('.resource-chip');
+    const knowledgeIcon = knowledgeChip?.querySelector<HTMLElement>('.resource-icon');
+    const knowledgeLabel = knowledgeChip?.querySelector<HTMLElement>('small');
+    this.knowledgeCount.textContent = String(progress.currentWorld === 2 ? progress.worldTwoEnemyDefeats : progress.knowledge);
+    if (knowledgeIcon) knowledgeIcon.textContent = progress.currentWorld === 2 ? '⚔' : '✧';
+    if (knowledgeLabel) knowledgeLabel.textContent = progress.currentWorld === 2 ? 'victoires' : 'savoir';
     this.updateCargo(
-      RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0),
-      getCargoCapacity(progress),
+      progress.currentWorld === 2 ? getWorldTwoCargoTotal(progress) : RESOURCE_KINDS.reduce((total, kind) => total + progress.playerCargo[kind], 0),
+      progress.currentWorld === 2 ? getWorldTwoCargoCapacity(progress) : getCargoCapacity(progress),
     );
 
     if (progress.currentWorld === 2) {
       this.objectiveEyebrow.textContent = 'WORLD 2 · MONTAGNE DU ZÉNITH';
       this.objectiveTitle.textContent = progress.worldTwoPeakReached
         ? 'Le sommet se souvient de toi'
-        : 'Gravis les onze terrasses';
+        : `Dissipe les brumes · ${progress.worldTwoTerracesUnlocked}/11`;
       this.objectiveDetail.textContent = progress.worldTwoPeakReached
         ? 'Le Cœur du Zénith est éveillé. Explore librement ou emprunte le portail du Refuge des Échos.'
-        : 'Suis les pentes vers les minerais rares et atteins la Crête Astrale.';
+        : `${progress.worldTwoWolves.length} loup${progress.worldTwoWolves.length > 1 ? 's' : ''} dans la meute · ${progress.worldTwoEnemyDefeats} créature${progress.worldTwoEnemyDefeats > 1 ? 's' : ''} vaincue${progress.worldTwoEnemyDefeats > 1 ? 's' : ''}.`;
     } else {
       const objective = getObjective(progress);
       this.objectiveEyebrow.textContent = objective.eyebrow;
@@ -704,6 +806,7 @@ export class GameUI {
     if (!this.crewPanel.hidden && performance.now() >= this.crewRenderLockedUntil) this.renderCrew(progress);
     if (!this.projectsPanel.hidden) this.renderProjects(progress);
     if (!this.talentPanel.hidden) this.renderTalents(progress);
+    if (!this.worldTwoSkillPanel.hidden) this.renderWorldTwoSkills(progress);
     if (!this.menuPanel.hidden) this.renderMenu(progress);
   }
 
@@ -1355,6 +1458,8 @@ export class GameUI {
   }
 
   updateWorldTwoGoal(terraceIndex: number, peakReached: boolean): void {
+    const progress = this.latestProgress;
+    if (!progress) return;
     const currentIndex = Math.max(0, Math.min(WORLD_TWO_TERRACES.length - 1, terraceIndex));
     const current = WORLD_TWO_TERRACES[currentIndex]!;
     const next = WORLD_TWO_TERRACES[currentIndex + 1];
@@ -1372,19 +1477,36 @@ export class GameUI {
         done: true,
       },
       {
-        label: 'Atteindre le Jardin d’Améthyste',
-        done: currentIndex >= 5,
+        label: `Dissiper les brumes · ${Math.max(0, progress.worldTwoTerracesUnlocked - 1)}/10`,
+        done: progress.worldTwoTerracesUnlocked >= WORLD_TWO_TERRACES.length,
       },
       {
-        label: 'Traverser les Éboulis Stellaires',
-        done: currentIndex >= 8,
+        label: `Former une meute · ${progress.worldTwoWolves.length}/2 loups`,
+        done: progress.worldTwoWolves.length >= 2,
+      },
+      {
+        label: `Repousser les créatures · ${progress.worldTwoEnemyDefeats}/3`,
+        done: progress.worldTwoEnemyDefeats >= 3,
+      },
+      {
+        label: `Maîtriser les Savoirs du Zénith · ${progress.worldTwoSkills.length}/${WORLD_TWO_SKILLS.length}`,
+        done: progress.worldTwoSkills.length >= WORLD_TWO_SKILLS.length,
       },
       {
         label: 'Éveiller le Cœur du Zénith',
         done: peakReached,
       },
     ];
-    const key = JSON.stringify(['world-2', currentIndex, peakReached, ...milestones.map((item) => item.done)]);
+    const key = JSON.stringify([
+      'world-2',
+      currentIndex,
+      peakReached,
+      progress.worldTwoTerracesUnlocked,
+      progress.worldTwoWolves.length,
+      progress.worldTwoEnemyDefeats,
+      progress.worldTwoSkills.length,
+      ...milestones.map((item) => item.done),
+    ]);
     this.islandGoal.hidden = false;
     if (key === this.lastGoalKey) return;
     this.lastGoalKey = key;
@@ -1402,8 +1524,10 @@ export class GameUI {
     this.islandGoalCount.textContent = `${currentIndex + 1}/${WORLD_TWO_TERRACES.length}`;
     this.islandGoalNextLabel.textContent = peakReached
       ? 'Le sommet est éveillé · les minerais du World 2 restent accessibles.'
-      : next
-        ? `Prochaine terrasse · ${next.name}`
+      : progress.worldTwoTerracesUnlocked < WORLD_TWO_TERRACES.length
+        ? `Brume suivante · ${WORLD_TWO_TERRACES[progress.worldTwoTerracesUnlocked]?.name ?? next?.name ?? 'Sommet'}`
+        : next
+          ? `Prochaine terrasse · ${next.name}`
         : 'Approche du Cœur du Zénith pour achever l’ascension.';
     this.islandGoalList.replaceChildren();
     milestones.forEach((item) => {
@@ -1450,6 +1574,7 @@ export class GameUI {
     this.hideCrew();
     this.hideProjects();
     this.hideTalents();
+    this.hideWorldTwoSkills();
     this.hideMenu();
     this.victoryWorkers.textContent = String(progress.workers.length);
     const total = Math.floor(progress.elapsedSeconds);

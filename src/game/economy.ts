@@ -1,10 +1,19 @@
 export const RESOURCE_KINDS = ['wood', 'stone', 'copper', 'crystal'] as const;
+export const WORLD_TWO_RESOURCE_KINDS = ['coal', 'iron', 'silver', 'gold'] as const;
 
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+export type WorldTwoResourceKind = (typeof WORLD_TWO_RESOURCE_KINDS)[number];
 export type WorkerLevel = 1 | 2 | 3;
 export type StructureKind = 'camp' | 'workshop' | 'foundry' | 'observatory';
 export type SkillBranch = 'intelligence' | 'industry' | 'exploration';
 export type SkillFamily = SkillBranch | 'core' | 'hybrid';
+export type WorldTwoSkillId =
+  | 'pack_instinct'
+  | 'mountain_tools'
+  | 'loaded_saddles'
+  | 'guard_circle'
+  | 'deep_veins'
+  | 'zenith_pack';
 export type WarehouseState = [boolean, boolean, boolean, boolean, boolean];
 export type ProjectHallState = [boolean, boolean, boolean, boolean];
 export type ProjectId =
@@ -64,6 +73,21 @@ export interface Cost {
   crystal: number;
 }
 
+export interface WorldTwoCost {
+  coal: number;
+  iron: number;
+  silver: number;
+  gold: number;
+}
+
+export interface WorldTwoWorkerState {
+  id: string;
+  name: string;
+  task: WorldTwoResourceKind;
+  level: WorkerLevel;
+  health: number;
+}
+
 export interface WorkerState {
   id: string;
   name: string;
@@ -72,7 +96,7 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 9;
+  version: 10;
   wood: number;
   stone: number;
   copper: number;
@@ -104,9 +128,28 @@ export interface IslandProgress {
   tutorialSeen: string[];
   currentWorld: 1 | 2;
   worldTwoPeakReached: boolean;
+  worldTwoResources: WorldTwoCost;
+  worldTwoCargo: WorldTwoCost;
+  worldTwoTerracesUnlocked: number;
+  worldTwoWolves: WorldTwoWorkerState[];
+  worldTwoSkills: WorldTwoSkillId[];
+  worldTwoEnemyDefeats: number;
 }
 
-interface VersionEightProgress extends Omit<IslandProgress, 'version' | 'currentWorld' | 'worldTwoPeakReached'> {
+interface VersionNineProgress extends Omit<
+  IslandProgress,
+  'version'
+  | 'worldTwoResources'
+  | 'worldTwoCargo'
+  | 'worldTwoTerracesUnlocked'
+  | 'worldTwoWolves'
+  | 'worldTwoSkills'
+  | 'worldTwoEnemyDefeats'
+> {
+  version: 9;
+}
+
+interface VersionEightProgress extends Omit<VersionNineProgress, 'version' | 'currentWorld' | 'worldTwoPeakReached'> {
   version: 8;
 }
 
@@ -189,6 +232,15 @@ export interface SkillDefinition {
   rankCosts?: readonly number[];
 }
 
+export interface WorldTwoSkillDefinition {
+  id: WorldTwoSkillId;
+  name: string;
+  detail: string;
+  icon: string;
+  cost: WorldTwoCost;
+  requires?: readonly WorldTwoSkillId[];
+}
+
 export interface IslandProjectDefinition {
   id: ProjectId;
   tier: 0 | 1 | 2 | 3 | 4;
@@ -210,6 +262,12 @@ export interface AssignmentMove {
 }
 
 const cost = (wood = 0, stone = 0, copper = 0, crystal = 0): Cost => ({ wood, stone, copper, crystal });
+const worldTwoCost = (coal = 0, iron = 0, silver = 0, gold = 0): WorldTwoCost => ({
+  coal,
+  iron,
+  silver,
+  gold,
+});
 
 // La première Marée demande déjà un vrai investissement. Les Marées suivantes
 // sont ensuite modulées par getCycleMultiplier et les talents d'Exploration.
@@ -264,6 +322,84 @@ export const RESOURCE_ICONS: Record<ResourceKind, string> = {
   copper: '⬟',
   crystal: '✦',
 };
+
+export const WORLD_TWO_RESOURCE_LABELS: Record<WorldTwoResourceKind, string> = {
+  coal: 'charbon',
+  iron: 'fer',
+  silver: 'argent',
+  gold: 'or',
+};
+
+export const WORLD_TWO_RESOURCE_ICONS: Record<WorldTwoResourceKind, string> = {
+  coal: '⬢',
+  iron: '⬟',
+  silver: '◆',
+  gold: '✦',
+};
+
+export const WORLD_TWO_FOG_COSTS: readonly WorldTwoCost[] = [
+  worldTwoCost(),
+  worldTwoCost(18),
+  worldTwoCost(28, 8),
+  worldTwoCost(38, 16),
+  worldTwoCost(50, 28, 6),
+  worldTwoCost(65, 42, 14),
+  worldTwoCost(80, 56, 24, 4),
+  worldTwoCost(95, 72, 38, 10),
+  worldTwoCost(115, 90, 55, 20),
+  worldTwoCost(140, 110, 78, 34),
+  worldTwoCost(170, 140, 105, 55),
+];
+
+export const WORLD_TWO_SKILLS: readonly WorldTwoSkillDefinition[] = [
+  {
+    id: 'pack_instinct',
+    name: 'Instinct de meute',
+    detail: 'Les loups se déplacent et choisissent leur prochain filon 20 % plus vite.',
+    icon: '🐺',
+    cost: worldTwoCost(30, 10),
+  },
+  {
+    id: 'mountain_tools',
+    name: 'Crocs de montagne',
+    detail: 'Chaque frappe de loup extrait une unité supplémentaire.',
+    icon: '⛏',
+    cost: worldTwoCost(45, 28),
+    requires: ['pack_instinct'],
+  },
+  {
+    id: 'loaded_saddles',
+    name: 'Harnais d’altitude',
+    detail: '+4 places de cargaison pour toi et pour chaque loup.',
+    icon: '+4',
+    cost: worldTwoCost(55, 42, 14),
+    requires: ['mountain_tools'],
+  },
+  {
+    id: 'guard_circle',
+    name: 'Cercle de garde',
+    detail: 'Les loups ripostent plus vite et subissent moitié moins de dégâts.',
+    icon: '◉',
+    cost: worldTwoCost(70, 58, 30),
+    requires: ['pack_instinct'],
+  },
+  {
+    id: 'deep_veins',
+    name: 'Veines profondes',
+    detail: 'Tous les minerais du Zénith repoussent 30 % plus vite.',
+    icon: '♻',
+    cost: worldTwoCost(90, 78, 48, 14),
+    requires: ['loaded_saddles', 'guard_circle'],
+  },
+  {
+    id: 'zenith_pack',
+    name: 'Meute du Zénith',
+    detail: '+2 places dans la meute et +1 unité par livraison.',
+    icon: '✺',
+    cost: worldTwoCost(120, 100, 72, 40),
+    requires: ['deep_veins'],
+  },
+];
 
 export const SKILL_BRANCH_LABELS: Record<SkillBranch, { name: string; icon: string; summary: string }> = {
   intelligence: { name: 'Intelligence', icon: '⌘', summary: 'Trajets, prévisions et décisions autonomes.' },
@@ -402,9 +538,10 @@ const WORKER_NAMES = [
   'Orme', 'Mousse', 'Silex', 'Écho', 'Ronce', 'Aube', 'Flint', 'Nacre',
   'Brume', 'Miel', 'Cèdre', 'Plume', 'Galet', 'Ambre', 'Lichen', 'Sauge',
 ];
+const WOLF_NAMES = ['Rime', 'Toundra', 'Granit', 'Ébène', 'Névé', 'Orage', 'Quartz', 'Boréal'];
 
 const freshProgress = (): IslandProgress => ({
-  version: 9,
+  version: 10,
   wood: 0,
   stone: 0,
   copper: 0,
@@ -436,6 +573,12 @@ const freshProgress = (): IslandProgress => ({
   tutorialSeen: [],
   currentWorld: 1,
   worldTwoPeakReached: false,
+  worldTwoResources: worldTwoCost(),
+  worldTwoCargo: worldTwoCost(),
+  worldTwoTerracesUnlocked: 1,
+  worldTwoWolves: [],
+  worldTwoSkills: [],
+  worldTwoEnemyDefeats: 0,
 });
 
 const nonNegativeInteger = (value: unknown): number => {
@@ -451,6 +594,44 @@ const sanitizeCost = (value: unknown): Cost => {
     copper: nonNegativeInteger(source.copper),
     crystal: nonNegativeInteger(source.crystal),
   };
+};
+
+const sanitizeWorldTwoCost = (value: unknown): WorldTwoCost => {
+  const source = value && typeof value === 'object'
+    ? value as Partial<Record<WorldTwoResourceKind, unknown>>
+    : {};
+  return {
+    coal: nonNegativeInteger(source.coal),
+    iron: nonNegativeInteger(source.iron),
+    silver: nonNegativeInteger(source.silver),
+    gold: nonNegativeInteger(source.gold),
+  };
+};
+
+const sanitizeWorldTwoSkills = (value: unknown): WorldTwoSkillId[] => {
+  if (!Array.isArray(value)) return [];
+  const known = new Set<WorldTwoSkillId>(WORLD_TWO_SKILLS.map((skill) => skill.id));
+  return [...new Set(value.filter((id): id is WorldTwoSkillId =>
+    typeof id === 'string' && known.has(id as WorldTwoSkillId)))];
+};
+
+const sanitizeWorldTwoWolves = (value: unknown): WorldTwoWorkerState[] => {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).flatMap((entry, index) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const source = entry as Partial<WorldTwoWorkerState>;
+    const task = WORLD_TWO_RESOURCE_KINDS.includes(source.task as WorldTwoResourceKind)
+      ? source.task as WorldTwoResourceKind
+      : 'coal';
+    const level = Math.max(1, Math.min(3, nonNegativeInteger(source.level))) as WorkerLevel;
+    return [{
+      id: typeof source.id === 'string' ? source.id.slice(0, 48) : `wolf-${index + 1}`,
+      name: typeof source.name === 'string' ? source.name.slice(0, 24) : WOLF_NAMES[index] ?? `Loup ${index + 1}`,
+      task,
+      level,
+      health: Math.max(1, Math.min(6, nonNegativeInteger(source.health) || 3)),
+    }];
+  });
 };
 
 const sanitizeWarehouses = (value: unknown): WarehouseState => {
@@ -574,6 +755,37 @@ export const getSkillTreeCompletion = (progress: IslandProgress): { completed: n
 
 export const isWorldTwoUnlocked = (progress: IslandProgress): boolean =>
   progress.rebirths >= 5 && getSkillTreeCompletion(progress).complete;
+
+export const hasWorldTwoSkill = (progress: IslandProgress, id: WorldTwoSkillId): boolean =>
+  progress.worldTwoSkills.includes(id);
+
+export const worldTwoSkillPrerequisitesMet = (
+  progress: IslandProgress,
+  definition: WorldTwoSkillDefinition,
+): boolean => (definition.requires ?? []).every((required) => hasWorldTwoSkill(progress, required));
+
+export const getWorldTwoCargoTotal = (progress: IslandProgress): number =>
+  WORLD_TWO_RESOURCE_KINDS.reduce((total, kind) => total + progress.worldTwoCargo[kind], 0);
+
+export const getWorldTwoCargoCapacity = (progress: IslandProgress): number =>
+  8 + (hasWorldTwoSkill(progress, 'loaded_saddles') ? 4 : 0);
+
+export const getWorldTwoWolfCapacity = (progress: IslandProgress): number =>
+  2 + (hasWorldTwoSkill(progress, 'zenith_pack') ? 2 : 0);
+
+export const getWorldTwoFogCost = (terraceIndex: number): WorldTwoCost | null =>
+  WORLD_TWO_FOG_COSTS[terraceIndex] ?? null;
+
+export const formatWorldTwoCost = (value: WorldTwoCost): string =>
+  WORLD_TWO_RESOURCE_KINDS
+    .filter((kind) => value[kind] > 0)
+    .map((kind) => `${value[kind]} ${WORLD_TWO_RESOURCE_LABELS[kind]}`)
+    .join(' · ') || 'gratuit';
+
+export const getWorldTwoRecruitCost = (progress: IslandProgress): WorldTwoCost => {
+  const count = progress.worldTwoWolves.length;
+  return worldTwoCost(20 + count * 18, 8 + count * 12, count >= 2 ? 8 + count * 4 : 0, 0);
+};
 
 export const skillPrerequisitesMet = (progress: IslandProgress, definition: SkillDefinition): boolean =>
   (definition.requires ?? []).every((required) => hasSkill(progress, required));
@@ -1119,7 +1331,7 @@ export class Economy {
     this.progress = {
       ...fresh,
       ...initial,
-      version: 9,
+      version: 10,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
@@ -1151,6 +1363,15 @@ export class Economy {
       tutorialSeen: sanitizeStringList(initial?.tutorialSeen),
       currentWorld: initial?.currentWorld === 2 ? 2 : 1,
       worldTwoPeakReached: Boolean(initial?.worldTwoPeakReached),
+      worldTwoResources: sanitizeWorldTwoCost(initial?.worldTwoResources),
+      worldTwoCargo: sanitizeWorldTwoCost(initial?.worldTwoCargo),
+      worldTwoTerracesUnlocked: Math.max(
+        1,
+        Math.min(11, nonNegativeInteger(initial?.worldTwoTerracesUnlocked) || 1),
+      ),
+      worldTwoWolves: sanitizeWorldTwoWolves(initial?.worldTwoWolves),
+      worldTwoSkills: sanitizeWorldTwoSkills(initial?.worldTwoSkills),
+      worldTwoEnemyDefeats: nonNegativeInteger(initial?.worldTwoEnemyDefeats),
     };
     if (this.progress.currentWorld === 2 && !isWorldTwoUnlocked(this.progress)) this.progress.currentWorld = 1;
   }
@@ -1179,6 +1400,105 @@ export class Economy {
     if (unloaded <= 0) return 0;
     this.progress.playerCargo[kind] -= unloaded;
     return unloaded;
+  }
+
+  addWorldTwo(kind: WorldTwoResourceKind, amount = 1): void {
+    this.progress.worldTwoResources[kind] += nonNegativeInteger(amount);
+  }
+
+  carryWorldTwoForPlayer(kind: WorldTwoResourceKind, amount = 1): number {
+    const free = Math.max(0, getWorldTwoCargoCapacity(this.progress) - getWorldTwoCargoTotal(this.progress));
+    const carried = Math.min(free, nonNegativeInteger(amount));
+    this.progress.worldTwoCargo[kind] += carried;
+    return carried;
+  }
+
+  depositWorldTwoCargo(kind: WorldTwoResourceKind, amount = 1): number {
+    const delivered = Math.min(this.progress.worldTwoCargo[kind], Math.max(1, nonNegativeInteger(amount)));
+    if (delivered <= 0) return 0;
+    this.progress.worldTwoCargo[kind] -= delivered;
+    this.addWorldTwo(kind, delivered);
+    return delivered;
+  }
+
+  unloadWorldTwoCargo(kind: WorldTwoResourceKind, amount = 1): number {
+    const unloaded = Math.min(this.progress.worldTwoCargo[kind], Math.max(1, nonNegativeInteger(amount)));
+    if (unloaded <= 0) return 0;
+    this.progress.worldTwoCargo[kind] -= unloaded;
+    return unloaded;
+  }
+
+  canAffordWorldTwo(value: WorldTwoCost): boolean {
+    return WORLD_TWO_RESOURCE_KINDS.every((kind) => this.progress.worldTwoResources[kind] >= value[kind]);
+  }
+
+  missingWorldTwo(value: WorldTwoCost): WorldTwoCost {
+    return {
+      coal: Math.max(0, value.coal - this.progress.worldTwoResources.coal),
+      iron: Math.max(0, value.iron - this.progress.worldTwoResources.iron),
+      silver: Math.max(0, value.silver - this.progress.worldTwoResources.silver),
+      gold: Math.max(0, value.gold - this.progress.worldTwoResources.gold),
+    };
+  }
+
+  private spendWorldTwo(value: WorldTwoCost): boolean {
+    if (!this.canAffordWorldTwo(value)) return false;
+    WORLD_TWO_RESOURCE_KINDS.forEach((kind) => {
+      this.progress.worldTwoResources[kind] -= value[kind];
+    });
+    return true;
+  }
+
+  unlockWorldTwoTerrace(terraceIndex: number): boolean {
+    if (terraceIndex !== this.progress.worldTwoTerracesUnlocked || terraceIndex >= 11) return false;
+    const fogCost = getWorldTwoFogCost(terraceIndex);
+    if (!fogCost || !this.spendWorldTwo(fogCost)) return false;
+    this.progress.worldTwoTerracesUnlocked += 1;
+    return true;
+  }
+
+  hireWorldTwoWolf(): WorldTwoWorkerState | null {
+    if (this.progress.worldTwoWolves.length >= getWorldTwoWolfCapacity(this.progress)) return null;
+    if (!this.spendWorldTwo(getWorldTwoRecruitCost(this.progress))) return null;
+    const index = this.progress.worldTwoWolves.length;
+    const unlockedTasks = WORLD_TWO_RESOURCE_KINDS.slice(
+      0,
+      Math.min(4, Math.max(1, Math.ceil(this.progress.worldTwoTerracesUnlocked / 3))),
+    );
+    const worker: WorldTwoWorkerState = {
+      id: `wolf-${index + 1}`,
+      name: WOLF_NAMES[index] ?? `Loup ${index + 1}`,
+      task: unlockedTasks[index % unlockedTasks.length] ?? 'coal',
+      level: 1,
+      health: 3,
+    };
+    this.progress.worldTwoWolves.push(worker);
+    return worker;
+  }
+
+  unlockWorldTwoSkill(id: WorldTwoSkillId): boolean {
+    const definition = WORLD_TWO_SKILLS.find((candidate) => candidate.id === id);
+    if (
+      !definition
+      || hasWorldTwoSkill(this.progress, id)
+      || !worldTwoSkillPrerequisitesMet(this.progress, definition)
+      || !this.spendWorldTwo(definition.cost)
+    ) return false;
+    this.progress.worldTwoSkills.push(id);
+    return true;
+  }
+
+  damageWorldTwoWolf(id: string, amount: number): boolean {
+    const worker = this.progress.worldTwoWolves.find((candidate) => candidate.id === id);
+    if (!worker) return false;
+    worker.health = Math.max(0, worker.health - Math.max(1, nonNegativeInteger(amount)));
+    if (worker.health > 0) return false;
+    this.progress.worldTwoWolves = this.progress.worldTwoWolves.filter((candidate) => candidate.id !== id);
+    return true;
+  }
+
+  recordWorldTwoEnemyDefeat(): void {
+    this.progress.worldTwoEnemyDefeats += 1;
   }
 
   markTutorial(id: string): boolean {
@@ -1430,6 +1750,12 @@ export class Economy {
     const lifetimeDeliveries = this.progress.lifetimeDeliveries;
     const tutorialSeen = [...this.progress.tutorialSeen];
     const worldTwoPeakReached = this.progress.worldTwoPeakReached;
+    const worldTwoResources = { ...this.progress.worldTwoResources };
+    const worldTwoCargo = { ...this.progress.worldTwoCargo };
+    const worldTwoTerracesUnlocked = this.progress.worldTwoTerracesUnlocked;
+    const worldTwoWolves = this.progress.worldTwoWolves.map((wolf) => ({ ...wolf }));
+    const worldTwoSkills = [...this.progress.worldTwoSkills];
+    const worldTwoEnemyDefeats = this.progress.worldTwoEnemyDefeats;
     const previousStocks = {
       wood: this.progress.wood,
       stone: this.progress.stone,
@@ -1462,6 +1788,12 @@ export class Economy {
       tutorialSeen,
       currentWorld: 1,
       worldTwoPeakReached,
+      worldTwoResources,
+      worldTwoCargo,
+      worldTwoTerracesUnlocked,
+      worldTwoWolves,
+      worldTwoSkills,
+      worldTwoEnemyDefeats,
     });
     return reward;
   }
@@ -1494,8 +1826,21 @@ export class Economy {
         }
         return economy;
       };
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionEightProgress | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 9) return restoreCompatible(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionNineProgress | VersionEightProgress | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 10) return restoreCompatible(value as Partial<IslandProgress>);
+      if (value.version === 9) {
+        const previous = value as VersionNineProgress;
+        const { version: _previousVersion, ...migrated } = previous;
+        return restoreCompatible({
+          ...migrated,
+          worldTwoResources: worldTwoCost(),
+          worldTwoCargo: worldTwoCost(),
+          worldTwoTerracesUnlocked: previous.worldTwoPeakReached ? 11 : 1,
+          worldTwoWolves: [],
+          worldTwoSkills: [],
+          worldTwoEnemyDefeats: 0,
+        });
+      }
       if (value.version === 8) {
         const previous = value as VersionEightProgress;
         const { version: _previousVersion, ...migrated } = previous;

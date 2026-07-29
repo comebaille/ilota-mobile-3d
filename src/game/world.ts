@@ -3,6 +3,7 @@ import {
   type Cost,
   type ResourceKind,
   type StructureKind,
+  type WorldTwoResourceKind,
 } from './economy';
 import type { NatureKind } from './assets';
 
@@ -95,13 +96,12 @@ export interface WorldTwoRampDefinition {
 
 export interface WorldTwoResourceSpawn {
   terraceIndex: number;
-  kind: ResourceKind;
+  kind: WorldTwoResourceKind;
   dx: number;
   dz: number;
   capacity: number;
   scale: number;
   respawnSeconds: number;
-  model?: NatureKind;
   rarity: string;
 }
 
@@ -114,17 +114,17 @@ export const ISLANDS: readonly IslandDefinition[] = [
 ];
 
 export const WORLD_TWO_TERRACES: readonly WorldTwoTerraceDefinition[] = [
-  { id: 'echo-base', name: 'Base des Échos', x: 160, z: 0, radius: 9, elevation: 0, topColor: 0x607c5c, sideColor: 0x4f5949 },
-  { id: 'moss-rise', name: 'Montée des Mousses', x: 160, z: -15, radius: 7.2, elevation: 1.4, topColor: 0x66835d, sideColor: 0x505d49 },
-  { id: 'iron-pines', name: 'Pins de Fer', x: 171, z: -27, radius: 7, elevation: 2.9, topColor: 0x60775a, sideColor: 0x4b5548 },
-  { id: 'copper-balcony', name: 'Balcon Cuivré', x: 159, z: -39, radius: 7.1, elevation: 4.4, topColor: 0x777450, sideColor: 0x5f5143 },
-  { id: 'wind-ledges', name: 'Corniches du Vent', x: 147, z: -51, radius: 6.8, elevation: 5.9, topColor: 0x6f7756, sideColor: 0x555344 },
-  { id: 'amethyst-garden', name: 'Jardin d’Améthyste', x: 159, z: -63, radius: 7.1, elevation: 7.4, topColor: 0x687368, sideColor: 0x514e59 },
-  { id: 'prism-pass', name: 'Passe Prismatique', x: 172, z: -75, radius: 6.7, elevation: 9, topColor: 0x65706d, sideColor: 0x4b5058 },
-  { id: 'cloud-basin', name: 'Vasque des Nuages', x: 160, z: -87, radius: 7, elevation: 10.6, topColor: 0x737b70, sideColor: 0x565966 },
-  { id: 'star-scree', name: 'Éboulis Stellaire', x: 148, z: -99, radius: 6.6, elevation: 12.2, topColor: 0x716d78, sideColor: 0x514d5f },
-  { id: 'astral-ridge', name: 'Crête Astrale', x: 159, z: -111, radius: 6.9, elevation: 13.8, topColor: 0x777382, sideColor: 0x544f66 },
-  { id: 'zenith', name: 'Sommet du Zénith', x: 160, z: -126, radius: 8.4, elevation: 15.5, topColor: 0x85829a, sideColor: 0x5b566f },
+  { id: 'echo-base', name: 'Camp des Échos', x: 160, z: 0, radius: 9, elevation: 0, topColor: 0x4d5652, sideColor: 0x30383a },
+  { id: 'coal-throat', name: 'Gorge du Charbon', x: 160, z: -15, radius: 7.2, elevation: 1.5, topColor: 0x474b49, sideColor: 0x292e31 },
+  { id: 'iron-bastion', name: 'Bastion de Fer', x: 171, z: -27, radius: 7, elevation: 3.1, topColor: 0x535b5e, sideColor: 0x30363b },
+  { id: 'wolf-pass', name: 'Passe des Loups', x: 159, z: -39, radius: 7.1, elevation: 4.8, topColor: 0x4e595b, sideColor: 0x2c3338 },
+  { id: 'wind-ledges', name: 'Corniches du Vent', x: 147, z: -51, radius: 6.8, elevation: 6.5, topColor: 0x566062, sideColor: 0x30353a },
+  { id: 'silver-gallery', name: 'Galerie d’Argent', x: 159, z: -63, radius: 7.1, elevation: 8.2, topColor: 0x62696c, sideColor: 0x383d43 },
+  { id: 'sentinel-pass', name: 'Passe des Sentinelles', x: 172, z: -75, radius: 6.7, elevation: 10, topColor: 0x5b6267, sideColor: 0x343942 },
+  { id: 'cloud-basin', name: 'Vasque des Nuages', x: 160, z: -87, radius: 7, elevation: 11.8, topColor: 0x697176, sideColor: 0x3d424b },
+  { id: 'gold-scree', name: 'Éboulis Doré', x: 148, z: -99, radius: 6.6, elevation: 13.6, topColor: 0x716c60, sideColor: 0x464137 },
+  { id: 'astral-ridge', name: 'Crête Astrale', x: 159, z: -111, radius: 6.9, elevation: 15.5, topColor: 0x696675, sideColor: 0x403d4d },
+  { id: 'zenith', name: 'Sommet du Zénith', x: 160, z: -126, radius: 8.4, elevation: 17.5, topColor: 0x79758b, sideColor: 0x484456 },
 ];
 
 export const WORLD_TWO_RAMPS: readonly WorldTwoRampDefinition[] = WORLD_TWO_TERRACES
@@ -132,27 +132,27 @@ export const WORLD_TWO_RAMPS: readonly WorldTwoRampDefinition[] = WORLD_TWO_TERR
   .map((_, index) => ({ from: index, to: index + 1, width: index >= 7 ? 3.6 : 4.2 }));
 
 export const WORLD_TWO_RESOURCES: readonly WorldTwoResourceSpawn[] = [
-  { terraceIndex: 0, kind: 'wood', model: 'treeA', dx: -3.8, dz: -3.8, capacity: 10, scale: 1.02, respawnSeconds: 13, rarity: 'Bois de montagne' },
-  { terraceIndex: 0, kind: 'stone', model: 'rock', dx: 3.8, dz: -3.8, capacity: 10, scale: 1.05, respawnSeconds: 14, rarity: 'Schiste ancien' },
-  { terraceIndex: 1, kind: 'wood', model: 'treeB', dx: -3.7, dz: -1.5, capacity: 11, scale: 1.06, respawnSeconds: 15, rarity: 'Pin ferrique' },
-  { terraceIndex: 1, kind: 'stone', model: 'rock', dx: 3.6, dz: -1.6, capacity: 11, scale: 1.08, respawnSeconds: 16, rarity: 'Schiste ancien' },
-  { terraceIndex: 2, kind: 'stone', model: 'rock', dx: -3.8, dz: -1.5, capacity: 12, scale: 1.1, respawnSeconds: 17, rarity: 'Roche dense' },
-  { terraceIndex: 2, kind: 'copper', dx: 3.6, dz: -1.2, capacity: 10, scale: 1.05, respawnSeconds: 18, rarity: 'Cuivre veiné' },
-  { terraceIndex: 3, kind: 'copper', dx: -3.8, dz: -1.4, capacity: 12, scale: 1.1, respawnSeconds: 19, rarity: 'Cuivre profond' },
-  { terraceIndex: 3, kind: 'stone', model: 'rock', dx: 3.8, dz: -1.2, capacity: 12, scale: 1.08, respawnSeconds: 18, rarity: 'Roche dense' },
-  { terraceIndex: 4, kind: 'copper', dx: -3.4, dz: -1.3, capacity: 13, scale: 1.14, respawnSeconds: 20, rarity: 'Cuivre d’altitude' },
-  { terraceIndex: 4, kind: 'crystal', dx: 3.5, dz: -1.1, capacity: 9, scale: 1.03, respawnSeconds: 22, rarity: 'Améthyste brute' },
-  { terraceIndex: 5, kind: 'crystal', dx: -3.7, dz: -1.2, capacity: 12, scale: 1.1, respawnSeconds: 23, rarity: 'Améthyste vive' },
-  { terraceIndex: 5, kind: 'copper', dx: 3.7, dz: -1.1, capacity: 13, scale: 1.12, respawnSeconds: 21, rarity: 'Cuivre d’altitude' },
-  { terraceIndex: 6, kind: 'crystal', dx: -3.4, dz: -1.1, capacity: 13, scale: 1.14, respawnSeconds: 24, rarity: 'Cristal prismatique' },
-  { terraceIndex: 6, kind: 'crystal', dx: 3.4, dz: -0.9, capacity: 11, scale: 1.08, respawnSeconds: 25, rarity: 'Cristal prismatique' },
-  { terraceIndex: 7, kind: 'crystal', dx: -3.6, dz: -1.2, capacity: 14, scale: 1.16, respawnSeconds: 26, rarity: 'Cristal des nuages' },
-  { terraceIndex: 7, kind: 'stone', model: 'rock', dx: 3.6, dz: -1.1, capacity: 14, scale: 1.12, respawnSeconds: 22, rarity: 'Pierre céleste' },
-  { terraceIndex: 8, kind: 'crystal', dx: -3.2, dz: -1, capacity: 15, scale: 1.2, respawnSeconds: 28, rarity: 'Éclat stellaire' },
-  { terraceIndex: 8, kind: 'copper', dx: 3.2, dz: -0.9, capacity: 14, scale: 1.14, respawnSeconds: 25, rarity: 'Cuivre astral' },
-  { terraceIndex: 9, kind: 'crystal', dx: -3.5, dz: -1.1, capacity: 16, scale: 1.24, respawnSeconds: 30, rarity: 'Prisme astral' },
-  { terraceIndex: 9, kind: 'crystal', dx: 3.5, dz: -0.8, capacity: 16, scale: 1.2, respawnSeconds: 31, rarity: 'Prisme astral' },
-  { terraceIndex: 10, kind: 'crystal', dx: 0, dz: -1.5, capacity: 24, scale: 1.48, respawnSeconds: 36, rarity: 'Cœur du Zénith' },
+  { terraceIndex: 0, kind: 'coal', dx: -3.8, dz: -3.6, capacity: 12, scale: 0.92, respawnSeconds: 12, rarity: 'Charbon noir' },
+  { terraceIndex: 0, kind: 'coal', dx: 3.8, dz: -3.5, capacity: 12, scale: 0.98, respawnSeconds: 13, rarity: 'Charbon noir' },
+  { terraceIndex: 1, kind: 'coal', dx: -3.6, dz: -1.4, capacity: 14, scale: 1.02, respawnSeconds: 14, rarity: 'Anthracite' },
+  { terraceIndex: 1, kind: 'iron', dx: 3.5, dz: -1.3, capacity: 10, scale: 0.96, respawnSeconds: 16, rarity: 'Fer brut' },
+  { terraceIndex: 2, kind: 'iron', dx: -3.6, dz: -1.3, capacity: 13, scale: 1.06, respawnSeconds: 17, rarity: 'Fer profond' },
+  { terraceIndex: 2, kind: 'coal', dx: 3.5, dz: -1.1, capacity: 15, scale: 1.06, respawnSeconds: 15, rarity: 'Anthracite' },
+  { terraceIndex: 3, kind: 'iron', dx: -3.7, dz: -1.2, capacity: 15, scale: 1.1, respawnSeconds: 18, rarity: 'Magnétite' },
+  { terraceIndex: 3, kind: 'silver', dx: 3.7, dz: -1.1, capacity: 9, scale: 0.92, respawnSeconds: 21, rarity: 'Argent brut' },
+  { terraceIndex: 4, kind: 'iron', dx: -3.4, dz: -1.2, capacity: 16, scale: 1.12, respawnSeconds: 19, rarity: 'Magnétite' },
+  { terraceIndex: 4, kind: 'silver', dx: 3.4, dz: -1, capacity: 11, scale: 1, respawnSeconds: 22, rarity: 'Filon d’argent' },
+  { terraceIndex: 5, kind: 'silver', dx: -3.6, dz: -1.1, capacity: 14, scale: 1.08, respawnSeconds: 23, rarity: 'Argent lunaire' },
+  { terraceIndex: 5, kind: 'iron', dx: 3.6, dz: -1, capacity: 17, scale: 1.13, respawnSeconds: 20, rarity: 'Fer de galerie' },
+  { terraceIndex: 6, kind: 'silver', dx: -3.3, dz: -1, capacity: 15, scale: 1.12, respawnSeconds: 24, rarity: 'Argent lunaire' },
+  { terraceIndex: 6, kind: 'gold', dx: 3.3, dz: -0.8, capacity: 8, scale: 0.9, respawnSeconds: 27, rarity: 'Or pâle' },
+  { terraceIndex: 7, kind: 'silver', dx: -3.5, dz: -1.1, capacity: 16, scale: 1.15, respawnSeconds: 25, rarity: 'Argent des nuages' },
+  { terraceIndex: 7, kind: 'gold', dx: 3.5, dz: -1, capacity: 10, scale: 1, respawnSeconds: 29, rarity: 'Or d’altitude' },
+  { terraceIndex: 8, kind: 'gold', dx: -3.2, dz: -0.9, capacity: 13, scale: 1.12, respawnSeconds: 30, rarity: 'Or solaire' },
+  { terraceIndex: 8, kind: 'silver', dx: 3.2, dz: -0.8, capacity: 17, scale: 1.16, respawnSeconds: 26, rarity: 'Argent astral' },
+  { terraceIndex: 9, kind: 'gold', dx: -3.4, dz: -1, capacity: 16, scale: 1.2, respawnSeconds: 32, rarity: 'Or astral' },
+  { terraceIndex: 9, kind: 'gold', dx: 3.4, dz: -0.7, capacity: 16, scale: 1.2, respawnSeconds: 33, rarity: 'Or astral' },
+  { terraceIndex: 10, kind: 'gold', dx: 0, dz: -1.4, capacity: 24, scale: 1.42, respawnSeconds: 38, rarity: 'Cœur doré du Zénith' },
 ];
 
 const distanceToWorldTwoSegment = (
@@ -269,12 +269,17 @@ export const STRUCTURES: readonly StructureDefinition[] = [
   { kind: 'observatory', name: 'Autel du Savoir', x: -1, z: -75.8, radius: 1.75, color: 0xb9afe9, rotation: 0 },
 ];
 
+const rotationTowardIslandCenter = (islandIndex: number, x: number, z: number): number => {
+  const island = ISLANDS[islandIndex]!;
+  return Math.atan2(island.x - x, island.z - z);
+};
+
 export const WAREHOUSES: readonly WarehouseDefinition[] = [
-  { islandIndex: 0, name: 'Dépôt des Marées', x: -7, z: -3.8, radius: 1.45, rotation: 2.08 },
-  { islandIndex: 1, name: 'Dépôt des Pins', x: -6, z: -23.2, radius: 1.45, rotation: 2.14 },
-  { islandIndex: 2, name: 'Dépôt Cuivré', x: 9.5, z: -43.8, radius: 1.45, rotation: 2.14 },
-  { islandIndex: 3, name: 'Dépôt de Cristal', x: -7, z: -65.2, radius: 1.45, rotation: 2.14 },
-  { islandIndex: 4, name: 'Dépôt de la Couronne', x: 8.5, z: -87.8, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 0, name: 'Dépôt des Marées', x: -7, z: -3.8, radius: 1.45, rotation: rotationTowardIslandCenter(0, -7, -3.8) },
+  { islandIndex: 1, name: 'Dépôt des Pins', x: -6, z: -23.2, radius: 1.45, rotation: rotationTowardIslandCenter(1, -6, -23.2) },
+  { islandIndex: 2, name: 'Dépôt Cuivré', x: 9.5, z: -43.8, radius: 1.45, rotation: rotationTowardIslandCenter(2, 9.5, -43.8) },
+  { islandIndex: 3, name: 'Dépôt de Cristal', x: -7, z: -65.2, radius: 1.45, rotation: rotationTowardIslandCenter(3, -7, -65.2) },
+  { islandIndex: 4, name: 'Dépôt de la Couronne', x: 8.5, z: -87.8, radius: 1.45, rotation: rotationTowardIslandCenter(4, 8.5, -87.8) },
 ];
 
 /**
@@ -282,11 +287,11 @@ export const WAREHOUSES: readonly WarehouseDefinition[] = [
  * trois sceaux indiquent physiquement l'avancement des trois projets locaux.
  */
 export const PROJECT_HALLS: readonly ProjectHallDefinition[] = [
-  { islandIndex: 0, tier: 0, name: 'Maison des Travaux des Marées', x: 7, z: -3.8, radius: 1.35, color: 0xe2ad57, rotation: -2.08 },
-  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: 6, z: -23.2, radius: 1.35, color: 0xd89a4c, rotation: -2.14 },
-  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 22, z: -43.2, radius: 1.35, color: 0xc97a4a, rotation: -2.14 },
-  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: 5, z: -65.2, radius: 1.35, color: 0x9a8fc4, rotation: -2.14 },
-  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 21, z: -87.2, radius: 1.35, color: 0xf2b958, rotation: -2.14 },
+  { islandIndex: 0, tier: 0, name: 'Maison des Travaux des Marées', x: 7, z: -3.8, radius: 1.35, color: 0xe2ad57, rotation: rotationTowardIslandCenter(0, 7, -3.8) },
+  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: 6, z: -23.2, radius: 1.35, color: 0xd89a4c, rotation: rotationTowardIslandCenter(1, 6, -23.2) },
+  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 22, z: -43.2, radius: 1.35, color: 0xc97a4a, rotation: rotationTowardIslandCenter(2, 22, -43.2) },
+  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: 5, z: -65.2, radius: 1.35, color: 0x9a8fc4, rotation: rotationTowardIslandCenter(3, 5, -65.2) },
+  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 21, z: -87.2, radius: 1.35, color: 0xf2b958, rotation: rotationTowardIslandCenter(4, 21, -87.2) },
 ];
 
 /**

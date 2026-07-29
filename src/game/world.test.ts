@@ -161,11 +161,11 @@ describe('World 2 · montagne du Zénith', () => {
     });
   });
 
-  it('réserve les cristaux et les filons les plus rares aux hauteurs', () => {
+  it('réserve l’argent et l’or aux hauteurs sans réutiliser les ressources du World 1', () => {
     const lowResources = WORLD_TWO_RESOURCES.filter((spawn) => spawn.terraceIndex <= 2);
     const highResources = WORLD_TWO_RESOURCES.filter((spawn) => spawn.terraceIndex >= 8);
-    expect(lowResources.some((spawn) => spawn.kind === 'crystal')).toBe(false);
-    expect(highResources.some((spawn) => spawn.kind === 'crystal')).toBe(true);
-    expect(highResources.some((spawn) => spawn.rarity === 'Cœur du Zénith')).toBe(true);
+    expect(lowResources.every((spawn) => spawn.kind === 'coal' || spawn.kind === 'iron')).toBe(true);
+    expect(highResources.some((spawn) => spawn.kind === 'gold')).toBe(true);
+    expect(highResources.some((spawn) => spawn.rarity === 'Cœur doré du Zénith')).toBe(true);
   });
 });
