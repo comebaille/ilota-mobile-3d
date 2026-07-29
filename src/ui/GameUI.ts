@@ -24,7 +24,10 @@ import {
   getUnlockedWorkerTasks,
   getUpgradeCost,
   getWorkerCapacity,
+  getWorkerCargoCapacity,
+  getWorkerGatherSeconds,
   getWorkerLevelCap,
+  getWorkerTravelSpeed,
   getWorkerYield,
   getWorldTwoCargoCapacity,
   getWorldTwoCargoTotal,
@@ -523,7 +526,7 @@ export class GameUI {
   }
 
   showCrew(mode: CrewMode = 'nursery'): void {
-    if (!this.latestProgress?.campBuilt) return;
+    if (!this.latestProgress?.campBuilt || this.latestProgress.currentWorld !== 1) return;
     if (mode === 'remote' && !hasSkill(this.latestProgress, 'remote_management')) return;
     if (mode === 'workshop' && !this.latestProgress.workshopBuilt) return;
     if (mode === 'foundry' && !this.latestProgress.foundryBuilt) return;
@@ -800,6 +803,15 @@ export class GameUI {
 
   update(progress: IslandProgress): void {
     this.latestProgress = progress;
+    if (progress.currentWorld === 2) {
+      // Les pouvoirs, panneaux et renards du premier monde restent suspendus
+      // avec l’archipel : aucun état visuel ne doit survivre au portail.
+      this.setPowerEffects(false, 'wood', 0, false, 0);
+      if (!this.crewPanel.hidden) {
+        this.crewPanel.hidden = true;
+        this.crewHandlers?.onOpenChange(false);
+      }
+    }
     RESOURCE_KINDS.forEach((kind, index) => {
       const count = this.resourceCounts[kind];
       const chip = count.closest<HTMLElement>('.resource-chip');
@@ -848,7 +860,9 @@ export class GameUI {
     }
 
     const capacity = getWorkerCapacity(progress);
-    this.crewButton.hidden = !progress.campBuilt || !hasSkill(progress, 'remote_management');
+    this.crewButton.hidden = progress.currentWorld === 2
+      || !progress.campBuilt
+      || !hasSkill(progress, 'remote_management');
     this.crewButtonCount.textContent = `${progress.workers.length}/${capacity}`;
     this.crewButton.setAttribute('aria-label', `Gérer l’équipe, ${progress.workers.length} travailleurs sur ${capacity}`);
     const completedProjects = getCompletedProjectCount(progress);
@@ -978,7 +992,11 @@ export class GameUI {
       heading.dataset.action = 'select';
       heading.dataset.workerId = worker.id;
       heading.setAttribute('aria-pressed', String(isSelected));
-      heading.setAttribute('aria-label', `Sélectionner ${worker.name}, niveau ${worker.level}, métier ${RESOURCE_LABELS[worker.task]}`);
+      const workerCapacity = getWorkerCargoCapacity(worker.level, progress);
+      heading.setAttribute(
+        'aria-label',
+        `Sélectionner ${worker.name}, niveau ${worker.level}, métier ${RESOURCE_LABELS[worker.task]}, coup ${getWorkerYield(worker.level, progress)}, harnais ${workerCapacity}`,
+      );
       const avatar = element('span', 'worker-avatar');
       avatar.textContent = '🦊';
       avatar.setAttribute('aria-hidden', 'true');
@@ -986,7 +1004,7 @@ export class GameUI {
       const name = element('strong');
       name.textContent = worker.name;
       const level = element('small');
-      level.textContent = `NIV ${worker.level} · +${getWorkerYield(worker.level, progress)}`;
+      level.textContent = `NIV ${worker.level} · COUP +${getWorkerYield(worker.level, progress)} · SAC ${workerCapacity}`;
       const pips = element('span', 'level-pips');
       pips.setAttribute('aria-hidden', 'true');
       for (let rank = 1; rank <= 3; rank += 1) {
@@ -1020,7 +1038,14 @@ export class GameUI {
   ): void {
     this.workerDetail.replaceChildren();
     this.workerDetail.className = `worker-detail task-${worker.task}${showLevelVisual && worker.id === this.levelUpWorker?.id ? ' leveling-up' : ''}`;
-    this.workerDetail.setAttribute('aria-label', `Fiche de ${worker.name}, niveau ${worker.level}`);
+    const currentCapacity = getWorkerCargoCapacity(worker.level, progress);
+    const currentYield = getWorkerYield(worker.level, progress);
+    const currentGather = getWorkerGatherSeconds(worker.level, progress);
+    const currentSpeed = getWorkerTravelSpeed(worker.level, progress);
+    this.workerDetail.setAttribute(
+      'aria-label',
+      `Fiche de ${worker.name}, niveau ${worker.level}, coup ${currentYield}, harnais ${currentCapacity}, récolte ${currentGather.toFixed(2)} secondes`,
+    );
 
     const hero = element('div', 'worker-detail-hero');
     const avatar = element('span', 'worker-detail-avatar');
@@ -1029,41 +1054,53 @@ export class GameUI {
     const identity = element('div');
     const name = element('strong');
     name.textContent = worker.name;
+    const formatStat = (value: number): string => value.toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
     const job = element('small');
-    job.textContent = `${RESOURCE_ICONS[worker.task]} ${RESOURCE_LABELS[worker.task]} · +${getWorkerYield(worker.level, progress)} · ${
-      hasSkill(progress, 'optimal_routes') ? 'routes calculées' : 'cible aléatoire'
-    }`;
-    identity.append(name, job);
+    job.textContent = `${RESOURCE_ICONS[worker.task]} ${RESOURCE_LABELS[worker.task]} · COUP +${currentYield} · SAC ${currentCapacity}`;
+    const timingStats = element('small', 'worker-timing-stats');
+    timingStats.textContent = `${formatStat(currentGather)} s/frappe · ${formatStat(currentSpeed)} m/s`;
+    identity.append(name, job, timingStats);
     const level = element('b', 'worker-detail-level');
     level.textContent = `NIV ${worker.level} · ${'★'.repeat(worker.level)}${'☆'.repeat(3 - worker.level)}`;
     hero.append(avatar, identity, level);
 
+    const levelSummary = (nextLevel: 1 | 2 | 3): string =>
+      `NIV ${nextLevel} · +${getWorkerYield(nextLevel, progress)}/COUP · SAC ${
+        getWorkerCargoCapacity(nextLevel, progress)
+      } · ${formatStat(getWorkerGatherSeconds(nextLevel, progress))} S`;
     const upgrade = element('button', 'upgrade-button worker-detail-upgrade');
     upgrade.type = 'button';
     upgrade.dataset.action = 'upgrade';
     upgrade.dataset.workerId = worker.id;
     if (this.crewMode === 'nursery') {
       upgrade.textContent = worker.level >= 3
-        ? 'NIVEAU 3 · MAÎTRE'
+        ? `${levelSummary(3)} · MAÎTRE`
         : worker.level === 2
-          ? 'NIVEAU 2 · FONDERIE POUR CONTINUER'
-          : 'NIVEAU 1 · ATELIER DES PINS POUR LE FORMER';
+          ? `${levelSummary(3)} · FONDERIE REQUISE`
+          : `${levelSummary(2)} · ATELIER REQUIS`;
       upgrade.disabled = true;
     } else if (this.crewMode === 'workshop' && worker.level >= 2) {
-      upgrade.textContent = worker.level === 3 ? 'DÉJÀ MAÎTRE · NIVEAU 3' : 'FORMATION TERMINÉE · NIVEAU 2';
+      upgrade.textContent = worker.level === 3
+        ? `${levelSummary(3)} · DÉJÀ MAÎTRE`
+        : `${levelSummary(2)} · FORMATION TERMINÉE`;
       upgrade.disabled = true;
     } else if (this.crewMode === 'foundry' && worker.level < 2) {
-      upgrade.textContent = 'NIVEAU 2 REQUIS · VA À L’ATELIER DES PINS';
+      upgrade.textContent = `${levelSummary(2)} · ATELIER REQUIS`;
       upgrade.disabled = true;
     } else if (worker.level >= 3) {
-      upgrade.textContent = 'NIVEAU 3 · MAXIMUM';
+      upgrade.textContent = `${levelSummary(3)} · MAXIMUM`;
       upgrade.disabled = true;
     } else if (worker.level >= levelCap) {
-      upgrade.textContent = levelCap === 1 ? 'ATELIER REQUIS POUR LE NIVEAU 2' : 'FONDERIE REQUISE POUR LE NIVEAU 3';
+      const nextLevel = (worker.level + 1) as 2 | 3;
+      upgrade.textContent = `${levelSummary(nextLevel)} · ${levelCap === 1 ? 'ATELIER' : 'FONDERIE'} REQUIS`;
       upgrade.disabled = true;
     } else {
       const upgradeCost = getUpgradeCost(worker, progress);
-      upgrade.textContent = `CONFIRMER · NIVEAU ${worker.level + 1} · ${formatCost(upgradeCost)}`;
+      const nextLevel = (worker.level + 1) as 2 | 3;
+      upgrade.textContent = `${levelSummary(nextLevel)} · ${formatCost(upgradeCost)} · CONFIRMER`;
       upgrade.setAttribute('aria-label', `Améliorer ${worker.name} au niveau ${worker.level + 1}, coût ${formatCost(upgradeCost)}`);
       upgrade.disabled = !canAfford(progress, upgradeCost);
     }

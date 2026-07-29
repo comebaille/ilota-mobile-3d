@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v19-fluid-input-and-travel';
+const CACHE = 'ilota-v20-world-two-isolation-and-worker-trips';
 const CORE = [
   './',
   './index.html',

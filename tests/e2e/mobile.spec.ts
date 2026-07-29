@@ -18,6 +18,7 @@ interface IlotaDiagnostics {
   workerLevels: number;
   workerTasks: string;
   bridges: number;
+  bridgeVisualParts: number;
   bridgeGuides: number;
   chapter: number;
   completed: boolean;
@@ -39,6 +40,7 @@ interface IlotaDiagnostics {
   warehouses: number;
   playerCargo: number;
   playerCargoStackHeight: number;
+  playerCargoVisualKinds: string;
   currentIsland: number;
   currentWorld: 1 | 2;
   worldTwoTerrace: number;
@@ -389,17 +391,36 @@ test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', as
   expect((await diagnostics(page)).worldTwoPortalUnlocked).toBe(false);
 });
 
+test('chaque liaison du World 1 utilise un seul pont complet', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    bridgesBuilt: [true, true, true, true],
+    tutorialSeen: ['welcome'],
+  });
+  await waitForGame(page);
+  expect((await diagnostics(page)).bridges).toBe(4);
+  expect((await diagnostics(page)).bridgeVisualParts).toBe(4);
+});
+
 test('le portail anime l’aller vers le World 2 puis permet le retour au World 1', async ({ page }) => {
   test.setTimeout(120_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     ...maximizedSkillTree(),
     rebirths: 5,
+    campBuilt: true,
     warehousesBuilt: [false, false, false, false, false],
+    playerCargo: { wood: 2, stone: 0, copper: 0, crystal: 0 },
+    worldTwoCargo: { cobalt: 1, amethyst: 1 },
+    industrySurge: true,
+    explorationFlow: true,
+    powerVfx: true,
     worldTwoTerracesUnlocked: 11,
     tutorialSeen: ['welcome', 'world-2'],
   });
   await waitForGame(page);
+  await expect(page.locator('#crew-button')).toBeVisible();
+  await expect(page.locator('#power-vfx')).toHaveClass(/industry-active/, { timeout: 10_000 });
   const { moveTo } = createNavigator(page);
   await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('Ascension du Zénith');
@@ -410,6 +431,10 @@ test('le portail anime l’aller vers le World 2 puis permet le retour au World 
   await page.screenshot({ path: 'test-results/ilota-world-2-grounded-travel.png' });
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
   await expect.poll(async () => (await diagnostics(page)).worldTravelPathVisible).toBe(false);
+  await expect(page.locator('#crew-button')).toBeHidden();
+  await expect(page.locator('#power-vfx')).not.toHaveClass(/industry-active|exploration-active/);
+  await expect(page.locator('#power-vfx-label')).toBeEmpty();
+  expect((await diagnostics(page)).playerCargoVisualKinds.split(',')).toEqual(['cobalt', 'amethyst']);
   await expect(page.locator('#objective-eyebrow')).toHaveText('WORLD 2 · MONTAGNE DU ZÉNITH');
   await expect(page.locator('#island-goal-island')).toContainText('CAMP DES ÉCHOS');
 
@@ -417,11 +442,12 @@ test('le portail anime l’aller vers le World 2 puis permet le retour au World 
   await expect.poll(async () => (await diagnostics(page)).interaction).toBe('warehouse');
   await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Refuge des Échos');
-  await expect(page.locator('#action-button')).toContainText('DÉPÔT VIDE');
+  await expect(page.locator('#action-button')).toContainText('VENDRE');
   await moveTo(WORLD_TWO_TERRACES[0]!.x, WORLD_TWO_TERRACES[0]!.z + 6.3, 0.65);
   await expect(page.locator('#context-prompt')).toContainText('Portail de retour');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
+  expect((await diagnostics(page)).playerCargoVisualKinds).toBe('wood,wood');
 
   // L'animation de retour dépose déjà le renard devant le portail : on peut
   // repartir immédiatement sans imposer un détour artificiel dans le décor.
@@ -482,6 +508,7 @@ test('le World 2 vend la pierre et améliore les crocs avec son argent', async (
     await page.waitForTimeout(460);
   }
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(8);
+  expect((await diagnostics(page)).playerCargoVisualKinds.split(',')).toEqual(Array(8).fill('stone'));
 
   await moveTo(156.3, -1.4, 0.72);
   await expect(page.locator('#action-button')).toContainText('VENDRE');
@@ -890,8 +917,11 @@ test('la nurserie garde 16 renards lisibles et ouvre une vraie fiche de niveau',
   await lastFox.getByRole('button', { name: /sélectionner Nacre/i }).click();
   await expect(page.locator('#worker-detail')).toContainText('Nacre');
   await expect(page.locator('#worker-detail')).toContainText('NIV 2');
+  await expect(page.locator('#worker-detail')).toContainText('COUP +2 · SAC 8');
+  await expect(page.locator('#worker-detail')).toContainText('1,25 s/frappe');
+  await expect(page.locator('#worker-detail')).toContainText('NIV 3 · +3/COUP · SAC 12 · 0,90 S');
   await expect(page.locator('#worker-detail').getByRole('button')).toBeDisabled();
-  await expect(page.locator('#worker-detail')).toContainText('FONDERIE POUR CONTINUER');
+  await expect(page.locator('#worker-detail')).toContainText('FONDERIE REQUISE');
   await page.screenshot({ path: 'test-results/ilota-nursery-16-foxes.png' });
 });
 
@@ -1011,7 +1041,7 @@ test('les ouvriers restent sur les îles et empruntent les ponts, même après r
   expect((await diagnostics(page)).workerNavigation[0]!.bridgesUsed).toEqual(expect.arrayContaining([0, 1, 2]));
 });
 
-test('un renard niveau 1 prélève exactement une unité par coup sur la roche ciblée', async ({ page }) => {
+test('un renard niveau 1 frappe par unité mais remplit une tournée utile de quatre', async ({ page }) => {
   test.setTimeout(60_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
@@ -1036,7 +1066,11 @@ test('un renard niveau 1 prélève exactement une unité par coup sur la roche c
   }).toBe('1:1');
   expect((await diagnostics(page)).stone).toBe(0);
 
-  await expect.poll(async () => (await diagnostics(page)).stone, { timeout: 30_000 }).toBe(1);
+  await expect.poll(async () => {
+    const state = await diagnostics(page);
+    return Math.max(state.workerNavigation[0]?.cargo ?? 0, state.stone);
+  }, { timeout: 30_000 }).toBeGreaterThanOrEqual(4);
+  await expect.poll(async () => (await diagnostics(page)).stone, { timeout: 30_000 }).toBeGreaterThanOrEqual(4);
 });
 
 test('les Tournées complètes enchaînent les filons avant le retour au dépôt', async ({ page }) => {
@@ -1054,7 +1088,7 @@ test('les Tournées complètes enchaînent les filons avant le retour au dépôt
   await expect.poll(async () => {
     const state = await diagnostics(page);
     return Math.max(state.workerNavigation[0]?.cargo ?? 0, state.stone);
-  }, { timeout: 45_000 }).toBeGreaterThanOrEqual(8);
+  }, { timeout: 45_000 }).toBeGreaterThanOrEqual(12);
 });
 
 test('l’Instinct de relève empêche un renard de rester statique sans filon accessible', async ({ page }) => {

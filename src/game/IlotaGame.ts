@@ -50,6 +50,7 @@ import {
   getUnlockedWorkerTasks,
   getWarehouseCost,
   getWorkerCapacity,
+  getWorkerCargoCapacity,
   getWorkerGatherSeconds,
   getWorkerDepositValue,
   getWorkerTravelSpeed,
@@ -327,6 +328,7 @@ interface Diagnostics {
   workerTasks: string;
   bridgeBuilt: boolean;
   bridges: number;
+  bridgeVisualParts: number;
   bridgeGuides: number;
   chapter: number;
   cacheFound: boolean;
@@ -346,6 +348,7 @@ interface Diagnostics {
   warehouses: number;
   playerCargo: number;
   playerCargoStackHeight: number;
+  playerCargoVisualKinds: string;
   currentIsland: number;
   currentWorld: 1 | 2;
   worldTwoTerrace: number;
@@ -547,6 +550,7 @@ export class IlotaGame {
   private readonly playerCargoRack = new THREE.Group();
   private readonly cargoGeometries = new Map<ResourceKind, THREE.BufferGeometry>();
   private readonly cargoMaterials = new Map<ResourceKind, THREE.MeshStandardMaterial>();
+  private readonly worldTwoCargoTemplates = new Map<WorldTwoMineralId, THREE.Group>();
   private playerDeposit: { warehouse: WarehouseEntity; timer: number } | null = null;
   private tideResetAnimation: TideResetAnimation | null = null;
   private industrySurgeCooldown = 2.5;
@@ -604,6 +608,9 @@ export class IlotaGame {
       workerTasks: progress.workers.map((worker) => worker.task).join(','),
       bridgeBuilt: progress.bridgesBuilt[0],
       bridges: progress.bridgesBuilt.filter(Boolean).length,
+      bridgeVisualParts: this.bridges
+        .filter((bridge) => progress.bridgesBuilt[bridge.index])
+        .reduce((total, bridge) => total + bridge.root.children.length, 0),
       bridgeGuides: 0,
       chapter: getChapter(progress),
       cacheFound: progress.cachesFound.includes('main-cache'),
@@ -623,6 +630,7 @@ export class IlotaGame {
       warehouses: progress.warehousesBuilt.filter(Boolean).length,
       playerCargo: getPlayerCargoTotal(progress),
       playerCargoStackHeight: 0,
+      playerCargoVisualKinds: '',
       currentIsland: 0,
       currentWorld: progress.currentWorld,
       worldTwoTerrace: progress.currentWorld === 2 ? 0 : -1,
@@ -1119,31 +1127,43 @@ export class IlotaGame {
       label.userData.worldTwoTerrace = index;
       this.worldTwoRoot.add(label);
 
-      const cliffCount = index === 0 || index === WORLD_TWO_TERRACES.length - 1 ? 6 : 4;
-      for (let cliffIndex = 0; cliffIndex < cliffCount; cliffIndex += 1) {
-        const angle = cliffIndex / cliffCount * Math.PI * 2 + index * 0.51;
-        const nextOpeningAngle = Math.atan2(
-          (WORLD_TWO_TERRACES[index + 1]?.x ?? terrace.x) - terrace.x,
-          (WORLD_TWO_TERRACES[index + 1]?.z ?? terrace.z - 1) - terrace.z,
-        );
-        const previousOpeningAngle = Math.atan2(
-          (WORLD_TWO_TERRACES[index - 1]?.x ?? terrace.x) - terrace.x,
-          (WORLD_TWO_TERRACES[index - 1]?.z ?? terrace.z + 1) - terrace.z,
-        );
-        const nextDistance = Math.abs(Math.atan2(Math.sin(angle - nextOpeningAngle), Math.cos(angle - nextOpeningAngle)));
-        const previousDistance = Math.abs(Math.atan2(Math.sin(angle - previousOpeningAngle), Math.cos(angle - previousOpeningAngle)));
-        if (nextDistance < 0.48 || previousDistance < 0.48) continue;
-        const cliff = this.assets.createWorldTwoAsset(cliffIndex % 3 === 0 ? 'cliffDetail' : 'cliffTop');
-        cliff.scale.setScalar(0.44 + (cliffIndex % 3) * 0.05);
-        cliff.position.set(
-          terrace.x + Math.sin(angle) * (terrace.radius + 0.12),
+      const wallCount = Math.max(12, Math.round(terrace.radius * 1.6));
+      const openings = [
+        index > 0 ? { neighbor: WORLD_TWO_TERRACES[index - 1], ramp: WORLD_TWO_RAMPS[index - 1] } : null,
+        index < WORLD_TWO_TERRACES.length - 1
+          ? { neighbor: WORLD_TWO_TERRACES[index + 1], ramp: WORLD_TWO_RAMPS[index] }
+          : null,
+      ].filter((opening): opening is {
+        neighbor: (typeof WORLD_TWO_TERRACES)[number];
+        ramp: (typeof WORLD_TWO_RAMPS)[number];
+      } => Boolean(opening?.neighbor && opening.ramp));
+      for (let wallIndex = 0; wallIndex < wallCount; wallIndex += 1) {
+        const angle = wallIndex / wallCount * Math.PI * 2 + index * 0.17;
+        const blocksRamp = openings.some(({ neighbor, ramp }) => {
+          const openingAngle = Math.atan2(neighbor.x - terrace.x, neighbor.z - terrace.z);
+          const angularDistance = Math.abs(Math.atan2(
+            Math.sin(angle - openingAngle),
+            Math.cos(angle - openingAngle),
+          ));
+          const openingHalfAngle = Math.atan2(ramp.width * 0.6 + 0.48, terrace.radius);
+          return angularDistance < openingHalfAngle;
+        });
+        if (blocksRamp) continue;
+
+        const wallModel = this.assets.createWorldTwoAsset(wallIndex % 4 === 0 ? 'cliffDetail' : 'cliffTop');
+        const wall = new THREE.Group();
+        wall.add(wallModel);
+        wall.scale.set(0.46 * 2.05, 0.26, 0.46);
+        wall.position.set(
+          terrace.x + Math.sin(angle) * (terrace.radius + 0.03),
           terrace.elevation,
-          terrace.z + Math.cos(angle) * (terrace.radius + 0.12),
+          terrace.z + Math.cos(angle) * (terrace.radius + 0.03),
         );
-        cliff.rotation.y = angle + Math.PI;
-        cliff.scale.x *= 1.08;
-        cliff.userData.worldTwoTerrace = index;
-        this.worldTwoRoot.add(cliff);
+        wall.rotation.y = angle + Math.PI;
+        wall.name = `world-2:muret:${index + 1}:${wallIndex + 1}`;
+        wall.userData.worldTwoTerrace = index;
+        wall.userData.worldTwoBoundary = true;
+        this.worldTwoRoot.add(wall);
       }
     });
 
@@ -1152,12 +1172,14 @@ export class IlotaGame {
       const to = WORLD_TWO_TERRACES[ramp.to];
       if (!from || !to) return;
       const direction = vec(to.x - from.x, to.z - from.z).normalize();
-      const start = vec(from.x, from.z).addScaledVector(direction, from.radius - 0.42);
-      const end = vec(to.x, to.z).addScaledVector(direction, -(to.radius - 0.42));
+      // Les extrémités pénètrent franchement dans les deux terrasses. Le
+      // tablier les dépasse encore de 0,9 m : aucun vide ni « pas » ne reste.
+      const start = vec(from.x, from.z).addScaledVector(direction, from.radius - 0.9);
+      const end = vec(to.x, to.z).addScaledVector(direction, -(to.radius - 0.9));
       const length = Math.max(3.5, start.distanceTo(end));
       const rise = to.elevation - from.elevation;
       const rampRoot = new THREE.Group();
-      rampRoot.position.lerpVectors(start, end, 0.5).setY((from.elevation + to.elevation) / 2 - 0.18);
+      rampRoot.position.lerpVectors(start, end, 0.5).setY((from.elevation + to.elevation) / 2 + 0.08);
       rampRoot.rotation.order = 'YXZ';
       rampRoot.rotation.y = Math.atan2(direction.x, direction.z);
       rampRoot.rotation.x = -Math.atan2(rise, Math.max(0.1, length));
@@ -1165,17 +1187,20 @@ export class IlotaGame {
       rampRoot.userData.worldTwoRamp = index;
 
       const support = new THREE.Mesh(
-        new THREE.BoxGeometry(ramp.width, 0.38, length + 0.6),
+        new THREE.BoxGeometry(ramp.width, 0.44, length + 1.8),
         new THREE.MeshStandardMaterial({ color: index >= 7 ? 0x5c5867 : 0x41494d, roughness: 1 }),
       );
+      support.position.y = -0.24;
       support.castShadow = true;
       support.receiveShadow = true;
       rampRoot.add(support);
 
-      const rockDeck = this.assets.createWorldTwoAsset('corridor');
-      rockDeck.rotation.y = Math.PI / 2;
-      rockDeck.scale.set(ramp.width / 6.6, 0.5, length / 6.6);
-      rockDeck.position.y = 0.18;
+      const rockDeckModel = this.assets.createWorldTwoAsset('corridor');
+      rockDeckModel.scale.set(ramp.width / 8, 0.13, (length + 1.8) / 8.24);
+      const rockDeck = new THREE.Group();
+      rockDeck.add(rockDeckModel);
+      rockDeck.position.y = 0.015;
+      rockDeck.name = `world-2:tablier-roche-${index + 1}`;
       rampRoot.add(rockDeck);
       this.worldTwoRoot.add(rampRoot);
     });
@@ -1853,34 +1878,26 @@ export class IlotaGame {
     const end = vec(to.x, to.z).addScaledVector(direction, -(to.radius - 0.7));
     const bridgeVector = end.clone().sub(start);
     const length = bridgeVector.length();
-    const count = Math.max(3, Math.ceil(length / 1.55));
     const root = new THREE.Group();
     const yaw = Math.atan2(bridgeVector.x, bridgeVector.z);
-    for (let sectionIndex = 0; sectionIndex < count; sectionIndex += 1) {
-      const ratio = (sectionIndex + 0.5) / count;
-      const section = this.assets.createWorldTwoAsset('bridge', 0.62);
-      section.position.lerpVectors(start, end, ratio).setY(0.02 + Math.sin(sectionIndex * 0.8) * 0.025);
-      section.rotation.y = yaw;
-      section.scale.x *= 1.38;
-      section.scale.z *= Math.max(0.8, length / count / 1.55);
-      section.userData.bridgePlank = ratio;
-      section.name = `pont-asset:${definition.id}:${sectionIndex + 1}`;
-      root.add(section);
-    }
-
-    const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x);
-    [-1.62, 1.62].forEach((side) => {
-      const ropeStart = start.clone().addScaledVector(perpendicular, side).setY(0.36);
-      const ropeEnd = end.clone().addScaledVector(perpendicular, side).setY(0.36);
-      const ropeDirection = ropeEnd.clone().sub(ropeStart);
-      const rope = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.052, 0.052, ropeDirection.length(), 7),
-        new THREE.MeshStandardMaterial({ color: 0x5d4028, roughness: 1 }),
-      );
-      rope.position.lerpVectors(ropeStart, ropeEnd, 0.5);
-      rope.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ropeDirection.normalize());
-      root.add(rope);
-    });
+    // KayKit fournit déjà un pont entier. Le répéter créait une succession
+    // d’arches complètes ; une seule instance est ici ajustée au passage.
+    const bridgeModel = this.assets.createWorldTwoAsset('bridge', 0.82);
+    // Ce modèle est conçu autour d’un tablier à Y=0 et de piles sous l’eau.
+    // La normalisation générique est donc annulée uniquement pour ce pont.
+    bridgeModel.position.set(0, 0, 0);
+    const bridge = new THREE.Group();
+    bridge.add(bridgeModel);
+    bridge.updateMatrixWorld(true);
+    const naturalSize = new THREE.Box3().setFromObject(bridge).getSize(new THREE.Vector3());
+    const bridgeScale = (length + 1.15) / Math.max(0.001, naturalSize.z);
+    bridge.scale.setScalar(bridgeScale);
+    bridge.position.lerpVectors(start, end, 0.5).setY(0.015);
+    bridge.rotation.y = yaw;
+    bridge.userData.bridgePlank = 0;
+    bridge.userData.bridgeBaseScale = bridge.scale.clone();
+    bridge.name = `pont-asset-complet:${definition.id}`;
+    root.add(bridge);
     root.visible = false;
     this.scene.add(root);
 
@@ -2874,9 +2891,10 @@ export class IlotaGame {
       ) return total;
       const state = this.economy.progress.workers.find((candidate) => candidate.id === worker.id);
       if (!state) return total;
-      const amount = hasSkill(this.economy.progress, 'full_loads')
-        ? Math.max(0, getCargoCapacity(this.economy.progress) - worker.cargo)
-        : getWorkerYield(state.level, this.economy.progress);
+      const amount = Math.max(
+        0,
+        getWorkerCargoCapacity(state.level, this.economy.progress) - worker.cargo,
+      );
       return total + amount;
     }, 0);
   }
@@ -3266,7 +3284,16 @@ export class IlotaGame {
       if ((entity.phase === 'toResource' || entity.phase === 'gathering')
         && (!entity.target || entity.target.amount <= 0 || entity.target.kind !== state.task)) {
         entity.target = null;
-        this.planWorkerCycle(entity, state);
+        const capacity = getWorkerCargoCapacity(state.level, this.economy.progress);
+        if (
+          entity.cargo > 0
+          && (!hasSkill(this.economy.progress, 'full_loads') || entity.cargo >= capacity)
+        ) {
+          if (!this.routeWorkerToWarehouse(entity)) {
+            entity.phase = 'depositing';
+            entity.phaseTimer = 0.28;
+          }
+        } else this.planWorkerCycle(entity, state);
       }
 
       const travelSpeed = getWorkerTravelSpeed(state.level, this.economy.progress)
@@ -3303,7 +3330,7 @@ export class IlotaGame {
             } else if (entity.cargo <= 0) this.planWorkerCycle(entity, state);
             return;
           }
-          const capacity = getCargoCapacity(this.economy.progress);
+          const capacity = getWorkerCargoCapacity(state.level, this.economy.progress);
           const free = capacity - entity.cargo;
           const cargoMultiplier = this.industrySurgeRemaining > 0 && target.kind === this.industrySurgeKind ? 2 : 1;
           const requested = Math.min(
@@ -3321,6 +3348,13 @@ export class IlotaGame {
           }
           const height = target.kind === 'wood' ? 1.4 : target.kind === 'crystal' ? 1 : 0.7;
           this.spawnParticles(target.root.position.clone().setY(height), target.kind, 5 + state.level * 2);
+          // Sans talent, un renard finit le filon qu’il a commencé jusqu’à
+          // remplir son propre harnais. Tournées complètes lui permet en plus
+          // d’enchaîner un autre filon si le premier s’épuise trop tôt.
+          if (entity.cargo < capacity && target.amount > 0) {
+            entity.phaseTimer = getWorkerGatherSeconds(state.level, this.economy.progress);
+            return;
+          }
           if (hasSkill(this.economy.progress, 'full_loads') && entity.cargo < capacity) {
             entity.target = null;
             this.planWorkerCycle(entity, state);
@@ -3435,13 +3469,10 @@ export class IlotaGame {
   }
 
   private syncWorldTwoWolfCargo(entity: WorldTwoWolfEntity): void {
-    this.populateCargoRack(
+    this.populateWorldTwoCargoRack(
       entity.cargoRack,
-      Array.from(
-        { length: entity.cargo },
-        () => getWorldTwoCargoVisualKind(entity.cargoKind),
-      ),
-      getWorldTwoCargoCapacity(this.economy.progress),
+      Array.from({ length: entity.cargo }, () => entity.cargoKind),
+      getWorldTwoWolfCapacity(this.economy.progress),
     );
   }
 
@@ -3516,7 +3547,7 @@ export class IlotaGame {
       if (entity.phase === 'seeking') {
         this.playWorldTwoWolfAction(entity, 'idle');
         if (entity.timer > 0) continue;
-        const capacity = getWorldTwoCargoCapacity(progress);
+        const capacity = getWorldTwoWolfCapacity(progress);
         if (entity.cargo >= capacity) {
           const depot = this.warehouses.find((warehouse) => warehouse.world === 2);
           if (!depot) continue;
@@ -3584,14 +3615,18 @@ export class IlotaGame {
           target.root.position.z - entity.root.position.z,
         );
         if (entity.timer > 0) continue;
-        const capacity = getWorldTwoCargoCapacity(progress);
+        const capacity = getWorldTwoWolfCapacity(progress);
         const free = capacity - entity.cargo;
         const strike = state.level + (hasWorldTwoSkill(progress, 'mountain_tools') ? 1 : 0);
         const gathered = this.consumeResourceNode(target, Math.min(free, strike), entity.id);
         entity.cargo += gathered;
         entity.cargoKind = target.worldTwoKind ?? state.task;
         this.syncWorldTwoWolfCargo(entity);
-        this.spawnParticles(target.root.position.clone().setY(target.root.position.y + 0.8), target.kind, 4 + state.level);
+        this.spawnWorldTwoParticles(
+          target.root.position.clone().setY(target.root.position.y + 0.8),
+          entity.cargoKind,
+          4 + state.level,
+        );
         entity.timer = 0.78;
         if (entity.cargo >= capacity) {
           entity.phase = 'seeking';
@@ -3619,7 +3654,11 @@ export class IlotaGame {
         this.economy.addWorldTwo(entity.cargoKind, delivered);
         entity.cargo = 0;
         this.syncWorldTwoWolfCargo(entity);
-        this.spawnParticles(entity.root.position.clone().setY(entity.root.position.y + 0.7), getWorldTwoCargoVisualKind(entity.cargoKind), 7);
+        this.spawnWorldTwoParticles(
+          entity.root.position.clone().setY(entity.root.position.y + 0.7),
+          entity.cargoKind,
+          7,
+        );
         this.ui.update(progress);
         this.save();
       }
@@ -4247,7 +4286,10 @@ export class IlotaGame {
         root.userData.growingBridge = true;
         root.userData.bridgeBuildElapsed = 0;
         root.children.forEach((child) => {
-          if (typeof child.userData.bridgePlank === 'number') child.scale.setScalar(0.03);
+          if (typeof child.userData.bridgePlank !== 'number') return;
+          const baseScale = child.userData.bridgeBaseScale as THREE.Vector3 | undefined;
+          if (baseScale) child.scale.copy(baseScale).multiplyScalar(0.03);
+          else child.scale.setScalar(0.03);
         });
         this.revealIsland(definition.toIsland);
         this.ui.toast(`${definition.name} terminé · nouvelle île · +1 Savoir`);
@@ -4327,8 +4369,12 @@ export class IlotaGame {
     if (carried <= 0) return;
     this.feedback.play('harvest');
     this.syncPlayerCargoVisuals();
-    const height = node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
-    this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
+    const height = node.worldTwoKind
+      ? node.root.position.y + 0.78
+      : node.kind === 'wood' ? 1.4 : node.kind === 'crystal' ? 1 : 0.7;
+    if (node.worldTwoKind) {
+      this.spawnWorldTwoParticles(node.root.position.clone().setY(height), node.worldTwoKind, 7);
+    } else this.spawnParticles(node.root.position.clone().setY(height), node.kind, 7);
     if (node.amount <= 0) {
       node.respawn = node.respawnSeconds * (
         node.worldTwoKind
@@ -4410,6 +4456,48 @@ export class IlotaGame {
     return piece;
   }
 
+  private createWorldTwoCargoPiece(kind: WorldTwoMineralId, index = 0): THREE.Group {
+    let template = this.worldTwoCargoTemplates.get(kind);
+    if (!template) {
+      const mineral = getWorldTwoMineral(kind);
+      const model = this.assets.createWorldTwoAsset(mineral.visualKind, 0.25);
+      const mineralColor = new THREE.Color(mineral.color);
+      const luminance = mineralColor.r * 0.2126 + mineralColor.g * 0.7152 + mineralColor.b * 0.0722;
+      model.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
+        const materials = sourceMaterials.map((source) => {
+          const material = source.clone();
+          if (material instanceof THREE.MeshStandardMaterial) {
+            material.color.copy(mineralColor);
+            material.roughness = mineral.visualKind === 'coal' ? 0.82 : 0.5;
+            material.metalness = mineral.visualKind === 'coal'
+              ? 0.08
+              : THREE.MathUtils.clamp(0.22 + mineral.hardness / 90, 0.22, 0.58);
+            material.emissive.copy(mineralColor);
+            material.emissiveIntensity = luminance < 0.18 ? 0.38 : 0.12;
+          }
+          return material;
+        });
+        object.material = Array.isArray(object.material) ? materials : materials[0]!;
+      });
+      template = new THREE.Group();
+      template.name = `cargaison-world-2:${kind}`;
+      template.userData.worldTwoCargoPiece = true;
+      template.userData.worldTwoCargoKind = kind;
+      // Le modèle reste enfant du support : sa normalisation verticale n’est
+      // pas écrasée lorsque la pièce est placée sur le dos.
+      template.add(model);
+      this.worldTwoCargoTemplates.set(kind, template);
+    }
+    const piece = template.clone(true);
+    piece.name = `cargaison-world-2:${kind}:${index + 1}`;
+    piece.userData.worldTwoCargoPiece = true;
+    piece.userData.worldTwoCargoKind = kind;
+    piece.rotation.y = index * 1.047;
+    return piece;
+  }
+
   private clearCargoRack(rack: THREE.Group): void {
     rack.clear();
   }
@@ -4435,19 +4523,35 @@ export class IlotaGame {
     });
   }
 
+  private populateWorldTwoCargoRack(
+    rack: THREE.Group,
+    kinds: readonly WorldTwoMineralId[],
+    capacity = getWorldTwoCargoCapacity(this.economy.progress),
+  ): void {
+    this.clearCargoRack(rack);
+    kinds.slice(0, capacity).forEach((kind, index) => {
+      const piece = this.createWorldTwoCargoPiece(kind, index);
+      const position = getCargoPiecePosition(index);
+      piece.position.set(position.x, position.y, position.z);
+      piece.rotation.x = (index % 2 === 0 ? -1 : 1) * 0.04;
+      rack.add(piece);
+    });
+  }
+
   private syncPlayerCargoVisuals(): void {
-    const kinds: ResourceKind[] = [];
     if (this.economy.progress.currentWorld === 2) {
+      const kinds: WorldTwoMineralId[] = [];
       WORLD_TWO_RESOURCE_KINDS.forEach((kind) => {
         for (let index = 0; index < (this.economy.progress.worldTwoCargo[kind] ?? 0); index += 1) {
-          kinds.push(getWorldTwoCargoVisualKind(kind));
+          kinds.push(kind);
         }
       });
       const capacity = getWorldTwoCargoCapacity(this.economy.progress);
-      this.populateCargoRack(this.playerCargoRack, kinds, capacity);
+      this.populateWorldTwoCargoRack(this.playerCargoRack, kinds, capacity);
       this.ui.updateCargo(getWorldTwoCargoTotal(this.economy.progress), capacity);
       return;
     }
+    const kinds: ResourceKind[] = [];
     RESOURCE_KINDS.forEach((kind) => {
       for (let index = 0; index < this.economy.progress.playerCargo[kind]; index += 1) kinds.push(kind);
     });
@@ -4456,9 +4560,14 @@ export class IlotaGame {
   }
 
   private syncWorkerCargoVisuals(entity: WorkerEntity): void {
+    const state = this.economy.progress.workers.find((worker) => worker.id === entity.id);
+    const capacity = state
+      ? getWorkerCargoCapacity(state.level, this.economy.progress)
+      : getCargoCapacity(this.economy.progress);
     this.populateCargoRack(
       entity.cargoRack,
-      Array.from({ length: Math.min(getCargoCapacity(this.economy.progress), entity.cargo) }, () => entity.cargoKind),
+      Array.from({ length: Math.min(capacity, entity.cargo) }, () => entity.cargoKind),
+      capacity,
     );
   }
 
@@ -4489,6 +4598,26 @@ export class IlotaGame {
     });
   }
 
+  private spawnWorldTwoCargoDrop(
+    origin: THREE.Vector3,
+    target: THREE.Vector3,
+    kind: WorldTwoMineralId,
+    onLand?: () => void,
+  ): void {
+    const mesh = this.createWorldTwoCargoPiece(kind, this.cargoDrops.length);
+    mesh.position.copy(origin);
+    mesh.scale.setScalar(1.35);
+    this.scene.add(mesh);
+    this.cargoDrops.push({
+      mesh,
+      start: origin.clone(),
+      target: target.clone(),
+      elapsed: 0,
+      duration: 0.42,
+      onLand,
+    });
+  }
+
   private updateCargoDrops(delta: number): void {
     for (let index = this.cargoDrops.length - 1; index >= 0; index -= 1) {
       const drop = this.cargoDrops[index];
@@ -4503,12 +4632,8 @@ export class IlotaGame {
       drop.mesh.scale.setScalar(1.35 * Math.max(0.08, 1 - ratio * 0.68));
       if (ratio < 1) continue;
       this.scene.remove(drop.mesh);
-      drop.mesh.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      // Les cargaisons clonées partagent les géométries et matériaux mis en
+      // cache. Les détruire ici faisait disparaître les pièces suivantes.
       drop.onLand?.();
       this.cargoDrops.splice(index, 1);
     }
@@ -4533,7 +4658,7 @@ export class IlotaGame {
       const origin = this.getCargoStackTop(this.playerCargoRack);
       const target = vec(deposit.warehouse.definition.x, deposit.warehouse.definition.z + 1.05).setY(0.42);
       if (this.economy.unloadWorldTwoCargo(worldTwoKind, 1) > 0) {
-        this.spawnCargoDrop(origin, target, getWorldTwoCargoVisualKind(worldTwoKind), () => {
+        this.spawnWorldTwoCargoDrop(origin, target, worldTwoKind, () => {
           this.economy.addWorldTwo(worldTwoKind, 1);
           this.ui.update(this.economy.progress);
           this.save();
@@ -4635,6 +4760,11 @@ export class IlotaGame {
     if (!travel.switched && ratio >= switchThreshold) {
       travel.switched = true;
       this.economy.progress.currentWorld = travel.destination;
+      if (travel.destination === 2) {
+        this.industrySurgeRemaining = 0;
+        this.explorationFlowRemaining = 0;
+        this.ui.setPowerEffects(false, this.industrySurgeKind, 0, false, 0);
+      }
       this.applyWorldPalette(travel.destination);
       this.syncPlayerCargoVisuals();
       this.ui.update(this.economy.progress);
@@ -4679,7 +4809,18 @@ export class IlotaGame {
   }
 
   private spawnParticles(origin: THREE.Vector3, kind: ResourceKind, count: number): void {
-    const color = RESOURCE_COLORS[kind];
+    this.spawnColoredParticles(origin, RESOURCE_COLORS[kind], count);
+  }
+
+  private spawnWorldTwoParticles(
+    origin: THREE.Vector3,
+    kind: WorldTwoMineralId,
+    count: number,
+  ): void {
+    this.spawnColoredParticles(origin, getWorldTwoMineral(kind).color, count);
+  }
+
+  private spawnColoredParticles(origin: THREE.Vector3, color: number, count: number): void {
     for (let index = 0; index < count; index += 1) {
       const geometry = index % 2 ? new THREE.TetrahedronGeometry(0.09) : new THREE.BoxGeometry(0.11, 0.11, 0.11);
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color }));
@@ -4784,7 +4925,9 @@ export class IlotaGame {
           if (typeof child.userData.bridgePlank !== 'number') return;
           const local = THREE.MathUtils.clamp((progress - child.userData.bridgePlank * 0.68) / 0.32, 0, 1);
           const eased = 1 - Math.pow(1 - local, 3);
-          child.scale.setScalar(Math.max(0.03, eased));
+          const baseScale = child.userData.bridgeBaseScale as THREE.Vector3 | undefined;
+          if (baseScale) child.scale.copy(baseScale).multiplyScalar(Math.max(0.03, eased));
+          else child.scale.setScalar(Math.max(0.03, eased));
         });
         if (progress >= 1) object.userData.growingBridge = false;
       }
@@ -4942,6 +5085,9 @@ export class IlotaGame {
     this.diagnostics.workerTasks = progress.workers.map((worker) => worker.task).join(',');
     this.diagnostics.bridgeBuilt = progress.bridgesBuilt[0];
     this.diagnostics.bridges = progress.bridgesBuilt.filter(Boolean).length;
+    this.diagnostics.bridgeVisualParts = this.bridges
+      .filter((bridge) => progress.bridgesBuilt[bridge.index])
+      .reduce((total, bridge) => total + bridge.root.children.length, 0);
     this.diagnostics.bridgeGuides = this.bridges.filter((bridge) => bridge.guide.visible).length;
     this.diagnostics.chapter = getChapter(progress);
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');
@@ -4969,6 +5115,10 @@ export class IlotaGame {
         - this.playerCargoRack.children[0]!.position.y
       ).toFixed(2))
       : 0;
+    this.diagnostics.playerCargoVisualKinds = this.playerCargoRack.children
+      .map((piece) => String(piece.userData.worldTwoCargoKind ?? piece.userData.cargoKind ?? ''))
+      .filter(Boolean)
+      .join(',');
     this.diagnostics.currentIsland = findIslandIndexForPoint(this.player.position.x, this.player.position.z);
     this.diagnostics.currentWorld = progress.currentWorld;
     this.diagnostics.worldTwoTerrace = progress.currentWorld === 2

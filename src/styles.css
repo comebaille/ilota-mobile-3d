@@ -1196,6 +1196,7 @@ button:focus-visible {
   white-space: nowrap;
 }
 .worker-detail-hero small { color: #5b7167; font-size: 8px; }
+.worker-detail-hero .worker-timing-stats { font-size: 7px; }
 .worker-detail-level {
   padding: 5px 7px;
   border-radius: 10px;

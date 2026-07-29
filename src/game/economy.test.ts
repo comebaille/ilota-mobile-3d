@@ -22,6 +22,7 @@ import {
   getTotalWorkerLevels,
   getTidalRetentionRate,
   getWorkerCapacity,
+  getWorkerCargoCapacity,
   getWorkerDepositValue,
   getWorkerYield,
   getWarehouseCost,
@@ -137,9 +138,18 @@ describe('Economy v11', () => {
   it('sépare la capacité du harnais du rendement progressif par coup', () => {
     const economy = new Economy({ skills: ['cargo_harness'], skillRanks: { cargo_harness: 2 } });
     expect(getCargoCapacity(economy.progress)).toBe(16);
+    expect([1, 2, 3].map((level) => getWorkerCargoCapacity(level as 1 | 2 | 3, economy.progress)))
+      .toEqual([12, 16, 20]);
     expect(getWorkerYield(1, economy.progress)).toBe(1);
     expect(getWorkerYield(2, economy.progress)).toBe(2);
     expect(getWorkerYield(3, economy.progress)).toBe(3);
+  });
+
+  it('donne dès le départ des tournées utiles de 4/8/12 aux ouvriers', () => {
+    const progress = new Economy().progress;
+    expect(getWorkerCargoCapacity(1, progress)).toBe(4);
+    expect(getWorkerCargoCapacity(2, progress)).toBe(8);
+    expect(getWorkerCargoCapacity(3, progress)).toBe(12);
   });
 
   it('fait évoluer les coups ouvriers de 1/2/3 à 2/4/6 puis 3/6/9', () => {

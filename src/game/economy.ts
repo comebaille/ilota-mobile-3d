@@ -512,7 +512,7 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
 
   { id: 'coordinated_shifts', branch: 'intelligence', tier: 5, cost: 5, name: 'Relèves coordonnées', detail: 'L’auto-gestion pourra réagir plus souvent.', icon: '⇄', x: 165, y: 755, requires: ['forecasting'] },
   { id: 'expanded_roster', branch: 'industry', tier: 5, cost: 3, rankCosts: [3, 5, 8, 12, 17], maxRank: 5, name: 'Cercle des bâtisseurs', detail: '+1 poste par rang. Le prix augmente à chaque renard supplémentaire.', icon: '+1', x: 585, y: 755, requires: ['living_quarries'] },
-  { id: 'cargo_harness', branch: 'industry', tier: 5, cost: 2, rankCosts: [2, 4, 6, 9, 13, 18], maxRank: 6, name: 'Harnais modulaires', detail: '+4 places de cargaison par rang pour toi et chaque travailleur (8 → 32).', icon: '+4', x: 735, y: 790, requires: ['living_quarries'] },
+  { id: 'cargo_harness', branch: 'industry', tier: 5, cost: 2, rankCosts: [2, 4, 6, 9, 13, 18], maxRank: 6, name: 'Harnais modulaires', detail: '+4 places par rang. Joueur : 8 → 32. Ouvriers : bases 4/8/12, puis jusqu’à 28/32/32.', icon: '+4', x: 735, y: 790, requires: ['living_quarries'] },
   { id: 'tidal_memory', branch: 'exploration', tier: 5, cost: 5, name: 'Mémoire des marées', detail: 'Chaque Nouvelle Marée commence avec une réserve croissante.', icon: '≈', x: 925, y: 755, requires: ['frugal_plans'] },
   { id: 'scouting_parties', branch: 'hybrid', tier: 6, cost: 7, name: 'Éclaireurs autonomes', detail: 'Intelligence + Exploration : les caches sont récupérées à l’émergence d’une île.', icon: '⚑', x: 365, y: 815, requires: ['forecasting', 'frugal_plans'] },
 
@@ -1068,6 +1068,17 @@ export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): n
   if (!progress) return perHit;
   return Math.min(getCargoCapacity(progress), perHit);
 };
+
+/**
+ * Le niveau d’un ouvrier améliore son propre harnais, indépendamment du dos
+ * du joueur. Un débutant ramène déjà une vraie tournée de quatre unités ; les
+ * Harnais modulaires ajoutent ensuite quatre places à tout le monde.
+ */
+export const getWorkerCargoCapacity = (level: WorkerLevel, progress: IslandProgress): number =>
+  Math.min(
+    MAX_CARGO_CAPACITY,
+    level * 4 + getSkillRank(progress, 'cargo_harness') * CARGO_CAPACITY_PER_RANK,
+  );
 
 export const getWorkerDepositValue = (progress: IslandProgress): number => {
   const multiplier = (hasSkill(progress, 'reinforced_carts') ? 1.3 : 1)
