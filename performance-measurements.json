@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "captured_at": "2026-07-29T19:36:47Z",
+  "device": "Headless Chromium, mobile emulation 667x375 at 2x, software WebGL; regression proxy rather than physical-device FPS",
+  "build": "v0.19.0 release candidate based on bc02f36",
+  "scenarios": {
+    "world-transition": {
+      "samples": 72,
+      "frame_median_ms": 50,
+      "frame_p95_ms": 133.3,
+      "frame_p99_ms": 316.6,
+      "diagnostic_fps": 12,
+      "draw_calls": 220,
+      "triangles": 32246,
+      "world_travel_objects": 7
+    },
+    "world-transition-before": {
+      "samples": 41,
+      "frame_median_ms": 116.6,
+      "frame_p95_ms": 249.9,
+      "frame_p99_ms": 266.7,
+      "diagnostic_fps": 12,
+      "world_travel_objects": 121
+    }
+  }
+}

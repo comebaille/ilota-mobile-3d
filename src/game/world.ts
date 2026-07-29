@@ -305,7 +305,8 @@ export const PROJECT_HALLS: readonly ProjectHallDefinition[] = [
 
 /**
  * Marge de respiration visuelle entre les emprises déclarées. Cette liste est
- * la source du test anti-collision : tout nouveau bâtiment doit y participer.
+ * la source du test de composition : tout nouveau bâtiment doit y participer.
+ * Elle n'ajoute aucun volume bloquant au joueur.
  */
 export const BUILDING_MIN_GAP = 2;
 export const BUILDING_EDGE_MARGIN = 0.9;

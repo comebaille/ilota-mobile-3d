@@ -16,15 +16,15 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - systèmes matérialisés : le camp ouvre la nurserie, l’atelier forme au niveau 2, la fonderie au niveau 3 et l’Autel du Savoir spécialise l’île de Cristal ;
 - nurserie lumineuse et scrollable : le niveau reste écrit sur chaque renard, un toucher ouvre sa fiche, mais les formations ne sont possibles que dans le bon bâtiment ;
 - neuf postes par les bâtiments, dix postes supplémentaires via projets et savoirs, et trois niveaux de rendement ;
-- vraie nurserie, dépôts, atelier, fonderie et Autel du Savoir fondés sur des modèles 3D CC0, assemblés pièce par pièce lors de leur construction et séparés par une marge anti-collision vérifiée ;
+- vraie nurserie, dépôts, atelier, fonderie et Autel du Savoir fondés sur des modèles 3D CC0, assemblés pièce par pièce lors de leur construction et espacés visuellement, sans volumes bloquants ;
 - Autel de Cristal rééquilibré à `78 bois + 68 pierre + 48 cuivre + 24 cristal`, construit directement sur la quatrième île avant l’ouverture de l’arbre ;
 - quinze Grands Travaux regroupés dans cinq Maisons, dont une dès l’île de départ, à construire après le bâtiment principal de chaque île ; chacune ouvre trois grandes cartes lisibles et allume trois sceaux d’avancement ;
 - trois pôles bâtis en triangle sur chaque île du World 1, repoussés vers les rives tout en gardant le centre et les accès aux ponts dégagés ;
 - HUD paysage compact : l’étape suivante reste visible, le détail des objectifs se déplie à la demande, disparaît définitivement après le paiement du pont, puis des flèches 3D partent du renard et le suivent jusqu’au passage ;
 - tutoriel contextuel réservé aux sauvegardes neuves : dépôt, cargaison, nurserie, objectifs, formations, talents et Nouvelle Marée ;
-- arbre hexagonal à 32 nœuds : futur invisible, doubles prérequis stricts, capacité de cargaison évolutive, tournées complètes, Frappe de maîtrise à deux rangs, Instinct de relève anti-inactivité, Conseil itinérant optionnel, héritage de Marée progressif, pincement tactile robuste, trois sommets et convergence finale très coûteuse ;
-- vrai portail temporel 3D **World 2** sur l’île de base, ouvert après 5 rebirths et les 32 savoirs maximisés, avec traversée aller-retour au sol sur un sentier de terre encaissé dans la montagne ;
-- **Montagne du Zénith** : onze terrasses et dix rampes accessibles immédiatement, enceinte montagneuse et trente filons — de la pierre au diamant puis au Célestium — dont les silhouettes restent noires tant que les crocs sont trop tendres ;
+- arbre hexagonal à 32 nœuds : futur invisible, doubles prérequis stricts, capacité de cargaison évolutive, tournées complètes, Frappe de maîtrise à deux rangs, Instinct de relève anti-inactivité, Conseil itinérant optionnel, héritage de Marée progressif, pincement tactile libéré même après une interruption iOS, trois sommets et convergence finale très coûteuse ;
+- vrai portail temporel 3D **World 2** sur l’île de base, ouvert après 5 rebirths et les 32 savoirs maximisés, avec traversée aller-retour au sol sur un sentier de terre instancié, allégé et encaissé dans la montagne ;
+- **Montagne du Zénith** : onze terrasses et dix rampes accessibles immédiatement, enceinte montagneuse et trente filons — de la pierre au diamant puis au Célestium — dont seuls les minerais trop durs restent noirs ; tous les minerais exploitables sont colorés et cerclés de lumière ;
 - économie du World 2 entièrement fondée sur l’argent : les minerais portés sont vendus au Refuge des Échos, les crocs du héros et de la meute possèdent trente niveaux, et aucun stock local ne pollue le HUD ;
 - tanière payée en argent, nouveaux loups Quaternius plus détaillés avec douze animations, démon, spectre et yéti animés, défense de meute et six Savoirs du Zénith dédiés ;
 - économie, cargaison, travailleurs et progression du World 2 totalement indépendants du World 1 ; objectifs, crocs, fortune, meute et sommet restent persistants dans la sauvegarde v11 ;
@@ -59,6 +59,7 @@ Passe le téléphone en paysage. Sur ordinateur : WASD ou flèches pour se dépl
 npm run test:unit
 npm run build
 npm run test:e2e
+npm run perf:transition
 ```
 
 ## Installation mobile

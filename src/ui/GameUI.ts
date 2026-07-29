@@ -247,6 +247,8 @@ export class GameUI {
     | { type: 'pinch'; distance: number; zoom: number; midpointX: number; midpointY: number; scrollLeft: number; scrollTop: number }
     | null = null;
   private skillSuppressClick = false;
+  private skillZoomFrame = 0;
+  private lastTalentRenderKey = '';
   private menuResetArmed = false;
   private menuTideArmed = false;
   private menuTimer = 0;
@@ -370,8 +372,13 @@ export class GameUI {
     this.skillBranches.addEventListener('pointermove', (event) => this.moveSkillPointer(event));
     this.skillBranches.addEventListener('pointerup', (event) => this.endSkillPointer(event));
     this.skillBranches.addEventListener('pointercancel', (event) => this.endSkillPointer(event));
+    this.skillBranches.addEventListener('lostpointercapture', (event) => this.endSkillPointer(event));
     window.addEventListener('pointerup', (event) => this.endSkillPointer(event), true);
     window.addEventListener('pointercancel', (event) => this.endSkillPointer(event), true);
+    window.addEventListener('blur', () => this.resetSkillGesture());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.resetSkillGesture();
+    });
     this.skillBranches.addEventListener('wheel', (event) => {
       event.preventDefault();
       this.setSkillZoom(this.skillZoom + (event.deltaY < 0 ? 0.08 : -0.08), event.clientX, event.clientY);
@@ -500,6 +507,15 @@ export class GameUI {
 
   get isMenuOpen(): boolean {
     return !this.menuPanel.hidden;
+  }
+
+  get hasBlockingOverlay(): boolean {
+    return !this.crewPanel.hidden
+      || !this.projectsPanel.hidden
+      || !this.talentPanel.hidden
+      || !this.worldTwoSkillPanel.hidden
+      || !this.menuPanel.hidden
+      || !this.tutorialPanel.hidden;
   }
 
   get activeCrewMode(): CrewMode {
@@ -1134,9 +1150,28 @@ export class GameUI {
   }
 
   private renderTalents(progress: IslandProgress): void {
+    const renderKey = JSON.stringify([
+      progress.knowledge,
+      progress.rebirths,
+      progress.skills,
+      progress.skillRanks,
+      progress.autoRegulation,
+      progress.industrySurge,
+      progress.explorationFlow,
+      progress.powerNotifications,
+      progress.powerVfx,
+    ]);
+    const previouslyRendered = Boolean(this.skillBranches.querySelector('.skill-map-canvas'));
+    if (renderKey === this.lastTalentRenderKey && previouslyRendered) {
+      this.updateSkillSelection(progress);
+      return;
+    }
+    // Ne jamais remplacer le graphe sous des doigts encore posés : sur iOS,
+    // retirer la cible d'un pointeur actif peut faire disparaître son cancel.
+    if (this.skillPointers.size > 0 && previouslyRendered) return;
+
     const previousScrollLeft = this.skillBranches.scrollLeft;
     const previousScrollTop = this.skillBranches.scrollTop;
-    const previouslyRendered = Boolean(this.skillBranches.querySelector('.skill-map-canvas'));
     this.talentKnowledge.textContent = `${progress.knowledge} Savoir disponible${progress.knowledge > 1 ? 's' : ''}`;
     this.tideCount.textContent = `Marée ${progress.rebirths + 1} · exigence ×${getCycleMultiplier(progress).toFixed(2)}`;
     this.skillBranches.replaceChildren();
@@ -1230,7 +1265,11 @@ export class GameUI {
     });
     stage.append(canvas);
     this.skillBranches.append(stage);
-    window.requestAnimationFrame(() => {
+    this.lastTalentRenderKey = renderKey;
+    window.cancelAnimationFrame(this.skillZoomFrame);
+    this.skillZoomFrame = window.requestAnimationFrame(() => {
+      this.skillZoomFrame = 0;
+      if (this.talentPanel.hidden || !stage.isConnected) return;
       this.skillBranches.scrollLeft = previouslyRendered
         ? previousScrollLeft
         : Math.max(0, 580 * this.skillZoom - this.skillBranches.clientWidth / 2);
@@ -1272,6 +1311,15 @@ export class GameUI {
     this.powerVfxButton.textContent = progress.powerVfx
       ? 'EFFETS PLEIN ÉCRAN · OUI'
       : 'EFFETS PLEIN ÉCRAN · NON';
+    this.renderSkillInspector(progress);
+  }
+
+  private updateSkillSelection(progress: IslandProgress): void {
+    this.skillBranches.querySelectorAll<HTMLButtonElement>('button[data-skill]').forEach((button) => {
+      const selected = button.dataset.skill === this.selectedSkill;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
     this.renderSkillInspector(progress);
   }
 
@@ -1343,7 +1391,10 @@ export class GameUI {
       stage.style.width = `${SKILL_MAP_WIDTH * next}px`;
       stage.style.height = `${SKILL_MAP_HEIGHT * next}px`;
       canvas.style.transform = `scale(${next})`;
-      window.requestAnimationFrame(() => {
+      window.cancelAnimationFrame(this.skillZoomFrame);
+      this.skillZoomFrame = window.requestAnimationFrame(() => {
+        this.skillZoomFrame = 0;
+        if (this.talentPanel.hidden || !stage.isConnected || !canvas.isConnected) return;
         this.skillBranches.scrollLeft = Math.max(0, contentX * next - anchorX);
         this.skillBranches.scrollTop = Math.max(0, contentY * next - anchorY);
       });
@@ -1359,6 +1410,12 @@ export class GameUI {
       && target.closest('button[data-skill]')
     ) {
       return;
+    }
+    event.preventDefault();
+    try {
+      this.skillBranches.setPointerCapture(event.pointerId);
+    } catch {
+      // Le pointeur peut avoir disparu entre pointerdown et la capture sur iOS.
     }
     this.skillPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.rebaseSkillGesture();
@@ -1384,6 +1441,7 @@ export class GameUI {
       return;
     }
     if (this.skillGesture.type === 'pan' && pointers.length === 1) {
+      event.preventDefault();
       const pointer = pointers[0]!;
       const dx = pointer.x - this.skillGesture.x;
       const dy = pointer.y - this.skillGesture.y;
@@ -1396,14 +1454,36 @@ export class GameUI {
   private endSkillPointer(event: PointerEvent): void {
     if (!this.skillPointers.has(event.pointerId)) return;
     this.skillPointers.delete(event.pointerId);
+    try {
+      if (this.skillBranches.hasPointerCapture(event.pointerId)) {
+        this.skillBranches.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // lostpointercapture signifie que le navigateur l'a déjà relâché.
+    }
     this.rebaseSkillGesture();
     if (this.skillSuppressClick) window.setTimeout(() => { this.skillSuppressClick = false; }, 0);
+    if (this.skillPointers.size === 0 && !this.talentPanel.hidden && this.latestProgress) {
+      this.renderTalents(this.latestProgress);
+    }
   }
 
   private resetSkillGesture(): void {
+    const pointerIds = [...this.skillPointers.keys()];
     this.skillPointers.clear();
     this.skillGesture = null;
     this.skillSuppressClick = false;
+    window.cancelAnimationFrame(this.skillZoomFrame);
+    this.skillZoomFrame = 0;
+    pointerIds.forEach((pointerId) => {
+      try {
+        if (this.skillBranches.hasPointerCapture(pointerId)) {
+          this.skillBranches.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // Le navigateur peut avoir libéré toutes les captures lors d'un blur.
+      }
+    });
   }
 
   private rebaseSkillGesture(): void {

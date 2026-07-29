@@ -451,6 +451,13 @@ button:focus-visible {
 .talent-panel { z-index: 19; }
 .projects-panel { z-index: 19; }
 
+/* Le flou live d'un canvas WebGL peut bloquer le compositeur d'iOS pendant
+   un pincement. L'arbre garde un fond opaque, sans recalcul GPU de l'arrière-plan. */
+.talent-panel {
+  background: rgba(8, 30, 29, 0.97);
+  backdrop-filter: none;
+}
+
 .crew-sheet {
   width: min(760px, 96vw);
   height: min(380px, 95vh);
@@ -2608,8 +2615,8 @@ button:focus-visible {
   display: grid;
   place-items: center;
   padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  background: rgba(8, 31, 29, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(8, 31, 29, 0.94);
+  backdrop-filter: none;
 }
 
 .tutorial-card {
@@ -3714,15 +3721,13 @@ html.world-travel::after {
   z-index: 160;
   pointer-events: none;
   content: "";
-  background:
-    radial-gradient(circle at center, transparent 30%, rgba(24, 38, 48, 0.58) 90%),
-    repeating-conic-gradient(from 0deg, rgba(128, 221, 238, 0.08) 0 5deg, transparent 5deg 15deg);
-  mix-blend-mode: screen;
-  animation: world-travel-spin 1.8s linear infinite;
+  background: radial-gradient(circle at center, transparent 42%, rgba(18, 31, 38, 0.7) 100%);
+  opacity: 0.84;
+  animation: world-travel-breathe 1.4s ease-in-out infinite alternate;
 }
 
-@keyframes world-travel-spin {
-  to { transform: rotate(1turn) scale(1.15); }
+@keyframes world-travel-breathe {
+  to { opacity: 0.96; }
 }
 
 @media (max-width: 760px) {

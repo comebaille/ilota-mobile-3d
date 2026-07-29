@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v18-fangs-and-fortune';
+const CACHE = 'ilota-v19-fluid-input-and-travel';
 const CORE = [
   './',
   './index.html',

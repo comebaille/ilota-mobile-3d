@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "target_platform": "Mobile-browser regression proxy: Chromium software WebGL, 667x375 at 2x",
+  "scenarios": {
+    "world-transition": {
+      "min": {
+        "diagnostic_fps": 10
+      },
+      "max": {
+        "frame_p95_ms": 180,
+        "draw_calls": 250,
+        "triangles": 40000,
+        "world_travel_objects": 8
+      }
+    }
+  }
+}

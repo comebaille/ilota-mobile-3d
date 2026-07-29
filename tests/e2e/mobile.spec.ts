@@ -49,9 +49,16 @@ interface IlotaDiagnostics {
   worldTwoWolfFangLevel: number;
   worldTwoMinerals: number;
   worldTwoLockedMinerals: number;
+  worldTwoMineableDark: number;
   worldTwoWolfAnimations: string;
   worldTwoEnemyAnimations: string;
   worldTravelPathVisible: boolean;
+  worldTravelObjects: number;
+  inputEnabled: boolean;
+  managementOpen: boolean;
+  blockingOverlay: boolean;
+  drawCalls: number;
+  triangles: number;
   interaction: string;
   assemblingBuildings: number;
   visibleIslands: number;
@@ -173,10 +180,6 @@ const createNavigator = (page: Page) => {
     await page.mouse.move(centerX, centerY);
     await page.mouse.down();
     pointerDown = true;
-    let previous: { x: number; z: number } | null = null;
-    let stalledSteps = 0;
-    let avoidanceSteps = 0;
-    let avoidanceAttempt = 0;
     for (let step = 0; step < 180; step += 1) {
       const player = await page.evaluate(() => (
         window as typeof window & { __ILOTA__: IlotaDiagnostics }
@@ -188,30 +191,8 @@ const createNavigator = (page: Page) => {
         await release();
         return;
       }
-      if (previous && Math.hypot(player.x - previous.x, player.z - previous.z) < 0.018) {
-        stalledSteps += 1;
-      } else {
-        stalledSteps = 0;
-      }
-      previous = player;
-      if (stalledSteps >= 5 && avoidanceSteps <= 0) {
-        avoidanceSteps = 14;
-        avoidanceAttempt += 1;
-        stalledSteps = 0;
-      }
-
-      let steerX = dx;
-      let steerZ = dz;
-      if (avoidanceSteps > 0) {
-        const directX = dx / Math.max(0.001, distance);
-        const directZ = dz / Math.max(0.001, distance);
-        const side = avoidanceAttempt % 2 === 1 ? 1 : -1;
-        steerX = directX * 0.22 + -directZ * side;
-        steerZ = directZ * 0.22 + directX * side;
-        avoidanceSteps -= 1;
-      }
-      const screenX = 0.828 * steerX - 0.561 * steerZ;
-      const screenY = -0.561 * steerX - 0.828 * steerZ;
+      const screenX = 0.828 * dx - 0.561 * dz;
+      const screenY = -0.561 * dx - 0.828 * dz;
       const screenLength = Math.max(0.001, Math.hypot(screenX, screenY));
       const steeringRadius = radius * Math.min(1, Math.max(0.14, distance / 3.5));
       await page.mouse.move(
@@ -364,19 +345,23 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await expect(page.locator('#tutorial-panel')).toBeVisible();
   await expect(page.locator('#tutorial-detail')).toContainText('tomberont une à une');
   await page.locator('#tutorial-continue-button').click();
+  await expect.poll(async () => (await diagnostics(page)).inputEnabled).toBe(true);
+  expect(await diagnostics(page)).toMatchObject({
+    managementOpen: false,
+    blockingOverlay: false,
+  });
 
-  // Depuis l'ajout des collisions, le renard doit rester devant l'arbre
-  // au lieu de viser son centre géométrique.
-  await moveTo(-4, -6.2, 0.6);
-  await moveTo(-4, -1, 0.6);
+  // Le bâtiment fraîchement assemblé ne doit ni bloquer le renard ni laisser
+  // les contrôles tactiles suspendus après la fermeture du tutoriel.
+  await moveTo(-7, -5.8, 0.6);
+  await moveTo(-7, -1.8, 0.6);
   await moveTo(-8.7, -0.15, 0.55);
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(1);
   expect((await diagnostics(page)).wood).toBe(0);
   await page.screenshot({ path: 'test-results/ilota-visible-player-cargo.png' });
 
-  // Le dépôt assemblé possède maintenant un volume solide : on se présente
-  // devant sa façade pour décharger au lieu de traverser ses murs.
+  // Le dépôt reste interactif depuis sa façade même sans volume bloquant.
   await moveTo(-7, -2, 0.65);
   await expect(page.locator('#action-button')).toContainText('DÉCHARGER');
   await page.keyboard.press('KeyE');
@@ -420,6 +405,7 @@ test('le portail anime l’aller vers le World 2 puis permet le retour au World 
   await expect(page.locator('#context-prompt')).toContainText('Ascension du Zénith');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).worldTravelPathVisible).toBe(true);
+  expect((await diagnostics(page)).worldTravelObjects).toBeLessThanOrEqual(7);
   await page.waitForTimeout(1_250);
   await page.screenshot({ path: 'test-results/ilota-world-2-grounded-travel.png' });
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
@@ -458,6 +444,7 @@ test.describe('traversée physique du World 2', () => {
     await waitForGame(page);
     await expect.poll(async () => (await diagnostics(page)).worldTwoMinerals).toBe(30);
     await expect.poll(async () => (await diagnostics(page)).worldTwoLockedMinerals).toBe(29);
+    await expect.poll(async () => (await diagnostics(page)).worldTwoMineableDark).toBe(0);
     const { moveTo } = createNavigator(page);
     for (const [index, terrace] of WORLD_TWO_TERRACES.entries()) {
       const isSummit = index === WORLD_TWO_TERRACES.length - 1;
@@ -485,6 +472,7 @@ test('le World 2 vend la pierre et améliore les crocs avec son argent', async (
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
+  await expect.poll(async () => (await diagnostics(page)).worldTwoMineableDark).toBe(0);
 
   // Le premier filon de pierre est le seul minerai coloré au départ.
   await moveTo(162.45, 1.75, 0.7);
@@ -513,6 +501,7 @@ test('le World 2 vend la pierre et améliore les crocs avec son argent', async (
   await fangCard.click();
   await expect.poll(async () => (await diagnostics(page)).worldTwoFangLevel).toBe(2);
   await expect.poll(async () => (await diagnostics(page)).worldTwoLockedMinerals).toBe(28);
+  await expect.poll(async () => (await diagnostics(page)).worldTwoMineableDark).toBe(0);
   await page.screenshot({ path: 'test-results/ilota-world-2-fang-economy.png' });
 });
 
@@ -631,13 +620,12 @@ test('l’Autel du Savoir exige les quatre grandes réserves sur l’île de Cri
   await moveTo(0, -17.9, 0.65);
   await moveTo(5.68, -34.11, 0.65);
   await moveTo(10.13, -39.66, 0.65);
-  // Contourne le filon de cuivre puis l'arbre qui bordent l'accès au pont.
+  // Suit les jonctions des îles et des ponts jusqu'à l'île de Cristal.
   await moveTo(15, -48.5, 0.8);
   await moveTo(12.2, -53.3, 0.8);
   await moveTo(10.26, -54.44, 0.65);
   await moveTo(4.68, -61.64, 0.65);
-  // Le cristal qui garde l'arrivée du pont est solide : passage par la
-  // gauche avant de rejoindre le centre libre de l'île.
+  // Reste sur la surface de l'île avant de rejoindre l'Autel.
   await moveTo(2, -65.5, 0.8);
   await moveTo(2, -71.5, 0.8);
   await moveTo(2, -75.8, 0.9);
@@ -1231,10 +1219,14 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   const beforeClose = (await diagnostics(page)).player;
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   await expect.poll(async () => (await diagnostics(page)).talentOpen).toBe(false);
-  await page.keyboard.down('ArrowRight');
-  await page.waitForTimeout(450);
-  await page.keyboard.up('ArrowRight');
-  await expect.poll(async () => (await diagnostics(page)).player.x).toBeGreaterThan(beforeClose.x + 0.25);
+  await expect.poll(async () => (await diagnostics(page)).inputEnabled).toBe(true);
+  expect(await diagnostics(page)).toMatchObject({
+    managementOpen: false,
+    blockingOverlay: false,
+  });
+  const { moveTo } = createNavigator(page);
+  await moveTo(beforeClose.x + 1.5, beforeClose.z, 0.25);
+  await expect.poll(async () => (await diagnostics(page)).player.x).toBeGreaterThan(beforeClose.x + 1);
   await expect(page.locator('.skill-zoom-controls')).toHaveCount(0);
   await openTalents(page);
   await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
@@ -1274,8 +1266,10 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await waitForGame(page);
   await openTalents(page);
   await page.getByRole('button', { name: /technique · activer la surcharge/i }).click();
-  await expect.poll(async () => (await diagnostics(page)).industrySurge).toBe(true);
+  await expect(page.getByRole('button', { name: /technique · surcharge armée/i }))
+    .toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
+  await expect.poll(async () => (await diagnostics(page)).industrySurge).toBe(true);
   await expect(page.locator('#power-vfx')).toHaveClass(/industry-active/, { timeout: 6_000 });
   await expect(page.locator('#power-vfx-label')).toContainText('SURCHARGE');
   expect(await page.locator('.power-edge').evaluateAll((edges) =>
@@ -1297,8 +1291,8 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
     const state = await diagnostics(page);
     return state.industrySurge && state.explorationFlow;
   }, { timeout: 8_000 }).toBe(false);
-  // Le delta moteur est plafonné à 100 ms pour conserver des collisions
-  // stables même sur un runner lent ; l'alternance reste basée sur la simulation.
+  // Le delta moteur reste plafonné à 100 ms sur un runner lent ;
+  // l'alternance reste basée sur la simulation.
   await expect.poll(async () => (await diagnostics(page)).explorationFlow, { timeout: 45_000 }).toBe(true);
   expect((await diagnostics(page)).industrySurge).toBe(false);
   await expect(page.locator('#power-vfx')).toHaveClass(/exploration-active/, { timeout: 6_000 });
@@ -1448,14 +1442,8 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.getByRole('heading', { name: 'Recrute et place tes renards' })).toBeVisible();
   await recruitUntil(page, 2);
   await closeCrew(page);
-  // Rejoindre l'allée est de la place avant de viser la Maison : le Camp,
-  // la nurserie et les arbres forment désormais de vrais volumes solides.
-  await moveTo(8, 1, 0.75);
   await completeProjectsUntil(page, 3, moveTo);
   await expect.poll(async () => (await diagnostics(page)).bridgeGuides).toBe(1);
-  // La Maison des Travaux est désormais un véritable obstacle. On quitte
-  // d'abord sa façade par le bord sud-est avant de viser le pont.
-  await moveTo(8.5, -8.5, 0.75);
   await moveTo(0, -11.25, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont des Pins');
   await page.locator('#action-button').tap();
@@ -1500,12 +1488,6 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await upgradeWorker(page, 'Milo');
   await upgradeWorker(page, 'Nila');
   await closeCrew(page);
-  // La fonderie est désormais solide : longer sa façade sud au lieu de
-  // demander au navigateur tactile de couper à travers son volume.
-  await moveTo(17.5, -56.2, 0.65);
-  await moveTo(13, -56, 0.65);
-  await moveTo(15, -48, 0.65);
-  await moveTo(16, -44, 0.65);
   await completeProjectsUntil(page, 9, moveTo);
 
   await moveTo(24, -46, 0.65);

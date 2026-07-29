@@ -356,9 +356,16 @@ interface Diagnostics {
   worldTwoWolfFangLevel: number;
   worldTwoMinerals: number;
   worldTwoLockedMinerals: number;
+  worldTwoMineableDark: number;
   worldTwoWolfAnimations: string;
   worldTwoEnemyAnimations: string;
   worldTravelPathVisible: boolean;
+  worldTravelObjects: number;
+  inputEnabled: boolean;
+  managementOpen: boolean;
+  blockingOverlay: boolean;
+  drawCalls: number;
+  triangles: number;
   interaction: Interaction['type'] | '';
   assemblingBuildings: number;
   visibleIslands: number;
@@ -513,12 +520,6 @@ export class IlotaGame {
   private readonly worldTwoEnemies: WorldTwoEnemyEntity[] = [];
   private worldTwoDen: WorldTwoDenEntity | null = null;
   private worldTwoShrine: WorldTwoShrineEntity | null = null;
-  private readonly obstacleColliders: Array<{
-    object: THREE.Object3D;
-    radius: number;
-    world: 1 | 2;
-    terraceIndex?: number;
-  }> = [];
   private readonly caches: CacheEntity[] = [];
   private readonly particles: Particle[] = [];
   private readonly cargoDrops: CargoDrop[] = [];
@@ -541,6 +542,7 @@ export class IlotaGame {
   private islandEmergence: IslandEmergence | null = null;
   private lastFrameTime = performance.now();
   private fpsAverage = 60;
+  private overlayRenderCooldown = 0;
   private victoryShown = false;
   private readonly playerCargoRack = new THREE.Group();
   private readonly cargoGeometries = new Map<ResourceKind, THREE.BufferGeometry>();
@@ -583,6 +585,7 @@ export class IlotaGame {
     this.restoreVisualProgress();
     this.bindManagement();
     this.resize();
+    this.prewarmWorldRendering();
     window.addEventListener('resize', this.resize);
 
     const progress = economy.progress;
@@ -630,9 +633,16 @@ export class IlotaGame {
       worldTwoWolfFangLevel: progress.worldTwoWolfFangLevel,
       worldTwoMinerals: WORLD_TWO_MINERALS.length,
       worldTwoLockedMinerals: WORLD_TWO_MINERALS.length - progress.worldTwoFangLevel,
+      worldTwoMineableDark: 0,
       worldTwoWolfAnimations: '',
       worldTwoEnemyAnimations: '',
       worldTravelPathVisible: false,
+      worldTravelObjects: this.worldTravelCauseway.children.length,
+      inputEnabled: false,
+      managementOpen: false,
+      blockingOverlay: false,
+      drawCalls: 0,
+      triangles: 0,
       interaction: '',
       assemblingBuildings: 0,
       visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
@@ -734,15 +744,18 @@ export class IlotaGame {
   }
 
   private setManagementOpen(open: boolean): void {
-    this.managementOpen = open;
+    this.managementOpen = open || this.ui.hasBlockingOverlay;
     this.input.release();
-    this.input.enabled = this.active && !open && !this.worldTravelAnimation;
-    if (open) {
+    this.input.enabled = this.active
+      && !this.managementOpen
+      && !this.worldTravelAnimation
+      && !this.tideResetAnimation;
+    if (this.managementOpen) {
       this.interaction = null;
       this.ui.clearContext();
     }
     if (
-      !open
+      !this.managementOpen
       && this.active
       && this.economy.progress.campBuilt
       && this.economy.progress.workers.length >= 2
@@ -756,6 +769,19 @@ export class IlotaGame {
         '⚑',
       ), 0);
     }
+  }
+
+  private reconcileInputState(): void {
+    const blockingOverlay = this.ui.hasBlockingOverlay;
+    this.managementOpen = blockingOverlay;
+    const shouldEnable = this.active
+      && !this.victoryShown
+      && !blockingOverlay
+      && !this.worldTravelAnimation
+      && !this.tideResetAnimation;
+    if (this.input.enabled === shouldEnable) return;
+    if (!shouldEnable) this.input.release();
+    this.input.enabled = shouldEnable;
   }
 
   private maybeShowTutorial(id: string, title: string, detail: string, icon: string): void {
@@ -1003,6 +1029,18 @@ export class IlotaGame {
     this.scene.add(this.sun, this.sun.target);
   }
 
+  private prewarmWorldRendering(): void {
+    const worldTwoVisible = this.worldTwoRoot.visible;
+    const causewayVisible = this.worldTravelCauseway.visible;
+    this.worldTwoRoot.visible = true;
+    this.worldTravelCauseway.visible = true;
+    // Les shaders du sentier et de la montagne sont préparés sous l'écran de
+    // chargement : aucun premier rendu coûteux ne doit couper la cinématique.
+    this.renderer.compile(this.scene, this.camera);
+    this.worldTwoRoot.visible = worldTwoVisible;
+    this.worldTravelCauseway.visible = causewayVisible;
+  }
+
   private applyWorldPalette(world: 1 | 2): void {
     const color = world === 2 ? 0x859ba5 : 0x8cc7c6;
     this.scene.background = new THREE.Color(color);
@@ -1106,7 +1144,6 @@ export class IlotaGame {
         cliff.scale.x *= 1.08;
         cliff.userData.worldTwoTerrace = index;
         this.worldTwoRoot.add(cliff);
-        this.obstacleColliders.push({ object: cliff, radius: 0.58, world: 2, terraceIndex: index });
       }
     });
 
@@ -1167,7 +1204,9 @@ export class IlotaGame {
       new THREE.Vector3(82, 2, -13),
       new THREE.Vector3(103, 1.6, -7),
       new THREE.Vector3(123, 1.1, 1),
-      new THREE.Vector3(143, 0.5, 5),
+      new THREE.Vector3(141, 0.6, 10),
+      new THREE.Vector3(154, 0.2, 17),
+      new THREE.Vector3(160, 0.1, 16),
       new THREE.Vector3(160, 0.05, 1.3),
     ];
     this.worldTravelCurve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.45);
@@ -1185,37 +1224,54 @@ export class IlotaGame {
       flatShading: true,
     });
     const rockGeometry = new THREE.DodecahedronGeometry(1, 0);
-    const segmentCount = 58;
+    const segmentCount = 44;
+    const deckInstances = new THREE.InstancedMesh(pathGeometry, earthMaterial, segmentCount);
+    const rockInstances = new THREE.InstancedMesh(
+      rockGeometry,
+      edgeMaterial,
+      Math.ceil(segmentCount / 2) * 2,
+    );
+    const transform = new THREE.Object3D();
+    let rockInstanceIndex = 0;
     for (let index = 0; index < segmentCount; index += 1) {
       const start = this.worldTravelCurve.getPoint(index / segmentCount);
       const end = this.worldTravelCurve.getPoint((index + 1) / segmentCount);
       const middle = start.clone().lerp(end, 0.5);
       const direction = end.clone().sub(start);
       const length = Math.max(0.2, Math.hypot(direction.x, direction.z));
-      const deck = new THREE.Mesh(pathGeometry, earthMaterial);
-      deck.position.copy(middle).add(new THREE.Vector3(0, -0.22, 0));
-      deck.rotation.y = Math.atan2(direction.x, direction.z);
-      deck.scale.set(5.6, 0.44, length + 0.26);
-      deck.receiveShadow = true;
-      deck.castShadow = true;
-      this.worldTravelCauseway.add(deck);
+      transform.position.copy(middle).add(new THREE.Vector3(0, -0.22, 0));
+      transform.rotation.set(0, Math.atan2(direction.x, direction.z), 0);
+      transform.scale.set(5.8, 0.44, length + 0.34);
+      transform.updateMatrix();
+      deckInstances.setMatrixAt(index, transform.matrix);
 
       if (index % 2 !== 0) continue;
       const normal = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
       for (const side of [-1, 1] as const) {
         const progress = index / segmentCount;
         const height = 1.4 + progress * 2.4 + (index % 5) * 0.3;
-        const rock = new THREE.Mesh(rockGeometry, edgeMaterial);
-        rock.position.copy(middle)
-          .addScaledVector(normal, side * (3.35 + (index % 3) * 0.35))
+        transform.position.copy(middle)
+          .addScaledVector(normal, side * (4.65 + (index % 3) * 0.3))
           .add(new THREE.Vector3(0, height * 0.38 - 0.1, 0));
-        rock.scale.set(1.15 + (index % 4) * 0.2, height, 1.3 + ((index + 2) % 4) * 0.18);
-        rock.rotation.set(index * 0.17, index * 0.41, side * 0.08);
-        rock.castShadow = true;
-        rock.receiveShadow = true;
-        this.worldTravelCauseway.add(rock);
+        transform.rotation.set(index * 0.17, index * 0.41, side * 0.08);
+        transform.scale.set(0.95 + (index % 4) * 0.16, height, 1.1 + ((index + 2) % 4) * 0.15);
+        transform.updateMatrix();
+        rockInstances.setMatrixAt(rockInstanceIndex, transform.matrix);
+        rockInstanceIndex += 1;
       }
     }
+    deckInstances.name = 'transition:sol-instance';
+    deckInstances.receiveShadow = true;
+    deckInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    deckInstances.instanceMatrix.needsUpdate = true;
+    deckInstances.computeBoundingSphere();
+    rockInstances.name = 'transition:parois-instances';
+    rockInstances.receiveShadow = true;
+    rockInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    rockInstances.instanceMatrix.needsUpdate = true;
+    rockInstances.computeBoundingSphere();
+    this.worldTravelCauseway.add(deckInstances, rockInstances);
+
     for (let index = 1; index <= 5; index += 1) {
       const point = this.worldTravelCurve.getPoint(index / 6);
       const marker = new THREE.Mesh(
@@ -1335,7 +1391,6 @@ export class IlotaGame {
     building.userData.worldTwoDepot = true;
     building.userData.worldTwoTerrace = 0;
     this.worldTwoRoot.add(building);
-    this.obstacleColliders.push({ object: building, radius: 1.5, world: 2, terraceIndex: 0 });
     const pad = new THREE.Group();
     pad.visible = false;
     const status = this.createWorldLabel('✓ REFUGE DES ÉCHOS · VENTE DES MINERAIS', 0x9fd8e5, 3.8);
@@ -1366,7 +1421,6 @@ export class IlotaGame {
     fire.position.set(0, 1.1, 0.8);
     root.add(fire);
     this.worldTwoRoot.add(root);
-    this.obstacleColliders.push({ object: root, radius: 1.35, world: 2, terraceIndex: 0 });
 
     const label = this.createWorldLabel('TANIÈRE DE LA MEUTE · RECRUTEMENT', 0xf2c27c, 3.8);
     label.position.set(root.position.x, base.elevation + 3.9, root.position.z);
@@ -1399,7 +1453,6 @@ export class IlotaGame {
     monolith.userData.temporalRing = 0.28;
     root.add(monolith);
     this.worldTwoRoot.add(root);
-    this.obstacleColliders.push({ object: root, radius: 1.1, world: 2, terraceIndex });
     const label = this.createWorldLabel('SANCTUAIRE DE MEUTE · SAVOIRS DU ZÉNITH', 0x9fd8e5, 4.2);
     label.position.set(root.position.x, terrace.elevation + 3.8, root.position.z);
     label.userData.worldTwoTerrace = terraceIndex;
@@ -1442,6 +1495,19 @@ export class IlotaGame {
         object.material = Array.isArray(object.material) ? mineralMaterials : mineralMaterials[0]!;
       });
       root.add(visual);
+      const mineableHalo = new THREE.Mesh(
+        new THREE.TorusGeometry(0.82, 0.065, 6, 28),
+        new THREE.MeshBasicMaterial({
+          color: mineral.color,
+          transparent: true,
+          opacity: 0.78,
+          depthWrite: false,
+        }),
+      );
+      mineableHalo.rotation.x = Math.PI / 2;
+      mineableHalo.position.y = 0.09;
+      mineableHalo.userData.mineableMineralHalo = true;
+      root.add(mineableHalo);
       root.position.set(
         terrace.x + Math.sin(angle) * distanceFromCenter,
         terrace.elevation,
@@ -1451,12 +1517,6 @@ export class IlotaGame {
       root.rotation.y = (index * 1.37) % (Math.PI * 2);
       root.userData.worldTwoTerrace = spawn.terraceIndex;
       this.worldTwoRoot.add(root);
-      this.obstacleColliders.push({
-        object: root,
-        radius: 0.82 * spawn.scale,
-        world: 2,
-        terraceIndex: spawn.terraceIndex,
-      });
       const node: ResourceNode = {
         id: `world-2-resource-${index + 1}`,
         kind: getWorldTwoCargoVisualKind(spawn.kind),
@@ -1485,38 +1545,49 @@ export class IlotaGame {
       roughness: 1,
       flatShading: true,
     });
+    const mountainInstances = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(1, 1, 7),
+      mountainMaterial,
+      45,
+    );
+    const transform = new THREE.Object3D();
+    let mountainInstance = 0;
     for (let side = -1; side <= 1; side += 2) {
       for (let index = 0; index < 18; index += 1) {
         const z = 10 - index * 8.4;
         const progress = index / 17;
         const height = 10 + progress * 17 + (index % 4) * 2.3;
-        const mountain = new THREE.Mesh(
-          new THREE.ConeGeometry(8 + (index % 3) * 2.4, height, 7),
-          mountainMaterial,
-        );
-        mountain.position.set(
+        const radius = 8 + (index % 3) * 2.4;
+        transform.position.set(
           160 + side * (23 + (index % 3) * 3.2),
           -4 + height / 2 + progress * 5,
           z,
         );
-        mountain.rotation.y = index * 0.73;
-        mountain.castShadow = true;
-        mountain.receiveShadow = true;
-        mountain.name = 'world-2:enceinte-montagne';
-        this.worldTwoRoot.add(mountain);
+        transform.rotation.set(0, index * 0.73, 0);
+        transform.scale.set(radius, height, radius);
+        transform.updateMatrix();
+        mountainInstances.setMatrixAt(mountainInstance, transform.matrix);
+        mountainInstance += 1;
       }
     }
 
     for (let index = 0; index < 9; index += 1) {
-      const wall = new THREE.Mesh(
-        new THREE.ConeGeometry(9 + (index % 2) * 2, 17 + index * 0.7, 7),
-        mountainMaterial,
-      );
-      wall.position.set(142 + index * 4.5, 5.5 + index * 0.35, -143 - (index % 3) * 2);
-      wall.rotation.y = index * 0.56;
-      wall.castShadow = true;
-      this.worldTwoRoot.add(wall);
+      const radius = 9 + (index % 2) * 2;
+      const height = 17 + index * 0.7;
+      transform.position.set(142 + index * 4.5, 5.5 + index * 0.35, -143 - (index % 3) * 2);
+      transform.rotation.set(0, index * 0.56, 0);
+      transform.scale.set(radius, height, radius);
+      transform.updateMatrix();
+      mountainInstances.setMatrixAt(mountainInstance, transform.matrix);
+      mountainInstance += 1;
     }
+    mountainInstances.name = 'world-2:enceinte-montagne-instances';
+    mountainInstances.castShadow = true;
+    mountainInstances.receiveShadow = true;
+    mountainInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    mountainInstances.instanceMatrix.needsUpdate = true;
+    mountainInstances.computeBoundingSphere();
+    this.worldTwoRoot.add(mountainInstances);
 
     const summit = WORLD_TWO_TERRACES[WORLD_TWO_TERRACES.length - 1]!;
     const beacon = this.assets.createWorldTwoAsset('gateRock', 5.25);
@@ -1526,12 +1597,6 @@ export class IlotaGame {
     beacon.rotation.y = 0;
     beacon.userData.worldTwoTerrace = WORLD_TWO_TERRACES.length - 1;
     this.worldTwoRoot.add(beacon);
-    this.obstacleColliders.push({
-      object: beacon,
-      radius: 1.45,
-      world: 2,
-      terraceIndex: WORLD_TWO_TERRACES.length - 1,
-    });
     const crown = new THREE.Mesh(
       new THREE.IcosahedronGeometry(0.75, 1),
       new THREE.MeshStandardMaterial({
@@ -1607,7 +1672,6 @@ export class IlotaGame {
       };
       this.worldTwoEnemies.push(entity);
       this.playWorldTwoEnemyAction(entity, 'idle', 0);
-      this.obstacleColliders.push({ object: root, radius: 0.7, world: 2, terraceIndex });
     });
   }
 
@@ -1680,7 +1744,6 @@ export class IlotaGame {
     };
     this.worldTwoWolves.push(entity);
     this.playWorldTwoWolfAction(entity, 'idle', 0);
-    this.obstacleColliders.push({ object: root, radius: 0.72, world: 2, terraceIndex: 0 });
   }
 
   private playWorldTwoWolfAction(
@@ -2519,16 +2582,40 @@ export class IlotaGame {
     if (node.world !== 2 || !node.worldTwoKind) return;
     const mineral = getWorldTwoMineral(node.worldTwoKind);
     const mineable = canMineWorldTwoMineral(this.economy.progress, node.worldTwoKind);
+    const mineralReadableColor = new THREE.Color(mineral.color);
+    const mineralHsl = { h: 0, s: 0, l: 0 };
+    mineralReadableColor.getHSL(mineralHsl);
+    mineralReadableColor.setHSL(
+      mineralHsl.s < 0.1 ? (0.55 + mineral.hardness * 0.047) % 1 : mineralHsl.h,
+      Math.max(0.22, mineralHsl.s),
+      Math.max(0.52, mineralHsl.l),
+    );
     node.root.userData.mineralLocked = !mineable;
+    node.root.userData.mineableMineralDark = mineable
+      && Math.max(mineralReadableColor.r, mineralReadableColor.g, mineralReadableColor.b) < 0.24;
     node.root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
+      if (object.userData.mineableMineralHalo) {
+        object.visible = mineable;
+        const haloMaterial = object.material as THREE.MeshBasicMaterial;
+        haloMaterial.color.copy(mineralReadableColor);
+        return;
+      }
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => {
         if (!(material instanceof THREE.MeshStandardMaterial)) return;
         const actualColor = Number(material.userData.worldTwoMineralColor ?? mineral.color);
-        material.color.setHex(mineable ? actualColor : 0x050609);
-        material.emissive.setHex(mineable && mineral.hardness >= 12 ? actualColor : 0x000000);
-        material.emissiveIntensity = mineable ? Math.min(0.48, mineral.hardness / 85) : 0;
+        const readable = new THREE.Color(actualColor);
+        const hsl = { h: 0, s: 0, l: 0 };
+        readable.getHSL(hsl);
+        readable.setHSL(
+          hsl.s < 0.1 ? (0.55 + mineral.hardness * 0.047) % 1 : hsl.h,
+          Math.max(0.22, hsl.s),
+          Math.max(0.46, hsl.l),
+        );
+        material.color.copy(mineable ? readable : new THREE.Color(0x030405));
+        material.emissive.copy(mineable ? readable : new THREE.Color(0x000000));
+        material.emissiveIntensity = mineable ? 0.2 + Math.min(0.34, mineral.hardness / 100) : 0;
         material.metalness = mineable ? Math.min(0.5, mineral.hardness / 75) : 0.02;
         material.roughness = mineable ? (mineral.visualKind === 'coal' ? 0.94 : 0.68) : 0.98;
       });
@@ -2909,42 +2996,55 @@ export class IlotaGame {
     const rawDelta = Math.min(0.1, Math.max(0.001, (now - this.lastFrameTime) / 1000));
     this.lastFrameTime = now;
     this.fpsAverage += ((1 / rawDelta) - this.fpsAverage) * 0.05;
-    this.worldTime += rawDelta;
-    this.updateAmbient(rawDelta);
+    this.reconcileInputState();
+    const simulationDelta = this.managementOpen ? 0 : rawDelta;
+    this.worldTime += simulationDelta;
+    if (simulationDelta > 0) this.updateAmbient(simulationDelta);
     if (this.tideResetAnimation) this.updateTideResetAnimation(rawDelta);
     if (this.active) this.updateGame(rawDelta);
-    this.playerMixer.update(rawDelta);
-    this.workers.forEach((worker) => worker.mixer.update(rawDelta));
+    this.playerMixer.update(simulationDelta);
+    this.workers.forEach((worker) => worker.mixer.update(simulationDelta));
     if (this.economy.progress.currentWorld !== 2) {
       this.worldTwoWolves.forEach((wolf) => wolf.mixer.update(0));
       this.worldTwoEnemies.forEach((enemy) => enemy.mixer.update(0));
     }
-    this.updateParticles(rawDelta);
-    this.updateCargoDrops(rawDelta);
-    this.updateCamera(rawDelta);
+    this.updateParticles(simulationDelta);
+    this.updateCargoDrops(simulationDelta);
+    if (simulationDelta > 0) this.updateCamera(simulationDelta);
     this.updateDiagnostics();
-    this.renderer.render(this.scene, this.camera);
+    if (!this.managementOpen) {
+      this.overlayRenderCooldown = 0;
+      this.renderer.render(this.scene, this.camera);
+    } else {
+      this.overlayRenderCooldown -= rawDelta;
+      if (this.overlayRenderCooldown <= 0) {
+        this.overlayRenderCooldown = 0.2;
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
   };
 
   private updateGame(delta: number): void {
-    this.economy.tick(delta);
-    this.input.updateKeyboard();
     if (this.worldTravelAnimation) {
       this.updateWorldTravel(delta);
       return;
     }
+    if (this.managementOpen) {
+      this.playPlayerAction('idle');
+      return;
+    }
+    this.economy.tick(delta);
+    this.input.updateKeyboard();
     if (this.economy.progress.currentWorld === 2) {
       const terraceIndex = Math.max(0, findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z));
       this.ui.updateWorldTwoGoal(terraceIndex, this.economy.progress.worldTwoPeakReached);
     } else this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
     this.updateBridgeGuides();
-    if (!this.managementOpen) {
-      if (!this.playerDeposit) this.updatePlayer(delta);
-      else this.playPlayerAction('idle');
-      this.interaction = this.findInteraction();
-      this.updateInteractionUI(this.interaction);
-      if (!this.playerDeposit) this.handleAction(delta);
-    }
+    if (!this.playerDeposit) this.updatePlayer(delta);
+    else this.playPlayerAction('idle');
+    this.interaction = this.findInteraction();
+    this.updateInteractionUI(this.interaction);
+    if (!this.playerDeposit) this.handleAction(delta);
     this.updateResources(delta);
     this.updatePlayerDeposit(delta);
     if (this.economy.progress.currentWorld === 1) {
@@ -3044,7 +3144,7 @@ export class IlotaGame {
           return onRamp;
         });
       }
-      return onTerrain && !this.isObstacleCollision(position, 0.44);
+      return onTerrain;
     }
     const onIsland = ISLANDS.some((island, index) => {
       const accessible = (index === 0 || this.economy.progress.bridgesBuilt[index - 1])
@@ -3053,65 +3153,7 @@ export class IlotaGame {
     });
     onTerrain = onIsland || this.bridges.some((bridge) => this.economy.progress.bridgesBuilt[bridge.index]
       && this.distanceToSegmentSquared(position, bridge.start, bridge.end) <= 2.2 * 2.2);
-    return onTerrain && !this.isObstacleCollision(position, 0.44);
-  }
-
-  private isObstacleCollision(position: THREE.Vector3, playerRadius: number): boolean {
-    const world = this.economy.progress.currentWorld;
-    const blocks = (object: THREE.Object3D, radius: number): boolean => {
-      if (!object.visible) return false;
-      const point = object.getWorldPosition(new THREE.Vector3());
-      const minimumDistance = playerRadius + radius;
-      const candidateDistance = Math.hypot(position.x - point.x, position.z - point.z);
-      if (candidateDistance >= minimumDistance) return false;
-      const currentDistance = Math.hypot(
-        this.player.position.x - point.x,
-        this.player.position.z - point.z,
-      );
-      // Un chantier, une repousse ou une unité peut apparaître alors que le
-      // joueur se trouve déjà dans son volume. Dans ce cas, seul le mouvement
-      // qui l'éloigne reste permis afin de ne jamais l'emprisonner.
-      return !(currentDistance < minimumDistance && candidateDistance > currentDistance + 0.001);
-    };
-    if (this.resources.some((node) =>
-      node.world === world
-      && node.amount > 0
-      && blocks(node.root, node.kind === 'wood' ? 0.88 * node.currentScale : 0.68 * node.currentScale))) return true;
-    if (world === 1) {
-      if ([...this.structures.values()].some((entity) => blocks(entity.building, entity.definition.radius * 0.74))) return true;
-      if (this.warehouses.some((entity) =>
-        entity.world === 1 && blocks(entity.building, entity.definition.radius * 0.74))) return true;
-      if (this.projects.some((entity) => blocks(entity.building, entity.definition.radius * 0.72))) return true;
-      if (this.workers.some((worker) => blocks(worker.root, 0.42))) return true;
-    } else {
-      if (this.worldTwoWolves.some((wolf) => blocks(wolf.root, 0.5))) return true;
-      if (this.worldTwoEnemies.some((enemy) => enemy.health > 0 && blocks(enemy.root, 0.62))) return true;
-    }
-    return this.obstacleColliders.some((collider) => {
-      if (collider.world !== world) return false;
-      return blocks(collider.object, collider.radius);
-    });
-  }
-
-  private releasePlayerFromNewObstacle(object: THREE.Object3D, obstacleRadius: number): void {
-    const center = object.getWorldPosition(new THREE.Vector3()).setY(this.player.position.y);
-    const offset = this.player.position.clone().sub(center).setY(0);
-    const safeDistance = obstacleRadius + 0.44 + 0.18;
-    if (offset.length() >= safeDistance) return;
-
-    const preferred = offset.lengthSq() > 0.0025
-      ? offset.normalize()
-      : this.lastMoveDirection.lengthSq() > 0.0025
-        ? this.lastMoveDirection.clone().setY(0).normalize().negate()
-        : new THREE.Vector3(0, 0, 1);
-    const angles = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI];
-    for (const angle of angles) {
-      const direction = preferred.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-      const candidate = center.clone().addScaledVector(direction, safeDistance);
-      if (!this.isWalkable(candidate)) continue;
-      this.player.position.copy(candidate);
-      return;
-    }
+    return onTerrain;
   }
 
   private updateWorldTwoProgress(delta: number): void {
@@ -4095,7 +4137,6 @@ export class IlotaGame {
       } else if (this.economy.buildWarehouse(islandIndex)) {
         entity.building.visible = true;
         this.startBuildingAssembly(entity.building);
-        this.releasePlayerFromNewObstacle(entity.building, entity.definition.radius * 0.74);
         this.spawnParticles(entity.building.position.clone().setY(1), 'wood', 22);
         this.ui.toast(`${entity.definition.name} assemblé · les cargaisons ont une vraie destination.`);
         this.feedback.play('build');
@@ -4131,10 +4172,6 @@ export class IlotaGame {
       if (this.economy.buildStructure(kind)) {
         this.interaction.entity.building.visible = true;
         this.startBuildingAssembly(this.interaction.entity.building);
-        this.releasePlayerFromNewObstacle(
-          this.interaction.entity.building,
-          this.interaction.entity.definition.radius * 0.74,
-        );
         this.ui.toast(`${STRUCTURE_COPY[kind].toast} · +1 Savoir`);
         this.feedback.play('build');
         const buildOrigin = this.interaction.entity.building.getWorldPosition(new THREE.Vector3());
@@ -4181,7 +4218,6 @@ export class IlotaGame {
           entity.building.visible = true;
           entity.pad.visible = false;
           this.startBuildingAssembly(entity.building);
-          this.releasePlayerFromNewObstacle(entity.building, entity.definition.radius * 0.72);
           this.spawnParticles(entity.building.position.clone().setY(1.1), islandIndex >= 3 ? 'crystal' : islandIndex === 2 ? 'copper' : 'wood', 22);
           this.ui.toast(`${entity.definition.name} construite · ses trois Travaux sont maintenant consultables.`);
           this.feedback.play('build');
@@ -4554,7 +4590,7 @@ export class IlotaGame {
       destination,
       elapsed: 0,
       startedAt: performance.now(),
-      duration: 5.2,
+      duration: 4.6,
       source: this.player.position.clone(),
       target,
       cameraStart: this.camera.position.clone(),
@@ -4594,9 +4630,9 @@ export class IlotaGame {
     const movement = this.player.position.clone().sub(previous).setY(0);
     if (movement.lengthSq() > 0.001) this.player.rotation.y = Math.atan2(movement.x, movement.z);
     this.player.rotation.z = 0;
-    this.spawnTravelTrail(delta);
 
-    if (!travel.switched && ratio >= 0.52) {
+    const switchThreshold = travel.destination === 2 ? 0.9 : 0.1;
+    if (!travel.switched && ratio >= switchThreshold) {
       travel.switched = true;
       this.economy.progress.currentWorld = travel.destination;
       this.applyWorldPalette(travel.destination);
@@ -4627,29 +4663,6 @@ export class IlotaGame {
     this.refreshWorldTwoLocks();
     this.ui.update(this.economy.progress);
     this.save();
-  }
-
-  private spawnTravelTrail(delta: number): void {
-    if (Math.floor(this.worldTime / Math.max(0.035, delta)) % 2 !== 0) return;
-    const particle = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.08, 0),
-      new THREE.MeshBasicMaterial({
-        color: 0xb98958,
-        transparent: true,
-        opacity: 0.72,
-      }),
-    );
-    particle.position.copy(this.player.position).add(new THREE.Vector3(
-      (Math.random() - 0.5) * 0.7,
-      0.08 + Math.random() * 0.3,
-      (Math.random() - 0.5) * 0.7,
-    ));
-    this.scene.add(particle);
-    this.particles.push({
-      mesh: particle,
-      velocity: new THREE.Vector3((Math.random() - 0.5) * 0.22, 0.26, (Math.random() - 0.5) * 0.22),
-      life: 0.45,
-    });
   }
 
   private changed(): void {
@@ -4883,21 +4896,15 @@ export class IlotaGame {
     }
     if (this.worldTravelAnimation && this.worldTravelCurve) {
       const travel = this.worldTravelAnimation;
-      const tangent = this.worldTravelCurve.getTangent(travel.progress)
-        .multiplyScalar(travel.destination === 2 ? 1 : -1)
-        .setY(0)
-        .normalize();
-      const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
-      const desired = this.player.position.clone()
-        .addScaledVector(tangent, -6.8)
-        .addScaledVector(normal, 2.1)
-        .add(new THREE.Vector3(0, 5.6, 0));
-      this.camera.position.lerp(desired, 1 - Math.exp(-3.6 * delta));
-      this.camera.lookAt(
-        this.player.position.clone()
-          .addScaledVector(tangent, 3.2)
-          .add(new THREE.Vector3(0, 0.9, 0)),
-      );
+      const direction = travel.destination === 2 ? 1 : -1;
+      const cameraProgress = THREE.MathUtils.clamp(travel.progress - direction * 0.045, 0, 1);
+      const lookProgress = THREE.MathUtils.clamp(travel.progress + direction * 0.035, 0, 1);
+      const desired = this.worldTravelCurve.getPoint(cameraProgress)
+        .add(new THREE.Vector3(0, 7.2, 0));
+      const lookTarget = this.worldTravelCurve.getPoint(lookProgress)
+        .add(new THREE.Vector3(0, 0.9, 0));
+      this.camera.position.lerp(desired, 1 - Math.exp(-5.4 * delta));
+      this.camera.lookAt(lookTarget);
       this.sun.position.copy(this.player.position).add(new THREE.Vector3(-12, 20, 12));
       this.sun.target.position.copy(this.player.position);
       this.sun.target.updateMatrixWorld();
@@ -4976,6 +4983,9 @@ export class IlotaGame {
     this.diagnostics.worldTwoLockedMinerals = this.resources.filter(
       (node) => node.world === 2 && Boolean(node.root.userData.mineralLocked),
     ).length;
+    this.diagnostics.worldTwoMineableDark = this.resources.filter(
+      (node) => node.world === 2 && Boolean(node.root.userData.mineableMineralDark),
+    ).length;
     this.diagnostics.worldTwoWolfAnimations = this.worldTwoWolves
       .map((wolf) => wolf.currentAction)
       .filter(Boolean)
@@ -4985,6 +4995,12 @@ export class IlotaGame {
       .filter(Boolean)
       .join(',');
     this.diagnostics.worldTravelPathVisible = this.worldTravelCauseway.visible;
+    this.diagnostics.worldTravelObjects = this.worldTravelCauseway.children.length;
+    this.diagnostics.inputEnabled = this.input.enabled;
+    this.diagnostics.managementOpen = this.managementOpen;
+    this.diagnostics.blockingOverlay = this.ui.hasBlockingOverlay;
+    this.diagnostics.drawCalls = this.renderer.info.render.calls;
+    this.diagnostics.triangles = this.renderer.info.render.triangles;
     this.diagnostics.interaction = this.interaction?.type ?? '';
     this.diagnostics.assemblingBuildings = [
       ...this.structures.values(),

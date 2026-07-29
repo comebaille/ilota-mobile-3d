@@ -9,6 +9,7 @@ export class InputController {
   enabled = false;
   private actionPressed = false;
   private joystickPointer: number | null = null;
+  private actionPointer: number | null = null;
   private readonly keys = new Set<string>();
 
   constructor(
@@ -20,9 +21,11 @@ export class InputController {
     joystick.addEventListener('pointermove', this.onJoystickMove, { passive: false });
     joystick.addEventListener('pointerup', this.onJoystickUp, { passive: false });
     joystick.addEventListener('pointercancel', this.onJoystickUp, { passive: false });
+    joystick.addEventListener('lostpointercapture', this.onJoystickUp, { passive: false });
     actionButton.addEventListener('pointerdown', this.onActionDown, { passive: false });
     actionButton.addEventListener('pointerup', this.onActionUp, { passive: false });
     actionButton.addEventListener('pointercancel', this.onActionUp, { passive: false });
+    actionButton.addEventListener('lostpointercapture', this.onActionUp, { passive: false });
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.reset);
@@ -55,7 +58,7 @@ export class InputController {
     if (!this.enabled || this.joystickPointer !== null) return;
     event.preventDefault();
     this.joystickPointer = event.pointerId;
-    this.joystick.setPointerCapture(event.pointerId);
+    this.capturePointer(this.joystick, event.pointerId);
     this.updateJoystick(event);
   };
 
@@ -69,6 +72,7 @@ export class InputController {
     if (event.pointerId !== this.joystickPointer) return;
     event.preventDefault();
     this.joystickPointer = null;
+    this.releasePointer(this.joystick, event.pointerId);
     this.resetMove();
   };
 
@@ -87,16 +91,20 @@ export class InputController {
   }
 
   private readonly onActionDown = (event: PointerEvent): void => {
-    if (!this.enabled) return;
+    if (!this.enabled || this.actionPointer !== null) return;
     event.preventDefault();
+    this.actionPointer = event.pointerId;
     this.actionDown = true;
     this.actionPressed = true;
     this.actionButton.classList.add('active');
-    this.actionButton.setPointerCapture(event.pointerId);
+    this.capturePointer(this.actionButton, event.pointerId);
   };
 
   private readonly onActionUp = (event: PointerEvent): void => {
+    if (event.pointerId !== this.actionPointer) return;
     event.preventDefault();
+    this.actionPointer = null;
+    this.releasePointer(this.actionButton, event.pointerId);
     this.actionDown = false;
     this.actionButton.classList.remove('active');
   };
@@ -118,13 +126,34 @@ export class InputController {
   };
 
   private readonly reset = (): void => {
+    const joystickPointer = this.joystickPointer;
+    const actionPointer = this.actionPointer;
     this.keys.clear();
     this.joystickPointer = null;
+    this.actionPointer = null;
     this.actionDown = false;
     this.actionPressed = false;
     this.actionButton.classList.remove('active');
     this.resetMove();
+    if (joystickPointer !== null) this.releasePointer(this.joystick, joystickPointer);
+    if (actionPointer !== null) this.releasePointer(this.actionButton, actionPointer);
   };
+
+  private capturePointer(target: HTMLElement, pointerId: number): void {
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {
+      // Safari peut retirer le pointeur entre pointerdown et la capture.
+    }
+  }
+
+  private releasePointer(target: HTMLElement, pointerId: number): void {
+    try {
+      if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    } catch {
+      // Une perte de focus peut avoir déjà libéré la capture native.
+    }
+  }
 
   private resetMove(): void {
     this.move.x = 0;
