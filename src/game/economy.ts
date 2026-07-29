@@ -69,7 +69,7 @@ export interface WorkerState {
 }
 
 export interface IslandProgress {
-  version: 8;
+  version: 9;
   wood: number;
   stone: number;
   copper: number;
@@ -99,15 +99,21 @@ export interface IslandProgress {
   lifetimeDeliveries: number;
   projectsCompleted: ProjectId[];
   tutorialSeen: string[];
+  currentWorld: 1 | 2;
+  worldTwoPeakReached: boolean;
 }
 
-interface VersionSevenProgress extends Omit<IslandProgress, 'version' | 'projectHallsBuilt'> {
+interface VersionEightProgress extends Omit<IslandProgress, 'version' | 'currentWorld' | 'worldTwoPeakReached'> {
+  version: 8;
+}
+
+interface VersionSevenProgress extends Omit<VersionEightProgress, 'version' | 'projectHallsBuilt'> {
   version: 7;
 }
 
 interface VersionSixProgress extends Omit<
-  IslandProgress,
-  'version' | 'projectHallsBuilt' | 'powerNotifications' | 'powerVfx'
+  VersionSevenProgress,
+  'version' | 'powerNotifications' | 'powerVfx'
 > {
   version: 6;
 }
@@ -378,7 +384,7 @@ const WORKER_NAMES = [
 ];
 
 const freshProgress = (): IslandProgress => ({
-  version: 8,
+  version: 9,
   wood: 0,
   stone: 0,
   copper: 0,
@@ -408,6 +414,8 @@ const freshProgress = (): IslandProgress => ({
   lifetimeDeliveries: 0,
   projectsCompleted: [],
   tutorialSeen: [],
+  currentWorld: 1,
+  worldTwoPeakReached: false,
 });
 
 const nonNegativeInteger = (value: unknown): number => {
@@ -537,6 +545,15 @@ export const getSkillCost = (progress: IslandProgress, definition: SkillDefiniti
   const rank = getSkillRank(progress, definition.id);
   return definition.rankCosts?.[rank] ?? definition.cost;
 };
+
+export const getSkillTreeCompletion = (progress: IslandProgress): { completed: number; total: number; complete: boolean } => {
+  const completed = SKILL_DEFINITIONS.filter((definition) =>
+    getSkillRank(progress, definition.id) >= (definition.maxRank ?? 1)).length;
+  return { completed, total: SKILL_DEFINITIONS.length, complete: completed === SKILL_DEFINITIONS.length };
+};
+
+export const isWorldTwoUnlocked = (progress: IslandProgress): boolean =>
+  progress.rebirths >= 5 && getSkillTreeCompletion(progress).complete;
 
 export const skillPrerequisitesMet = (progress: IslandProgress, definition: SkillDefinition): boolean =>
   (definition.requires ?? []).every((required) => hasSkill(progress, required));
@@ -1065,7 +1082,7 @@ export class Economy {
     this.progress = {
       ...fresh,
       ...initial,
-      version: 8,
+      version: 9,
       wood: nonNegativeInteger(initial?.wood),
       stone: nonNegativeInteger(initial?.stone),
       copper: nonNegativeInteger(initial?.copper),
@@ -1095,7 +1112,10 @@ export class Economy {
       lifetimeDeliveries: nonNegativeInteger(initial?.lifetimeDeliveries),
       projectsCompleted: sanitizeProjects(initial?.projectsCompleted),
       tutorialSeen: sanitizeStringList(initial?.tutorialSeen),
+      currentWorld: initial?.currentWorld === 2 ? 2 : 1,
+      worldTwoPeakReached: Boolean(initial?.worldTwoPeakReached),
     };
+    if (this.progress.currentWorld === 2 && !isWorldTwoUnlocked(this.progress)) this.progress.currentWorld = 1;
   }
 
   add(kind: ResourceKind, amount = 1): void {
@@ -1372,6 +1392,7 @@ export class Economy {
     const rebirths = this.progress.rebirths + 1;
     const lifetimeDeliveries = this.progress.lifetimeDeliveries;
     const tutorialSeen = [...this.progress.tutorialSeen];
+    const worldTwoPeakReached = this.progress.worldTwoPeakReached;
     const previousStocks = {
       wood: this.progress.wood,
       stone: this.progress.stone,
@@ -1402,6 +1423,8 @@ export class Economy {
       rebirths,
       lifetimeDeliveries,
       tutorialSeen,
+      currentWorld: 1,
+      worldTwoPeakReached,
     });
     return reward;
   }
@@ -1417,8 +1440,13 @@ export class Economy {
   static restore(raw: string | null): Economy {
     if (!raw) return new Economy();
     try {
-      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 8) return new Economy(value as Partial<IslandProgress>);
+      const value = JSON.parse(raw) as Partial<IslandProgress> | VersionEightProgress | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
+      if (value.version === 9) return new Economy(value as Partial<IslandProgress>);
+      if (value.version === 8) {
+        const previous = value as VersionEightProgress;
+        const { version: _previousVersion, ...migrated } = previous;
+        return new Economy({ ...migrated, currentWorld: 1, worldTwoPeakReached: false });
+      }
       if (value.version === 7) {
         const previous = value as VersionSevenProgress;
         const { version: _previousVersion, ...migrated } = previous;

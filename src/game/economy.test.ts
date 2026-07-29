@@ -14,6 +14,7 @@ import {
   getPlayerFlowMultiplier,
   getPlayerSpeed,
   getSkillRank,
+  getSkillTreeCompletion,
   getStructureCost,
   getTotalWorkerLevels,
   getTidalRetentionRate,
@@ -24,6 +25,7 @@ import {
   hasSkill,
   isProjectVisible,
   isSkillVisible,
+  isWorldTwoUnlocked,
   isWarehouseUnlocked,
   type IslandProgress,
 } from './economy';
@@ -47,7 +49,14 @@ const completeProjectsUntil = (economy: Economy, targetCount: number): void => {
   });
 };
 
-describe('Economy v8', () => {
+const maximizedSkillTree = (): Pick<IslandProgress, 'skills' | 'skillRanks'> => ({
+  skills: SKILL_DEFINITIONS.map((definition) => definition.id),
+  skillRanks: Object.fromEntries(
+    SKILL_DEFINITIONS.map((definition) => [definition.id, definition.maxRank ?? 1]),
+  ),
+});
+
+describe('Economy v9', () => {
   it('rend l’Autel du Savoir atteignable en trois voyages de cristal de base', () => {
     const cost = getStructureCost(new Economy().progress, 'observatory');
     expect(cost).toEqual({ wood: 78, stone: 68, copper: 48, crystal: 24 });
@@ -186,7 +195,7 @@ describe('Economy v8', () => {
     expect(restored.progress.workers[0]).toMatchObject({ id: worker.id, task: 'stone', level: 2 });
   });
 
-  it('migre la petite campagne v1 vers le premier pont de la v8', () => {
+  it('migre la petite campagne v1 vers le premier pont de la v9', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 1,
       wood: 17,
@@ -199,7 +208,7 @@ describe('Economy v8', () => {
       completed: true,
       elapsedSeconds: 42,
     }));
-    expect(restored.progress).toMatchObject({ version: 8, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
+    expect(restored.progress).toMatchObject({ version: 9, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
     expect(restored.progress.warehousesBuilt).toEqual([true, false, false, false, false]);
     expect(restored.progress.projectsCompleted).toEqual([]);
     expect(restored.progress.bridgesBuilt).toEqual([true, false, false, false]);
@@ -228,7 +237,7 @@ describe('Economy v8', () => {
       completed: true,
       elapsedSeconds: 600,
     }));
-    expect(restored.progress).toMatchObject({ version: 8, completed: true, knowledge: 10, rebirths: 0 });
+    expect(restored.progress).toMatchObject({ version: 9, completed: true, knowledge: 10, rebirths: 0 });
     expect(restored.progress.cycleMilestones).toHaveLength(9);
   });
 
@@ -245,7 +254,7 @@ describe('Economy v8', () => {
       skillRanks: { trail_sense: 1 },
     }));
     expect(restored.progress).toMatchObject({
-      version: 8,
+      version: 9,
       wood: 73,
       stone: 51,
       campBuilt: true,
@@ -268,11 +277,67 @@ describe('Economy v8', () => {
       tutorialSeen: [],
     }));
     expect(restored.progress).toMatchObject({
-      version: 8,
+      version: 9,
       knowledge: 9,
       autoRegulation: true,
       powerNotifications: false,
       powerVfx: true,
+    });
+  });
+
+  it('migre une sauvegarde v8 vers le World 1 sans perdre la campagne', () => {
+    const legacy = {
+      ...new Economy({
+        rebirths: 5,
+        knowledge: 21,
+        completed: true,
+        ...maximizedSkillTree(),
+      }).progress,
+      version: 8,
+    } as Record<string, unknown>;
+    delete legacy.currentWorld;
+    delete legacy.worldTwoPeakReached;
+    const restored = Economy.restore(JSON.stringify(legacy));
+    expect(restored.progress).toMatchObject({
+      version: 9,
+      rebirths: 5,
+      knowledge: 21,
+      completed: true,
+      currentWorld: 1,
+      worldTwoPeakReached: false,
+    });
+    expect(getSkillTreeCompletion(restored.progress).complete).toBe(true);
+  });
+
+  it('ouvre le World 2 seulement après cinq Marées et chaque talent au rang maximal', () => {
+    const almost = new Economy({ rebirths: 5, ...maximizedSkillTree() });
+    almost.progress.skillRanks.cargo_harness = 5;
+    expect(getSkillTreeCompletion(almost.progress)).toMatchObject({ completed: 31, total: 32, complete: false });
+    expect(isWorldTwoUnlocked(almost.progress)).toBe(false);
+
+    const fourTides = new Economy({ rebirths: 4, ...maximizedSkillTree() });
+    expect(isWorldTwoUnlocked(fourTides.progress)).toBe(false);
+
+    const unlocked = new Economy({ rebirths: 5, currentWorld: 2, ...maximizedSkillTree() });
+    expect(getSkillTreeCompletion(unlocked.progress)).toMatchObject({ completed: 32, total: 32, complete: true });
+    expect(isWorldTwoUnlocked(unlocked.progress)).toBe(true);
+    expect(unlocked.progress.currentWorld).toBe(2);
+  });
+
+  it('renvoie au World 1 après une Nouvelle Marée tout en mémorisant le sommet', () => {
+    const economy = new Economy({
+      completed: true,
+      rebirths: 5,
+      currentWorld: 2,
+      worldTwoPeakReached: true,
+      ...maximizedSkillTree(),
+    });
+    economy.rebirth();
+    expect(economy.progress).toMatchObject({
+      version: 9,
+      rebirths: 6,
+      currentWorld: 1,
+      worldTwoPeakReached: true,
     });
   });
 
@@ -421,7 +486,7 @@ describe('Economy v8', () => {
       skills: ['trail_sense', 'optimal_routes', 'forecasting', 'auto_regulation'],
       autoRegulation: true,
     }));
-    expect(restored.progress.version).toBe(8);
+    expect(restored.progress.version).toBe(9);
     expect(restored.progress.skills).toEqual(expect.arrayContaining([
       'awakening',
       'insight_gateway',
@@ -547,7 +612,7 @@ describe('Economy v8', () => {
     });
     const reward = economy.rebirth();
     expect(reward).toBe(3);
-    expect(economy.progress).toMatchObject({ version: 8, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
+    expect(economy.progress).toMatchObject({ version: 9, completed: false, rebirths: 1, knowledge: 13, wood: 16, stone: 11 });
     expect(economy.progress.skills).toContain('tidal_memory');
     expect(economy.progress).toMatchObject({ powerNotifications: true, powerVfx: false });
     expect(economy.progress.workers).toEqual([]);

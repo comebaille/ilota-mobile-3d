@@ -9,7 +9,7 @@
 - Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 32 nœuds (363 Savoir pour tout maximiser).
 - État initial : un renard, deux ressources, un kit de dépôt gratuit à assembler et aucun talent.
 - Conclusion d’une Marée : achever douze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
-- Conclusion méta : aucune fin forcée ; chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée.
+- Conclusion méta : chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée ; après cinq rebirths et la maîtrise totale de l’arbre, le World 2 devient accessible.
 - Nombre de chapitres jouables par Marée : 5.
 
 ## Arc d’une Marée
@@ -50,6 +50,31 @@ La Nouvelle Marée :
 - porte cette conservation à 10, 15 puis 20 % via les trois rangs coûteux d’Héritage des courants ;
 - débloque un nouveau dépôt local par cycle terminé : Pins à la Marée 2, Cuivrée à la 3, Cristal à la 4 et Couronne à la 5.
 - se joue dans une cinématique où les îles s’enfoncent de la dernière à la première, les ponts cèdent et le héros ressort de la nurserie centrale.
+
+## World 2 — Ascension du Zénith
+
+Une faille temporelle est visible dès le départ sur l’Îlot des Marées, mais elle ne s’ouvre que lorsque deux conditions indépendantes sont remplies :
+
+- avoir terminé au moins cinq Nouvelles Marées ;
+- avoir maximisé les 32 nœuds du World 1, rangs répétables compris.
+
+Le portail affiche séparément la progression `Marées 0/5` et `Savoirs 0/32`. Le World 2 abandonne les pontons : onze terrasses rocheuses montent progressivement jusqu’au sommet et sont reliées par dix rampes physiques. La route serpente dans la montagne pour donner à chaque plateau sa propre silhouette et rendre l’altitude lisible à la caméra.
+
+| Terrasse | Altitude | Identité et ressources |
+|---|---:|---|
+| Base des Échos | 0 | refuge permanent, bois de montagne et schiste |
+| Montée des Mousses | 1,4 | pins ferriques et schiste |
+| Pins de Fer | 2,9 | roche dense et premiers filons de cuivre |
+| Balcon Cuivré | 4,4 | cuivre profond |
+| Corniches du Vent | 5,9 | cuivre d’altitude et première améthyste |
+| Jardin d’Améthyste | 7,4 | améthyste vive |
+| Passe Prismatique | 9 | cristaux prismatiques |
+| Vasque des Nuages | 10,6 | cristaux des nuages et pierre céleste |
+| Éboulis Stellaire | 12,2 | éclats stellaires et cuivre astral |
+| Crête Astrale | 13,8 | prismes astraux |
+| Sommet du Zénith | 15,5 | phare sommital et Cœur du Zénith |
+
+Le Refuge des Échos sert de dépôt local au pied de la montagne. Le portail bleu voisin permet de revenir au World 1 à tout moment sans perdre la cargaison. L’interface remplace les objectifs d’île par quatre jalons d’ascension, affiche la terrasse actuelle sur onze et mémorise définitivement l’éveil du sommet. Une Nouvelle Marée renvoie volontairement au World 1, mais ne supprime pas cette maîtrise.
 
 ## Grands Travaux et longévité des quatre ressources
 
@@ -154,7 +179,8 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur vérifie que le HUD paysage reste compact et que la liste complète des objectifs ne s’affiche qu’après une demande du joueur.
 - Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
-- La sauvegarde courante est en v8 ; les sauvegardes v1 à v7 migrent sans perdre leur progression. Les notifications automatiques de pouvoirs sont coupées par défaut après migration.
+- La sauvegarde courante est en v9 ; les sauvegardes v1 à v8 migrent sans perdre leur progression. La v9 conserve le monde courant et l’éveil du Sommet du Zénith. Les notifications automatiques de pouvoirs sont coupées par défaut après migration.
+- Un test navigateur verrouille le portail à `31/32`, puis un second traverse les onze terrasses sur les vraies commandes mobiles, éveille le sommet et contrôle le portail de retour.
 - Un test navigateur confirme que le héros garde sa récolte sur le dos, que le stock reste à zéro, puis que les unités sont créditées une à une à leur arrivée dans le dépôt.
 - Un test navigateur échantillonne une cargaison ouvrière de deux unités et vérifie `2 → 1 → 0` sur le dos comme dans le stock.
 - Un test navigateur active les phases Technique et Exploration et contrôle leurs effets de bord d’écran.

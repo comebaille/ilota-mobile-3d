@@ -29,6 +29,7 @@ import {
   getRespawnMultiplier,
   getRebirthReward,
   getSkillRank,
+  getSkillTreeCompletion,
   getStructureCost,
   getTotalWorkerLevels,
   getTidalRetentionRate,
@@ -45,6 +46,7 @@ import {
   isProjectVisible,
   isProjectHallReady,
   isWarehouseUnlocked,
+  isWorldTwoUnlocked,
   type Cost,
   type ProjectId,
   type ResourceKind,
@@ -72,6 +74,11 @@ import {
   RESOURCE_SPAWNS,
   STRUCTURES,
   WAREHOUSES,
+  WORLD_TWO_RAMPS,
+  WORLD_TWO_RESOURCES,
+  WORLD_TWO_TERRACES,
+  findWorldTwoTerraceIndex,
+  getWorldTwoSurfaceAt,
   type BridgeDefinition,
   type CacheDefinition,
   type IslandDefinition,
@@ -94,6 +101,8 @@ interface ResourceNode {
   currentScale: number;
   respawn: number;
   pulse: number;
+  readonly world: 1 | 2;
+  readonly rarity: string;
 }
 
 interface WorkerEntity {
@@ -146,6 +155,7 @@ interface WarehouseEntity {
   pad: THREE.Group;
   building: THREE.Group;
   status: THREE.Sprite;
+  world: 1 | 2;
 }
 
 interface ProjectEntity {
@@ -171,6 +181,12 @@ interface IslandEmergence {
   entity: IslandEntity;
   elapsed: number;
   duration: number;
+}
+
+interface WorldPortalEntity {
+  root: THREE.Group;
+  label: THREE.Sprite;
+  destination: 1 | 2;
 }
 
 interface EmergenceRipple {
@@ -210,6 +226,7 @@ type Interaction =
   | { type: 'projects'; entity: ProjectEntity }
   | { type: 'bridge'; entity: BridgeEntity }
   | { type: 'cache'; entity: CacheEntity }
+  | { type: 'portal'; entity: WorldPortalEntity }
   | { type: 'heart' };
 
 interface Diagnostics {
@@ -247,6 +264,11 @@ interface Diagnostics {
   playerCargo: number;
   playerCargoStackHeight: number;
   currentIsland: number;
+  currentWorld: 1 | 2;
+  worldTwoTerrace: number;
+  worldTwoPortalUnlocked: boolean;
+  worldTwoPeakReached: boolean;
+  interaction: Interaction['type'] | '';
   assemblingBuildings: number;
   visibleIslands: number;
   emergingIsland: string;
@@ -363,6 +385,7 @@ export class IlotaGame {
   private readonly structures = new Map<StructureKind, StructureEntity>();
   private readonly warehouses: WarehouseEntity[] = [];
   private readonly projects: ProjectEntity[] = [];
+  private readonly worldPortals: WorldPortalEntity[] = [];
   private readonly caches: CacheEntity[] = [];
   private readonly particles: Particle[] = [];
   private readonly cargoDrops: CargoDrop[] = [];
@@ -464,6 +487,11 @@ export class IlotaGame {
       playerCargo: getPlayerCargoTotal(progress),
       playerCargoStackHeight: 0,
       currentIsland: 0,
+      currentWorld: progress.currentWorld,
+      worldTwoTerrace: progress.currentWorld === 2 ? 0 : -1,
+      worldTwoPortalUnlocked: isWorldTwoUnlocked(progress),
+      worldTwoPeakReached: progress.worldTwoPeakReached,
+      interaction: '',
       assemblingBuildings: 0,
       visibleIslands: progress.bridgesBuilt.filter(Boolean).length + 1,
       emergingIsland: '',
@@ -776,8 +804,7 @@ export class IlotaGame {
   }
 
   private setupScene(): void {
-    this.scene.background = new THREE.Color(0x8cc7c6);
-    this.scene.fog = new THREE.Fog(0x8cc7c6, 42, 128);
+    this.applyWorldPalette(this.economy.progress.currentWorld);
     this.scene.add(new THREE.HemisphereLight(0xd9f3f1, 0x725f42, 2.25));
 
     this.sun.position.set(-15, 23, 15);
@@ -793,6 +820,12 @@ export class IlotaGame {
     this.scene.add(this.sun, this.sun.target);
   }
 
+  private applyWorldPalette(world: 1 | 2): void {
+    const color = world === 2 ? 0x859ba5 : 0x8cc7c6;
+    this.scene.background = new THREE.Color(color);
+    this.scene.fog = new THREE.Fog(color, world === 2 ? 38 : 42, world === 2 ? 102 : 128);
+  }
+
   private createWorld(): void {
     this.createWater();
     ISLANDS.forEach((island, index) => this.createIsland(island, index));
@@ -804,6 +837,236 @@ export class IlotaGame {
     this.createResources();
     this.createCaches();
     this.decorateArchipelago();
+    this.createWorldTwo();
+  }
+
+  private createWorldTwo(): void {
+    const cloudFloor = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 155),
+      new THREE.MeshStandardMaterial({
+        color: 0xb8ced0,
+        transparent: true,
+        opacity: 0.58,
+        roughness: 1,
+        depthWrite: false,
+      }),
+    );
+    cloudFloor.rotation.x = -Math.PI / 2;
+    cloudFloor.position.set(160, -4.2, -63);
+    cloudFloor.receiveShadow = true;
+    this.scene.add(cloudFloor);
+
+    WORLD_TWO_TERRACES.forEach((terrace, index) => {
+      const platform = new THREE.Mesh(
+        new THREE.CylinderGeometry(terrace.radius, terrace.radius * 1.12, 2.7 + index * 0.08, 28, 1),
+        [
+          new THREE.MeshStandardMaterial({ color: terrace.sideColor, roughness: 1, flatShading: true }),
+          new THREE.MeshStandardMaterial({ color: terrace.topColor, roughness: 0.94, flatShading: true }),
+          new THREE.MeshStandardMaterial({ color: terrace.sideColor, roughness: 1, flatShading: true }),
+        ],
+      );
+      platform.position.set(terrace.x, terrace.elevation - 1.36, terrace.z);
+      platform.rotation.y = index * 0.31;
+      platform.castShadow = true;
+      platform.receiveShadow = true;
+      platform.name = `world-2:${terrace.id}`;
+      this.scene.add(platform);
+
+      const rim = new THREE.Mesh(
+        new THREE.TorusGeometry(terrace.radius - 0.2, 0.11, 5, 36),
+        new THREE.MeshStandardMaterial({
+          color: index >= 8 ? 0xc1b8e8 : index >= 5 ? 0x90a8a6 : 0xa5b37a,
+          emissive: index >= 8 ? 0x39334f : 0x172820,
+          emissiveIntensity: index >= 8 ? 0.55 : 0.18,
+          roughness: 0.7,
+        }),
+      );
+      rim.position.set(terrace.x, terrace.elevation + 0.05, terrace.z);
+      rim.rotation.x = Math.PI / 2;
+      this.scene.add(rim);
+
+      const label = this.createWorldLabel(`${index + 1}/11 · ${terrace.name.toUpperCase()}`, index >= 8 ? 0xbab4ed : 0x9fba87, 5.4);
+      label.position.set(terrace.x, terrace.elevation + 3.3, terrace.z + 0.8);
+      this.scene.add(label);
+    });
+
+    WORLD_TWO_RAMPS.forEach((ramp, index) => {
+      const from = WORLD_TWO_TERRACES[ramp.from];
+      const to = WORLD_TWO_TERRACES[ramp.to];
+      if (!from || !to) return;
+      const direction = vec(to.x - from.x, to.z - from.z);
+      const centerDistance = direction.length();
+      direction.normalize();
+      const start = vec(from.x, from.z).addScaledVector(direction, from.radius - 1);
+      const end = vec(to.x, to.z).addScaledVector(direction, -(to.radius - 1));
+      const length = Math.max(3.5, start.distanceTo(end) + 2.2);
+      const rise = to.elevation - from.elevation;
+      const rampMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(ramp.width, 0.34, length),
+        new THREE.MeshStandardMaterial({
+          color: index >= 7 ? 0x777287 : index >= 4 ? 0x69695f : 0x6e7358,
+          roughness: 0.96,
+          flatShading: true,
+        }),
+      );
+      rampMesh.position.lerpVectors(start, end, 0.5).setY((from.elevation + to.elevation) / 2 - 0.08);
+      rampMesh.rotation.order = 'YXZ';
+      rampMesh.rotation.y = Math.atan2(direction.x, direction.z);
+      rampMesh.rotation.x = -Math.atan2(rise, Math.max(0.1, centerDistance));
+      rampMesh.castShadow = true;
+      rampMesh.receiveShadow = true;
+      rampMesh.name = `world-2:rampe-${index + 1}`;
+      this.scene.add(rampMesh);
+    });
+
+    this.createWorldPortal(new THREE.Vector3(-4, 0, 8.5), 2, 'WORLD 2 · FAILLE DU ZÉNITH', false);
+    const base = WORLD_TWO_TERRACES[0]!;
+    this.createWorldPortal(new THREE.Vector3(base.x, base.elevation, base.z + 4.8), 1, 'RETOUR · WORLD 1', true);
+    this.createWorldTwoDepot();
+    this.createWorldTwoResources();
+    this.decorateWorldTwo();
+  }
+
+  private createWorldPortal(position: THREE.Vector3, destination: 1 | 2, text: string, worldTwo: boolean): void {
+    const root = new THREE.Group();
+    root.position.copy(position);
+    const portalMaterial = new THREE.MeshStandardMaterial({
+      color: worldTwo ? 0x8de1dd : 0xbab4ed,
+      emissive: worldTwo ? 0x257f83 : 0x51468a,
+      emissiveIntensity: 1.8,
+      metalness: 0.32,
+      roughness: 0.22,
+      transparent: true,
+      opacity: 0.94,
+    });
+    [1.45, 1.78].forEach((radius, index) => {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, index ? 0.1 : 0.16, 8, 42), portalMaterial.clone());
+      ring.position.y = 1.85;
+      ring.rotation.y = index ? 0.42 : -0.22;
+      ring.userData.temporalRing = index ? -1 : 1;
+      root.add(ring);
+    });
+    const veil = new THREE.Mesh(
+      new THREE.CircleGeometry(1.34, 36),
+      new THREE.MeshBasicMaterial({
+        color: worldTwo ? 0x63c9c9 : 0x8b7ed0,
+        transparent: true,
+        opacity: 0.34,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    veil.position.y = 1.85;
+    veil.userData.portalVeil = true;
+    root.add(veil);
+    const base = this.assets.createBuilding('crystalBeacons', 1.35);
+    base.position.y = 0;
+    root.add(base);
+    root.name = destination === 2 ? 'portail:world-2' : 'portail:world-1';
+    this.scene.add(root);
+
+    const label = this.createWorldLabel(text, worldTwo ? 0x79d5cf : 0xbab4ed, 5.2);
+    label.position.copy(position).add(new THREE.Vector3(0, 4.45, 0));
+    this.scene.add(label);
+    this.worldPortals.push({ root, label, destination });
+  }
+
+  private createWorldTwoDepot(): void {
+    const base = WORLD_TWO_TERRACES[0]!;
+    const definition: WarehouseDefinition = {
+      islandIndex: 0,
+      name: 'Refuge des Échos',
+      x: base.x - 5.5,
+      z: base.z + 2,
+      radius: 1.45,
+      rotation: 1.25,
+    };
+    const building = new THREE.Group();
+    building.position.set(definition.x, base.elevation, definition.z);
+    const model = this.assets.createBuilding('storage', 2.55);
+    model.rotation.y = definition.rotation;
+    building.add(model);
+    building.userData.worldTwoDepot = true;
+    this.scene.add(building);
+    const pad = new THREE.Group();
+    pad.visible = false;
+    const status = this.createWorldLabel('✓ REFUGE DES ÉCHOS · DÉPÔT ACTIF', 0x79d5cf, 5.2);
+    status.position.set(definition.x, base.elevation + 3.45, definition.z);
+    status.userData.worldTwoDepot = true;
+    this.scene.add(status);
+    this.warehouses.push({ definition, pad, building, status, world: 2 });
+  }
+
+  private createWorldTwoResources(): void {
+    WORLD_TWO_RESOURCES.forEach((spawn, index) => {
+      const terrace = WORLD_TWO_TERRACES[spawn.terraceIndex];
+      if (!terrace) return;
+      const root = new THREE.Group();
+      root.add(this.createResourceVisual(spawn.kind, index + 100, spawn.model));
+      root.position.set(terrace.x + spawn.dx, terrace.elevation, terrace.z + spawn.dz);
+      root.scale.setScalar(spawn.scale);
+      root.rotation.y = (index * 1.37) % (Math.PI * 2);
+      this.scene.add(root);
+      this.resources.push({
+        id: `world-2-resource-${index + 1}`,
+        kind: spawn.kind,
+        root,
+        islandIndex: 5 + spawn.terraceIndex,
+        visualCycle: index + 100,
+        amount: spawn.capacity,
+        capacity: spawn.capacity,
+        baseScale: spawn.scale,
+        respawnSeconds: spawn.respawnSeconds,
+        currentScale: spawn.scale,
+        respawn: 0,
+        pulse: 0,
+        world: 2,
+        rarity: spawn.rarity,
+      });
+    });
+  }
+
+  private decorateWorldTwo(): void {
+    WORLD_TWO_TERRACES.forEach((terrace, index) => {
+      const decorationCount = index >= 8 ? 4 : 6;
+      for (let item = 0; item < decorationCount; item += 1) {
+        const angle = item / decorationCount * Math.PI * 2 + index * 0.47;
+        const radius = terrace.radius * (0.64 + (item % 2) * 0.12);
+        const kind: NatureKind = index < 3
+          ? item % 2 ? 'treeA' : 'bush'
+          : index < 7
+            ? item % 2 ? 'rock' : 'grass'
+            : 'rock';
+        const model = this.assets.createNature(kind);
+        model.position.set(
+          terrace.x + Math.cos(angle) * radius,
+          terrace.elevation,
+          terrace.z + Math.sin(angle) * radius,
+        );
+        model.scale.setScalar(index >= 8 ? 0.62 : 0.72 + (item % 3) * 0.08);
+        model.rotation.y = angle * 1.7;
+        this.scene.add(model);
+      }
+    });
+
+    const summit = WORLD_TWO_TERRACES[WORLD_TWO_TERRACES.length - 1]!;
+    const beacon = this.assets.createBuilding('unityLighthouse', 5.4);
+    beacon.position.set(summit.x, summit.elevation, summit.z + 3.2);
+    beacon.rotation.y = Math.PI;
+    this.scene.add(beacon);
+    const crown = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.75, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0xe4dcff,
+        emissive: 0x6d5db4,
+        emissiveIntensity: 1.8,
+        metalness: 0.22,
+        roughness: 0.18,
+      }),
+    );
+    crown.position.set(summit.x, summit.elevation + 5.9, summit.z + 3.2);
+    crown.userData.temporalRing = 0.35;
+    this.scene.add(crown);
   }
 
   private createWater(): void {
@@ -979,7 +1242,7 @@ export class IlotaGame {
     const status = this.createWorldLabel('DÉPÔT · KIT DE DÉPART', 0xd4a65f, 4.4);
     status.position.set(definition.x, 4.15, definition.z);
     this.addToIsland(status, definition.x, definition.z);
-    this.warehouses.push({ definition, pad, building, status });
+    this.warehouses.push({ definition, pad, building, status, world: 1 });
   }
 
   private createStructure(definition: StructureDefinition): void {
@@ -1319,6 +1582,14 @@ export class IlotaGame {
         currentScale: spawn.scale,
         respawn: 0,
         pulse: 0,
+        world: 1,
+        rarity: spawn.kind === 'wood'
+          ? 'Arbre'
+          : spawn.kind === 'stone'
+            ? 'Rocher'
+            : spawn.kind === 'copper'
+              ? 'Filon de cuivre'
+              : 'Cristal ancien',
       });
     });
   }
@@ -1330,9 +1601,10 @@ export class IlotaGame {
   }
 
   private rerollResourceNode(node: ResourceNode): void {
+    if (node.world === 2) return;
     const counts: Partial<Record<ResourceKind, number>> = {};
     this.resources.forEach((candidate) => {
-      if (candidate === node || candidate.islandIndex !== node.islandIndex) return;
+      if (candidate === node || candidate.world !== node.world || candidate.islandIndex !== node.islandIndex) return;
       counts[candidate.kind] = (counts[candidate.kind] ?? 0) + 1;
     });
     const nextKind = pickResourceKindForIsland(node.islandIndex, Math.random(), counts);
@@ -1439,7 +1711,8 @@ export class IlotaGame {
     this.playerCargoRack.position.set(0, 1.04, -0.12);
     this.playerCargoRack.name = 'cargaison:joueur';
     this.player.add(this.playerCargoRack);
-    this.player.position.set(0, 0, 4.25);
+    const start = this.economy.progress.currentWorld === 2 ? WORLD_TWO_TERRACES[0] : null;
+    this.player.position.set(start?.x ?? 0, start?.elevation ?? 0, start ? start.z + 1.2 : 4.25);
     this.scene.add(this.player);
     const mixer = new THREE.AnimationMixer(root);
     const definitions: Array<[string, THREE.AnimationClip | undefined]> = [
@@ -1474,9 +1747,9 @@ export class IlotaGame {
     });
     this.warehouses.forEach((entity) => {
       const { islandIndex } = entity.definition;
-      const built = Boolean(progress.warehousesBuilt[islandIndex]);
-      const accessible = islandIndex === 0 || Boolean(progress.bridgesBuilt[islandIndex - 1]);
-      const unlocked = isWarehouseUnlocked(progress, islandIndex);
+      const built = entity.world === 2 || Boolean(progress.warehousesBuilt[islandIndex]);
+      const accessible = entity.world === 2 || islandIndex === 0 || Boolean(progress.bridgesBuilt[islandIndex - 1]);
+      const unlocked = entity.world === 2 || isWarehouseUnlocked(progress, islandIndex);
       entity.building.visible = built;
       entity.pad.visible = accessible && !built;
       entity.status.visible = accessible;
@@ -1547,6 +1820,24 @@ export class IlotaGame {
     this.caches.forEach((entity) => {
       entity.root.visible = !progress.cachesFound.includes(entity.definition.id);
     });
+    const completion = getSkillTreeCompletion(progress);
+    const entryPortal = this.worldPortals.find((portal) => portal.destination === 2);
+    if (entryPortal) {
+      const unlocked = isWorldTwoUnlocked(progress);
+      this.setWorldLabel(
+        entryPortal.label,
+        unlocked
+          ? 'WORLD 2 · PORTAIL OUVERT'
+          : `WORLD 2 · MARÉES ${Math.min(5, progress.rebirths)}/5 · SAVOIRS ${completion.completed}/${completion.total}`,
+        unlocked ? 0x79d5cf : 0x80918b,
+      );
+      entryPortal.root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh) || !object.userData.temporalRing) return;
+        const material = object.material as THREE.MeshStandardMaterial;
+        material.emissiveIntensity = unlocked ? 1.8 : 0.18;
+        material.opacity = unlocked ? 0.94 : 0.46;
+      });
+    }
   }
 
   private revealIsland(index: number): void {
@@ -1722,7 +2013,9 @@ export class IlotaGame {
 
   private builtWarehouseHubs(): Array<{ entity: WarehouseEntity; point: THREE.Vector3 }> {
     return this.warehouses
-      .filter((entity) => this.economy.progress.warehousesBuilt[entity.definition.islandIndex])
+      .filter((entity) =>
+        entity.world === 1
+        && this.economy.progress.warehousesBuilt[entity.definition.islandIndex])
       .map((entity) => ({
         entity,
         point: this.getWarehouseApproachPoint(entity),
@@ -1846,7 +2139,8 @@ export class IlotaGame {
   private planWorkerCycle(entity: WorkerEntity, state: WorkerState): void {
     const start = entity.root.position;
     const matchingResources = this.resources.filter((node) =>
-      node.kind === state.task
+      node.world === 1
+      && node.kind === state.task
       && node.amount - this.reservedAmount(node, entity.id) > 0
       && node.root.visible);
     const reachable = matchingResources
@@ -1886,12 +2180,19 @@ export class IlotaGame {
       return;
     }
 
+    const unreserved = hasSkill(this.economy.progress, 'archipelago_consciousness')
+      ? reachable.filter((candidate) => !this.workers.some((worker) =>
+        worker.id !== entity.id
+        && worker.target === candidate.node
+        && (worker.phase === 'toResource' || worker.phase === 'gathering')))
+      : reachable;
+    const selectionPool = unreserved.length > 0 ? unreserved : reachable;
     entity.routeChoices += 1;
-    const uninformedIndex = chooseUninformedResourceIndex(entity.id, entity.routeChoices, reachable.length);
-    let selected = reachable[Math.max(0, uninformedIndex)] ?? reachable[0]!;
+    const uninformedIndex = chooseUninformedResourceIndex(entity.id, entity.routeChoices, selectionPool.length);
+    let selected = selectionPool[Math.max(0, uninformedIndex)] ?? selectionPool[0]!;
 
     if (hasSkill(this.economy.progress, 'optimal_routes')) {
-      selected = [...reachable].sort((a, b) =>
+      selected = [...selectionPool].sort((a, b) =>
         a.outbound.distance + a.returning.distance - b.outbound.distance - b.returning.distance)[0] ?? selected;
     }
 
@@ -1927,7 +2228,10 @@ export class IlotaGame {
   private updateGame(delta: number): void {
     this.economy.tick(delta);
     this.input.updateKeyboard();
-    this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
+    if (this.economy.progress.currentWorld === 2) {
+      const terraceIndex = Math.max(0, findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z));
+      this.ui.updateWorldTwoGoal(terraceIndex, this.economy.progress.worldTwoPeakReached);
+    } else this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
     this.updateBridgeGuides();
     if (!this.managementOpen) {
       if (!this.playerDeposit) this.updatePlayer(delta);
@@ -1941,6 +2245,7 @@ export class IlotaGame {
     this.updateWorkers(delta);
     this.updatePlayerDeposit(delta);
     this.updateAutoRegulation(delta);
+    this.updateWorldTwoProgress(delta);
 
     this.saveCooldown -= delta;
     if (this.saveCooldown <= 0) {
@@ -2009,6 +2314,7 @@ export class IlotaGame {
   }
 
   private isWalkable(position: THREE.Vector3): boolean {
+    if (this.economy.progress.currentWorld === 2) return getWorldTwoSurfaceAt(position.x, position.z) !== null;
     const onIsland = ISLANDS.some((island, index) => {
       const accessible = (index === 0 || this.economy.progress.bridgesBuilt[index - 1])
         && this.islandEmergence?.entity.index !== index;
@@ -2017,6 +2323,24 @@ export class IlotaGame {
     if (onIsland) return true;
     return this.bridges.some((bridge) => this.economy.progress.bridgesBuilt[bridge.index]
       && this.distanceToSegmentSquared(position, bridge.start, bridge.end) <= 2.2 * 2.2);
+  }
+
+  private updateWorldTwoProgress(delta: number): void {
+    if (this.economy.progress.currentWorld !== 2) return;
+    const surface = getWorldTwoSurfaceAt(this.player.position.x, this.player.position.z);
+    if (surface !== null) {
+      this.player.position.y = THREE.MathUtils.damp(this.player.position.y, surface, 12, delta);
+    }
+    const terraceIndex = findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z);
+    const summitIndex = WORLD_TWO_TERRACES.length - 1;
+    if (terraceIndex !== summitIndex || this.economy.progress.worldTwoPeakReached) return;
+    this.economy.progress.worldTwoPeakReached = true;
+    const summit = WORLD_TWO_TERRACES[summitIndex]!;
+    this.spawnParticles(new THREE.Vector3(summit.x, summit.elevation + 1.1, summit.z), 'crystal', 42);
+    this.feedback.play('victory');
+    this.ui.toast('Sommet du Zénith atteint · World 2 maîtrisé !');
+    this.ui.update(this.economy.progress);
+    this.save();
   }
 
   private distanceToSegmentSquared(point: THREE.Vector3, start: THREE.Vector3, end: THREE.Vector3): number {
@@ -2298,8 +2622,16 @@ export class IlotaGame {
   private findInteraction(): Interaction | null {
     const position = this.player.position;
     const near = (target: THREE.Vector3, distance: number): boolean => position.distanceToSquared(target) <= distance * distance;
+    for (const entity of this.worldPortals) {
+      if (
+        (this.economy.progress.currentWorld === 1 && entity.destination !== 2)
+        || (this.economy.progress.currentWorld === 2 && entity.destination !== 1)
+      ) continue;
+      if (near(entity.root.position, 2.8)) return { type: 'portal', entity };
+    }
     for (const entity of this.warehouses) {
-      const built = Boolean(this.economy.progress.warehousesBuilt[entity.definition.islandIndex]);
+      if (entity.world !== this.economy.progress.currentWorld) continue;
+      const built = entity.world === 2 || Boolean(this.economy.progress.warehousesBuilt[entity.definition.islandIndex]);
       const target = built ? entity.building : entity.pad;
       if (target.visible && near(target.position, entity.definition.radius + 1.15)) return { type: 'warehouse', entity };
     }
@@ -2327,7 +2659,7 @@ export class IlotaGame {
     let nearest: ResourceNode | null = null;
     let nearestDistance = 2.35 * 2.35;
     this.resources.forEach((node) => {
-      if (!node.root.visible || node.amount <= 0) return;
+      if (node.world !== this.economy.progress.currentWorld || !node.root.visible || node.amount <= 0) return;
       const distance = position.distanceToSquared(node.root.position);
       if (distance < nearestDistance) {
         nearestDistance = distance;
@@ -2343,7 +2675,7 @@ export class IlotaGame {
       return;
     }
     if (interaction.type === 'resource') {
-      const label = interaction.node.kind === 'wood' ? 'Arbre' : interaction.node.kind === 'stone' ? 'Rocher' : interaction.node.kind === 'copper' ? 'Filon de cuivre' : 'Cristal ancien';
+      const label = interaction.node.rarity;
       const carried = getPlayerCargoTotal(this.economy.progress);
       const capacity = getCargoCapacity(this.economy.progress);
       this.ui.setContext(
@@ -2355,9 +2687,31 @@ export class IlotaGame {
       );
       return;
     }
+    if (interaction.type === 'portal') {
+      if (interaction.entity.destination === 1) {
+        this.ui.setContext(
+          'Portail de retour · World 1',
+          'TRAVERSER',
+          '◉',
+          true,
+          'Retourne sur l’Îlot des Marées sans perdre ta cargaison.',
+        );
+        return;
+      }
+      const completion = getSkillTreeCompletion(this.economy.progress);
+      const unlocked = isWorldTwoUnlocked(this.economy.progress);
+      this.ui.setContext(
+        unlocked ? 'World 2 · Ascension du Zénith' : 'World 2 · faille temporelle scellée',
+        unlocked ? 'TRAVERSER' : 'VERROUILLÉ',
+        '◉',
+        unlocked,
+        `Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · arbre maximisé ${completion.completed}/${completion.total}.`,
+      );
+      return;
+    }
     if (interaction.type === 'warehouse') {
       const { islandIndex, name } = interaction.entity.definition;
-      const built = Boolean(this.economy.progress.warehousesBuilt[islandIndex]);
+      const built = interaction.entity.world === 2 || Boolean(this.economy.progress.warehousesBuilt[islandIndex]);
       if (built) {
         const carried = getPlayerCargoTotal(this.economy.progress);
         this.ui.setContext(
@@ -2512,10 +2866,21 @@ export class IlotaGame {
     }
     if (!justPressed) return;
 
+    if (this.interaction.type === 'portal') {
+      const destination = this.interaction.entity.destination;
+      if (destination === 2 && !isWorldTwoUnlocked(this.economy.progress)) {
+        const completion = getSkillTreeCompletion(this.economy.progress);
+        this.ui.toast(`World 2 verrouillé · Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · Savoirs ${completion.completed}/${completion.total}.`);
+        return;
+      }
+      this.travelToWorld(destination);
+      return;
+    }
+
     if (this.interaction.type === 'warehouse') {
       const entity = this.interaction.entity;
       const islandIndex = entity.definition.islandIndex;
-      if (this.economy.progress.warehousesBuilt[islandIndex]) {
+      if (entity.world === 2 || this.economy.progress.warehousesBuilt[islandIndex]) {
         if (getPlayerCargoTotal(this.economy.progress) <= 0) {
           this.ui.toast('Ton dos est vide · rapporte une cargaison récoltée.');
           return;
@@ -2899,6 +3264,34 @@ export class IlotaGame {
     if (text !== 'gratuit') this.ui.toast(`Il manque ${text}`);
   }
 
+  private travelToWorld(destination: 1 | 2): void {
+    this.economy.progress.currentWorld = destination;
+    this.playerDeposit = null;
+    this.input.release();
+    if (destination === 2) {
+      const base = WORLD_TWO_TERRACES[0]!;
+      this.player.position.set(base.x, base.elevation, base.z + 1);
+      this.applyWorldPalette(2);
+      this.spawnParticles(this.player.position.clone().setY(base.elevation + 1), 'crystal', 32);
+      this.ui.toast('World 2 · gravis les onze terrasses jusqu’au Sommet du Zénith.');
+      this.maybeShowTutorial(
+        'world-2',
+        'World 2 · Ascension du Zénith',
+        'Ici, aucun ponton : suis les rampes naturelles. Chaque terrasse monte davantage et révèle des minerais plus rares. Le Refuge des Échos stocke tes cargaisons ; le portail bleu te ramène au World 1.',
+        '▲',
+      );
+    } else {
+      this.player.position.set(-1.8, 0, 8.5);
+      this.applyWorldPalette(1);
+      this.spawnParticles(this.player.position.clone().setY(1), 'crystal', 24);
+      this.ui.toast('Retour sur l’Îlot des Marées.');
+    }
+    this.interaction = null;
+    this.ui.clearContext();
+    this.ui.update(this.economy.progress);
+    this.save();
+  }
+
   private changed(): void {
     this.refreshWorldLocks();
     this.ui.update(this.economy.progress);
@@ -2957,6 +3350,15 @@ export class IlotaGame {
         object.scale.setScalar(scale);
       }
       if (object.userData.heartRing) object.rotation.z += delta * (this.economy.progress.completed ? 1.5 : 0.25);
+      if (object.userData.temporalRing) {
+        const direction = Number(object.userData.temporalRing) || 1;
+        object.rotation.z += delta * 0.9 * direction;
+        object.rotation.y += delta * 0.32 * direction;
+      }
+      if (object.userData.portalVeil) {
+        const pulse = 0.94 + Math.sin(this.worldTime * 3.2 + object.id) * 0.08;
+        object.scale.setScalar(pulse);
+      }
       if (object.userData.observatoryLens) {
         const baseY = Number(object.userData.baseY) || 6.25;
         object.position.y = baseY + Math.sin(this.worldTime * 1.9) * 0.08;
@@ -3176,6 +3578,13 @@ export class IlotaGame {
       ).toFixed(2))
       : 0;
     this.diagnostics.currentIsland = findIslandIndexForPoint(this.player.position.x, this.player.position.z);
+    this.diagnostics.currentWorld = progress.currentWorld;
+    this.diagnostics.worldTwoTerrace = progress.currentWorld === 2
+      ? findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z)
+      : -1;
+    this.diagnostics.worldTwoPortalUnlocked = isWorldTwoUnlocked(progress);
+    this.diagnostics.worldTwoPeakReached = progress.worldTwoPeakReached;
+    this.diagnostics.interaction = this.interaction?.type ?? '';
     this.diagnostics.assemblingBuildings = [
       ...this.structures.values(),
       ...this.warehouses,

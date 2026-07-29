@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { SKILL_DEFINITIONS } from '../../src/game/economy';
+import { WORLD_TWO_TERRACES } from '../../src/game/world';
 
 interface IlotaDiagnostics {
   ready: boolean;
@@ -34,6 +36,11 @@ interface IlotaDiagnostics {
   playerCargo: number;
   playerCargoStackHeight: number;
   currentIsland: number;
+  currentWorld: 1 | 2;
+  worldTwoTerrace: number;
+  worldTwoPortalUnlocked: boolean;
+  worldTwoPeakReached: boolean;
+  interaction: string;
   assemblingBuildings: number;
   visibleIslands: number;
   emergingIsland: string;
@@ -89,7 +96,7 @@ const waitForGame = async (page: Page): Promise<void> => {
 };
 
 const richSave = () => ({
-  version: 8,
+  version: 9,
   wood: 9_999,
   stone: 9_999,
   copper: 9_999,
@@ -119,6 +126,15 @@ const richSave = () => ({
   lifetimeDeliveries: 0,
   projectsCompleted: [],
   tutorialSeen: [],
+  currentWorld: 1 as const,
+  worldTwoPeakReached: false,
+});
+
+const maximizedSkillTree = () => ({
+  skills: SKILL_DEFINITIONS.map((definition) => definition.id),
+  skillRanks: Object.fromEntries(
+    SKILL_DEFINITIONS.map((definition) => [definition.id, definition.maxRank ?? 1]),
+  ),
 });
 
 const createNavigator = (page: Page) => {
@@ -307,6 +323,67 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(0);
   await expect.poll(async () => (await diagnostics(page)).wood).toBe(1);
+});
+
+test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', async ({ page }) => {
+  const tree = maximizedSkillTree();
+  tree.skillRanks.cargo_harness = 5;
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    ...tree,
+    rebirths: 5,
+    tutorialSeen: ['welcome'],
+  });
+  await waitForGame(page);
+  const { moveTo } = createNavigator(page);
+  await moveTo(-4, 8.5, 0.7);
+  await expect(page.locator('#context-prompt')).toContainText('faille temporelle scellée');
+  await expect(page.locator('#context-prompt')).toContainText('31/32');
+  await expect(page.locator('#action-button')).toContainText('VERROUILLÉ');
+  await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
+  expect((await diagnostics(page)).worldTwoPortalUnlocked).toBe(false);
+});
+
+test('le portail mène à onze terrasses praticables puis permet le retour au World 1', async ({ page }) => {
+  test.setTimeout(135_000);
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    ...maximizedSkillTree(),
+    rebirths: 5,
+    warehousesBuilt: [false, false, false, false, false],
+    tutorialSeen: ['welcome', 'world-2'],
+  });
+  await waitForGame(page);
+  const { moveTo } = createNavigator(page);
+  await moveTo(-4, 8.5, 0.7);
+  await expect(page.locator('#context-prompt')).toContainText('Ascension du Zénith');
+  await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
+  await expect(page.locator('#objective-eyebrow')).toHaveText('WORLD 2 · MONTAGNE DU ZÉNITH');
+  await expect(page.locator('#island-goal-island')).toContainText('BASE DES ÉCHOS');
+
+  await moveTo(WORLD_TWO_TERRACES[0]!.x - 5.5, WORLD_TWO_TERRACES[0]!.z + 2, 0.3);
+  await expect.poll(async () => (await diagnostics(page)).interaction).toBe('warehouse');
+  await expect(page.locator('#context-prompt')).toBeVisible();
+  await expect(page.locator('#context-prompt')).toContainText('Refuge des Échos');
+  await expect(page.locator('#action-button')).toContainText('DÉPÔT VIDE');
+  await moveTo(WORLD_TWO_TERRACES[0]!.x, WORLD_TWO_TERRACES[0]!.z + 4.8, 0.65);
+  await expect(page.locator('#context-prompt')).toContainText('Portail de retour');
+  await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
+
+  await moveTo(-4, 8.5, 0.7);
+  await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
+  for (const [index, terrace] of WORLD_TWO_TERRACES.entries()) {
+    await moveTo(terrace.x, terrace.z, index === WORLD_TWO_TERRACES.length - 1 ? 1 : 0.82);
+    await expect.poll(async () => (await diagnostics(page)).worldTwoTerrace).toBe(index);
+  }
+  await expect.poll(async () => (await diagnostics(page)).worldTwoPeakReached).toBe(true);
+  await expect(page.locator('#island-goal-title')).toContainText('SOMMET ÉVEILLÉ');
+  await expect(page.locator('#island-goal-count')).toHaveText('11/11');
+  await page.screenshot({ path: 'test-results/ilota-world-2-zenith.png' });
 });
 
 test('le Savoir reste visible et une ancienne île ne rouvre jamais ses objectifs payés', async ({ page }) => {

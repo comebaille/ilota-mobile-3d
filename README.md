@@ -22,6 +22,9 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - HUD paysage compact : l’étape suivante reste visible, le détail des objectifs se déplie à la demande, disparaît définitivement après le paiement du pont, puis des flèches 3D partent du renard et le suivent jusqu’au passage ;
 - tutoriel contextuel réservé aux sauvegardes neuves : dépôt, cargaison, nurserie, objectifs, formations, talents et Nouvelle Marée ;
 - arbre hexagonal à 32 nœuds : futur invisible, doubles prérequis stricts, capacité de cargaison évolutive, tournées complètes, Frappe de maîtrise à deux rangs, Instinct de relève anti-inactivité, Conseil itinérant optionnel, héritage de Marée progressif, pincement tactile robuste, trois sommets et convergence finale très coûteuse ;
+- portail temporel **World 2** sur l’île de base, ouvert après 5 rebirths et les 32 savoirs maximisés ;
+- **Montagne du Zénith** : onze grandes terrasses en surélévation, dix pentes réellement praticables, un refuge de dépôt, un portail de retour et des filons de plus en plus rares jusqu’au Cœur du Zénith ;
+- objectif d’ascension dédié, jalons persistants et sommet mémorisé par la sauvegarde sans supprimer l’accès libre aux deux mondes ;
 - sélection d’un savoir sans achat automatique : une grande fiche explique l’effet, le prix et les prérequis avant confirmation ;
 - menu de Marée avec reprise, remise à zéro confirmée et Nouvelle Marée grisée tant que l’acte actuel n’est pas terminé ;
 - compteur de Savoir toujours visible, même avant la construction de l’Autel ;

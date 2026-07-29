@@ -35,7 +35,7 @@ import {
   type SkillBranch,
   type SkillId,
 } from '../game/economy';
-import { ISLANDS, RESOURCE_SPAWN_PROFILES } from '../game/world';
+import { ISLANDS, RESOURCE_SPAWN_PROFILES, WORLD_TWO_TERRACES } from '../game/world';
 
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -674,10 +674,20 @@ export class GameUI {
       getCargoCapacity(progress),
     );
 
-    const objective = getObjective(progress);
-    this.objectiveEyebrow.textContent = objective.eyebrow;
-    this.objectiveTitle.textContent = objective.title;
-    this.objectiveDetail.textContent = objective.detail;
+    if (progress.currentWorld === 2) {
+      this.objectiveEyebrow.textContent = 'WORLD 2 · MONTAGNE DU ZÉNITH';
+      this.objectiveTitle.textContent = progress.worldTwoPeakReached
+        ? 'Le sommet se souvient de toi'
+        : 'Gravis les onze terrasses';
+      this.objectiveDetail.textContent = progress.worldTwoPeakReached
+        ? 'Le Cœur du Zénith est éveillé. Explore librement ou emprunte le portail du Refuge des Échos.'
+        : 'Suis les pentes vers les minerais rares et atteins la Crête Astrale.';
+    } else {
+      const objective = getObjective(progress);
+      this.objectiveEyebrow.textContent = objective.eyebrow;
+      this.objectiveTitle.textContent = objective.title;
+      this.objectiveDetail.textContent = objective.detail;
+    }
 
     const capacity = getWorkerCapacity(progress);
     this.crewButton.hidden = !progress.campBuilt || !hasSkill(progress, 'remote_management');
@@ -1341,6 +1351,72 @@ export class GameUI {
       this.islandGoalList.append(row);
     });
     return goal;
+  }
+
+  updateWorldTwoGoal(terraceIndex: number, peakReached: boolean): void {
+    const currentIndex = Math.max(0, Math.min(WORLD_TWO_TERRACES.length - 1, terraceIndex));
+    const current = WORLD_TWO_TERRACES[currentIndex]!;
+    const next = WORLD_TWO_TERRACES[currentIndex + 1];
+    const goalIdentity = 100 + currentIndex;
+    if (goalIdentity !== this.lastGoalIsland) {
+      this.lastGoalIsland = goalIdentity;
+      this.islandGoalExpanded = false;
+      this.islandGoal.classList.remove('expanded');
+      this.islandGoalToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    const milestones = [
+      {
+        label: 'Franchir la Faille du Zénith',
+        done: true,
+      },
+      {
+        label: 'Atteindre le Jardin d’Améthyste',
+        done: currentIndex >= 5,
+      },
+      {
+        label: 'Traverser les Éboulis Stellaires',
+        done: currentIndex >= 8,
+      },
+      {
+        label: 'Éveiller le Cœur du Zénith',
+        done: peakReached,
+      },
+    ];
+    const key = JSON.stringify(['world-2', currentIndex, peakReached, ...milestones.map((item) => item.done)]);
+    this.islandGoal.hidden = false;
+    if (key === this.lastGoalKey) return;
+    this.lastGoalKey = key;
+
+    const done = milestones.filter((item) => item.done).length;
+    this.islandGoal.classList.toggle('completed', peakReached);
+    this.islandGoalToggle.disabled = false;
+    this.islandGoalToggle.setAttribute('aria-expanded', String(this.islandGoalExpanded));
+    this.islandGoalToggle.setAttribute(
+      'aria-label',
+      `${this.islandGoalExpanded ? 'Réduire' : 'Afficher'} les étapes de l’ascension`,
+    );
+    this.islandGoalIsland.textContent = `WORLD 2 · ${current.name.toUpperCase()}`;
+    this.islandGoalTitle.textContent = peakReached ? 'SOMMET ÉVEILLÉ · ASCENSION ACCOMPLIE' : 'ASCENSION DU ZÉNITH';
+    this.islandGoalCount.textContent = `${currentIndex + 1}/${WORLD_TWO_TERRACES.length}`;
+    this.islandGoalNextLabel.textContent = peakReached
+      ? 'Le sommet est éveillé · les minerais du World 2 restent accessibles.'
+      : next
+        ? `Prochaine terrasse · ${next.name}`
+        : 'Approche du Cœur du Zénith pour achever l’ascension.';
+    this.islandGoalList.replaceChildren();
+    milestones.forEach((item) => {
+      const row = element('li', item.done ? 'done' : '');
+      const icon = element('span');
+      icon.textContent = item.done ? '✓' : '○';
+      icon.setAttribute('aria-hidden', 'true');
+      const label = element('span');
+      label.textContent = item.label;
+      const status = element('small');
+      status.textContent = item.done ? 'VALIDÉ' : 'À FAIRE';
+      row.append(icon, label, status);
+      this.islandGoalList.append(row);
+    });
   }
 
   setContext(title: string, actionLabel = 'RÉCOLTER', icon = '⌁', affordable = true, detail = ''): void {

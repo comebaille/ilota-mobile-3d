@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v14-masterful-strikes';
+const CACHE = 'ilota-v15-world-two-zenith';
 const CORE = [
   './',
   './index.html',

@@ -78,6 +78,33 @@ export interface CacheDefinition extends Point2 {
   reward: Cost;
 }
 
+export interface WorldTwoTerraceDefinition extends Point2 {
+  id: string;
+  name: string;
+  radius: number;
+  elevation: number;
+  topColor: number;
+  sideColor: number;
+}
+
+export interface WorldTwoRampDefinition {
+  from: number;
+  to: number;
+  width: number;
+}
+
+export interface WorldTwoResourceSpawn {
+  terraceIndex: number;
+  kind: ResourceKind;
+  dx: number;
+  dz: number;
+  capacity: number;
+  scale: number;
+  respawnSeconds: number;
+  model?: NatureKind;
+  rarity: string;
+}
+
 export const ISLANDS: readonly IslandDefinition[] = [
   { id: 'marees', name: 'Îlot des Marées', x: 0, z: 0, radius: 12.8, rotation: 0, topColor: 0x7fa655, shoreColor: 0xd9c477 },
   { id: 'pins', name: 'Île des Pins', x: 0, z: -27, radius: 9.8, rotation: 0.1, topColor: 0x6d9e57, shoreColor: 0xd6bf78 },
@@ -85,6 +112,86 @@ export const ISLANDS: readonly IslandDefinition[] = [
   { id: 'cristal', name: 'Île de Cristal', x: -1, z: -69, radius: 10, rotation: -0.14, topColor: 0x769a75, shoreColor: 0xcabf8b },
   { id: 'couronne', name: 'Île Couronne', x: 15, z: -91, radius: 9.8, rotation: 0.31, topColor: 0x819f68, shoreColor: 0xd5bd76 },
 ];
+
+export const WORLD_TWO_TERRACES: readonly WorldTwoTerraceDefinition[] = [
+  { id: 'echo-base', name: 'Base des Échos', x: 160, z: 0, radius: 9, elevation: 0, topColor: 0x607c5c, sideColor: 0x4f5949 },
+  { id: 'moss-rise', name: 'Montée des Mousses', x: 160, z: -15, radius: 7.2, elevation: 1.4, topColor: 0x66835d, sideColor: 0x505d49 },
+  { id: 'iron-pines', name: 'Pins de Fer', x: 171, z: -27, radius: 7, elevation: 2.9, topColor: 0x60775a, sideColor: 0x4b5548 },
+  { id: 'copper-balcony', name: 'Balcon Cuivré', x: 159, z: -39, radius: 7.1, elevation: 4.4, topColor: 0x777450, sideColor: 0x5f5143 },
+  { id: 'wind-ledges', name: 'Corniches du Vent', x: 147, z: -51, radius: 6.8, elevation: 5.9, topColor: 0x6f7756, sideColor: 0x555344 },
+  { id: 'amethyst-garden', name: 'Jardin d’Améthyste', x: 159, z: -63, radius: 7.1, elevation: 7.4, topColor: 0x687368, sideColor: 0x514e59 },
+  { id: 'prism-pass', name: 'Passe Prismatique', x: 172, z: -75, radius: 6.7, elevation: 9, topColor: 0x65706d, sideColor: 0x4b5058 },
+  { id: 'cloud-basin', name: 'Vasque des Nuages', x: 160, z: -87, radius: 7, elevation: 10.6, topColor: 0x737b70, sideColor: 0x565966 },
+  { id: 'star-scree', name: 'Éboulis Stellaire', x: 148, z: -99, radius: 6.6, elevation: 12.2, topColor: 0x716d78, sideColor: 0x514d5f },
+  { id: 'astral-ridge', name: 'Crête Astrale', x: 159, z: -111, radius: 6.9, elevation: 13.8, topColor: 0x777382, sideColor: 0x544f66 },
+  { id: 'zenith', name: 'Sommet du Zénith', x: 160, z: -126, radius: 8.4, elevation: 15.5, topColor: 0x85829a, sideColor: 0x5b566f },
+];
+
+export const WORLD_TWO_RAMPS: readonly WorldTwoRampDefinition[] = WORLD_TWO_TERRACES
+  .slice(0, -1)
+  .map((_, index) => ({ from: index, to: index + 1, width: index >= 7 ? 3.6 : 4.2 }));
+
+export const WORLD_TWO_RESOURCES: readonly WorldTwoResourceSpawn[] = [
+  { terraceIndex: 0, kind: 'wood', model: 'treeA', dx: -5.2, dz: -1.7, capacity: 10, scale: 1.02, respawnSeconds: 13, rarity: 'Bois de montagne' },
+  { terraceIndex: 0, kind: 'stone', model: 'rock', dx: 5, dz: -1.8, capacity: 10, scale: 1.05, respawnSeconds: 14, rarity: 'Schiste ancien' },
+  { terraceIndex: 1, kind: 'wood', model: 'treeB', dx: -3.7, dz: -1.5, capacity: 11, scale: 1.06, respawnSeconds: 15, rarity: 'Pin ferrique' },
+  { terraceIndex: 1, kind: 'stone', model: 'rock', dx: 3.6, dz: -1.6, capacity: 11, scale: 1.08, respawnSeconds: 16, rarity: 'Schiste ancien' },
+  { terraceIndex: 2, kind: 'stone', model: 'rock', dx: -3.8, dz: -1.5, capacity: 12, scale: 1.1, respawnSeconds: 17, rarity: 'Roche dense' },
+  { terraceIndex: 2, kind: 'copper', dx: 3.6, dz: -1.2, capacity: 10, scale: 1.05, respawnSeconds: 18, rarity: 'Cuivre veiné' },
+  { terraceIndex: 3, kind: 'copper', dx: -3.8, dz: -1.4, capacity: 12, scale: 1.1, respawnSeconds: 19, rarity: 'Cuivre profond' },
+  { terraceIndex: 3, kind: 'stone', model: 'rock', dx: 3.8, dz: -1.2, capacity: 12, scale: 1.08, respawnSeconds: 18, rarity: 'Roche dense' },
+  { terraceIndex: 4, kind: 'copper', dx: -3.4, dz: -1.3, capacity: 13, scale: 1.14, respawnSeconds: 20, rarity: 'Cuivre d’altitude' },
+  { terraceIndex: 4, kind: 'crystal', dx: 3.5, dz: -1.1, capacity: 9, scale: 1.03, respawnSeconds: 22, rarity: 'Améthyste brute' },
+  { terraceIndex: 5, kind: 'crystal', dx: -3.7, dz: -1.2, capacity: 12, scale: 1.1, respawnSeconds: 23, rarity: 'Améthyste vive' },
+  { terraceIndex: 5, kind: 'copper', dx: 3.7, dz: -1.1, capacity: 13, scale: 1.12, respawnSeconds: 21, rarity: 'Cuivre d’altitude' },
+  { terraceIndex: 6, kind: 'crystal', dx: -3.4, dz: -1.1, capacity: 13, scale: 1.14, respawnSeconds: 24, rarity: 'Cristal prismatique' },
+  { terraceIndex: 6, kind: 'crystal', dx: 3.4, dz: -0.9, capacity: 11, scale: 1.08, respawnSeconds: 25, rarity: 'Cristal prismatique' },
+  { terraceIndex: 7, kind: 'crystal', dx: -3.6, dz: -1.2, capacity: 14, scale: 1.16, respawnSeconds: 26, rarity: 'Cristal des nuages' },
+  { terraceIndex: 7, kind: 'stone', model: 'rock', dx: 3.6, dz: -1.1, capacity: 14, scale: 1.12, respawnSeconds: 22, rarity: 'Pierre céleste' },
+  { terraceIndex: 8, kind: 'crystal', dx: -3.2, dz: -1, capacity: 15, scale: 1.2, respawnSeconds: 28, rarity: 'Éclat stellaire' },
+  { terraceIndex: 8, kind: 'copper', dx: 3.2, dz: -0.9, capacity: 14, scale: 1.14, respawnSeconds: 25, rarity: 'Cuivre astral' },
+  { terraceIndex: 9, kind: 'crystal', dx: -3.5, dz: -1.1, capacity: 16, scale: 1.24, respawnSeconds: 30, rarity: 'Prisme astral' },
+  { terraceIndex: 9, kind: 'crystal', dx: 3.5, dz: -0.8, capacity: 16, scale: 1.2, respawnSeconds: 31, rarity: 'Prisme astral' },
+  { terraceIndex: 10, kind: 'crystal', dx: 0, dz: -1.5, capacity: 24, scale: 1.48, respawnSeconds: 36, rarity: 'Cœur du Zénith' },
+];
+
+const distanceToWorldTwoSegment = (
+  x: number,
+  z: number,
+  from: WorldTwoTerraceDefinition,
+  to: WorldTwoTerraceDefinition,
+): { distance: number; ratio: number } => {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const lengthSquared = dx * dx + dz * dz;
+  const ratio = Math.max(0, Math.min(1, ((x - from.x) * dx + (z - from.z) * dz) / Math.max(0.001, lengthSquared)));
+  const nearestX = from.x + dx * ratio;
+  const nearestZ = from.z + dz * ratio;
+  return { distance: Math.hypot(x - nearestX, z - nearestZ), ratio };
+};
+
+export const findWorldTwoTerraceIndex = (x: number, z: number): number =>
+  WORLD_TWO_TERRACES.reduce((best, terrace, index) => {
+    const distance = Math.hypot(x - terrace.x, z - terrace.z);
+    return distance <= terrace.radius && terrace.elevation >= (WORLD_TWO_TERRACES[best]?.elevation ?? -Infinity)
+      ? index
+      : best;
+  }, -1);
+
+export const getWorldTwoSurfaceAt = (x: number, z: number): number | null => {
+  const terraceIndex = findWorldTwoTerraceIndex(x, z);
+  if (terraceIndex >= 0) return WORLD_TWO_TERRACES[terraceIndex]!.elevation;
+  for (const ramp of WORLD_TWO_RAMPS) {
+    const from = WORLD_TWO_TERRACES[ramp.from];
+    const to = WORLD_TWO_TERRACES[ramp.to];
+    if (!from || !to) continue;
+    const segment = distanceToWorldTwoSegment(x, z, from, to);
+    if (segment.distance <= ramp.width / 2) {
+      return from.elevation + (to.elevation - from.elevation) * segment.ratio;
+    }
+  }
+  return null;
+};
 
 /**
  * Les poids sont aussi les pourcentages affichés au joueur. Un poids à zéro
