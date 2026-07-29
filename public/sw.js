@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v20-world-two-isolation-and-worker-trips';
+const CACHE = 'ilota-v20-1-wide-world-one-bridges';
 const CORE = [
   './',
   './index.html',

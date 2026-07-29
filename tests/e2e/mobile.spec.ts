@@ -19,6 +19,8 @@ interface IlotaDiagnostics {
   workerTasks: string;
   bridges: number;
   bridgeVisualParts: number;
+  bridgeVisualWidth: number;
+  bridgeWalkableWidth: number;
   bridgeGuides: number;
   chapter: number;
   completed: boolean;
@@ -399,7 +401,10 @@ test('chaque liaison du World 1 utilise un seul pont complet', async ({ page }) 
   });
   await waitForGame(page);
   expect((await diagnostics(page)).bridges).toBe(4);
-  expect((await diagnostics(page)).bridgeVisualParts).toBe(4);
+  const state = await diagnostics(page);
+  expect(state.bridgeVisualParts).toBe(4);
+  expect(state.bridgeVisualWidth).toBeGreaterThanOrEqual(6.4);
+  expect(state.bridgeVisualWidth - state.bridgeWalkableWidth).toBeGreaterThanOrEqual(2);
 });
 
 test('le portail anime l’aller vers le World 2 puis permet le retour au World 1', async ({ page }) => {
