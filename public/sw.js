@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v15-world-two-zenith';
+const CACHE = 'ilota-v16-triangle-work-houses';
 const CORE = [
   './',
   './index.html',

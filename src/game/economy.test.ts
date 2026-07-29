@@ -24,6 +24,7 @@ import {
   getWarehouseCost,
   hasSkill,
   isProjectVisible,
+  isProjectHallBuilt,
   isSkillVisible,
   isWorldTwoUnlocked,
   isWarehouseUnlocked,
@@ -42,7 +43,7 @@ const richEconomy = (initial?: Partial<IslandProgress>): Economy => new Economy(
 const completeProjectsUntil = (economy: Economy, targetCount: number): void => {
   ISLAND_PROJECTS.slice(0, targetCount).forEach((project) => {
     if (economy.progress.projectsCompleted.includes(project.id)) return;
-    if (!economy.progress.projectHallsBuilt[project.islandIndex - 1]) {
+    if (!isProjectHallBuilt(economy.progress, project.islandIndex)) {
       expect(economy.buildProjectHall(project.islandIndex)).toBe(true);
     }
     expect(economy.buildProject(project.id)).toBe(true);
@@ -79,9 +80,10 @@ describe('Economy v9', () => {
     expect(getWorkerCapacity(economy.progress)).toBe(3);
     economy.hireWorker();
     economy.hireWorker();
+    completeProjectsUntil(economy, 3);
     expect(economy.buildBridge(0)).toBe(true);
     expect(economy.buildStructure('workshop')).toBe(true);
-    expect(getWorkerCapacity(economy.progress)).toBe(5);
+    expect(getWorkerCapacity(economy.progress)).toBe(6);
   });
 
   it('réaffecte un travailleur sans le remplacer', () => {
@@ -146,6 +148,7 @@ describe('Economy v9', () => {
     economy.buildStructure('camp');
     economy.hireWorker();
     economy.hireWorker();
+    completeProjectsUntil(economy, 3);
     expect(economy.buildBridge(0)).toBe(true);
 
     expect(economy.buildStructure('workshop')).toBe(true);
@@ -153,14 +156,14 @@ describe('Economy v9', () => {
     economy.hireWorker();
     economy.upgradeWorker('worker-1');
     expect(economy.buildBridge(1)).toBe(false);
-    completeProjectsUntil(economy, 3);
+    completeProjectsUntil(economy, 6);
     expect(economy.buildBridge(1)).toBe(true);
 
     expect(economy.buildStructure('foundry')).toBe(true);
     economy.hireWorker();
     economy.assignWorker('worker-5', 'copper');
     expect(economy.buildBridge(2)).toBe(false);
-    completeProjectsUntil(economy, 6);
+    completeProjectsUntil(economy, 9);
     expect(economy.buildBridge(2)).toBe(true);
 
     expect(economy.buildStructure('observatory')).toBe(true);
@@ -171,7 +174,7 @@ describe('Economy v9', () => {
     economy.upgradeWorker('worker-3');
     expect(getTotalWorkerLevels(economy.progress)).toBeGreaterThanOrEqual(10);
     expect(economy.buildBridge(3)).toBe(false);
-    completeProjectsUntil(economy, 9);
+    completeProjectsUntil(economy, 12);
     expect(economy.buildBridge(3)).toBe(true);
 
     economy.hireWorker();
@@ -179,11 +182,11 @@ describe('Economy v9', () => {
     expect(getTotalWorkerLevels(economy.progress)).toBeGreaterThanOrEqual(12);
     expect(Economy.finalRequirementsMet(economy.progress)).toBe(true);
     expect(economy.complete()).toBe(false);
-    completeProjectsUntil(economy, 12);
+    completeProjectsUntil(economy, 15);
     expect(economy.complete()).toBe(true);
     expect(economy.progress.completed).toBe(true);
-    expect(economy.progress.knowledge).toBe(28);
-    expect(economy.progress.projectsCompleted).toHaveLength(12);
+    expect(economy.progress.knowledge).toBe(32);
+    expect(economy.progress.projectsCompleted).toHaveLength(15);
   });
 
   it('persiste les métiers et les niveaux', () => {
@@ -416,30 +419,34 @@ describe('Economy v9', () => {
     expect(economy.unlockSkill('logistics_network')).toBe(true);
   });
 
-  it('révèle quatre paliers de Grands Travaux et garde les ressources historiques utiles', () => {
+  it('révèle cinq paliers de Grands Travaux et garde les ressources historiques utiles', () => {
     const economy = richEconomy({
       campBuilt: true,
       workshopBuilt: true,
       bridgesBuilt: [true, false, false, false],
     });
+    const starterTier = ISLAND_PROJECTS.filter((project) => project.tier === 0);
     const firstTier = ISLAND_PROJECTS.filter((project) => project.tier === 1);
     const secondTier = ISLAND_PROJECTS.filter((project) => project.tier === 2);
-    expect(economy.buildProjectHall(1)).toBe(true);
-    expect(firstTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
-    expect(secondTier.some((project) => isProjectVisible(economy.progress, project))).toBe(false);
-
     const capacityBefore = getWorkerCapacity(economy.progress);
+    expect(economy.buildProjectHall(0)).toBe(true);
+    expect(starterTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
     completeProjectsUntil(economy, 3);
     expect(economy.progress.projectsCompleted).toHaveLength(3);
     expect(economy.progress.knowledge).toBe(4);
     expect(getWorkerCapacity(economy.progress)).toBe(capacityBefore + 1);
+
+    expect(economy.buildProjectHall(1)).toBe(true);
+    expect(firstTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
+    expect(secondTier.some((project) => isProjectVisible(economy.progress, project))).toBe(false);
     expect(economy.bridgeRequirementsMet(1)).toBe(false);
+    completeProjectsUntil(economy, 6);
 
     economy.progress.foundryBuilt = true;
     economy.progress.bridgesBuilt[1] = true;
     expect(economy.buildProjectHall(2)).toBe(true);
     expect(secondTier.every((project) => isProjectVisible(economy.progress, project))).toBe(true);
-    expect(ISLAND_PROJECTS.slice(0, 6).every((project) =>
+    expect(ISLAND_PROJECTS.slice(0, 9).every((project) =>
       project.cost.wood > 0 && project.cost.stone > 0)).toBe(true);
   });
 
@@ -458,8 +465,7 @@ describe('Economy v9', () => {
     const before = getIslandGoal(economy.progress, 1);
     expect(before.completed).toBe(false);
     expect(before.items.find((item) => item.id === 'projects')?.done).toBe(false);
-    expect(economy.buildProjectHall(1)).toBe(true);
-    completeProjectsUntil(economy, 3);
+    completeProjectsUntil(economy, 6);
     const after = getIslandGoal(economy.progress, 1);
     expect(after.items.every((item) => item.done)).toBe(true);
     expect(after.completed).toBe(true);

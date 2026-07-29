@@ -25,6 +25,7 @@ import {
   hasProject,
   hasSkill,
   isProjectVisible,
+  isProjectHallBuilt,
   isSkillVisible,
   projectPrerequisitesMet,
   skillPrerequisitesMet,
@@ -236,7 +237,7 @@ export class GameUI {
   private lastGoalKey = '';
   private lastGoalIsland = -1;
   private islandGoalExpanded = false;
-  private projectIslandIndex: 1 | 2 | 3 | 4 | null = null;
+  private projectIslandIndex: 0 | 1 | 2 | 3 | 4 | null = null;
   private projectInputReadyAt = 0;
   private tutorialCloseHandler: (() => void) | null = null;
   private lastLevelUpKey = '';
@@ -302,7 +303,7 @@ export class GameUI {
       const nextIsland = ISLAND_PROJECTS.find((project) =>
         isProjectVisible(this.latestProgress!, project)
         && !hasProject(this.latestProgress!, project.id))?.islandIndex;
-      if (nextIsland) this.showProjects(nextIsland);
+      if (nextIsland !== undefined) this.showProjects(nextIsland);
     });
     this.projectsCloseButton.addEventListener('click', () => this.hideProjects());
     this.projectsPanel.addEventListener('pointerdown', (event) => {
@@ -488,9 +489,9 @@ export class GameUI {
     this.menuButton.focus({ preventScroll: true });
   }
 
-  showProjects(islandIndex: 1 | 2 | 3 | 4): void {
+  showProjects(islandIndex: 0 | 1 | 2 | 3 | 4): void {
     if (!this.latestProgress) return;
-    if (!this.latestProgress.projectHallsBuilt[islandIndex - 1]) return;
+    if (!isProjectHallBuilt(this.latestProgress, islandIndex)) return;
     const localProjects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
     if (!localProjects.some((project) => isProjectVisible(this.latestProgress!, project))) return;
     this.projectIslandIndex = islandIndex;
@@ -920,7 +921,7 @@ export class GameUI {
 
   private renderProjects(progress: IslandProgress): void {
     const islandIndex = this.projectIslandIndex;
-    if (!islandIndex) return;
+    if (islandIndex === null) return;
     const island = ISLANDS[islandIndex];
     const localProjects = ISLAND_PROJECTS.filter((definition) =>
       definition.islandIndex === islandIndex

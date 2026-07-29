@@ -225,13 +225,17 @@ const assignWorker = async (page: Page, name: string, task: string): Promise<voi
 };
 
 const PROJECT_HALLS = [
-  { x: 3, z: -25.1, name: 'Maison des Travaux des Pins' },
-  { x: 19, z: -45.1, name: 'Maison des Travaux Cuivrée' },
-  { x: 2, z: -67.1, name: 'Maison des Travaux de Cristal' },
-  { x: 18, z: -89.1, name: 'Maison des Travaux de la Couronne' },
+  { x: 7, z: -3.8, name: 'Maison des Travaux des Marées' },
+  { x: 6, z: -23.2, name: 'Maison des Travaux des Pins' },
+  { x: 22, z: -43.2, name: 'Maison des Travaux Cuivrée' },
+  { x: 5, z: -65.2, name: 'Maison des Travaux de Cristal' },
+  { x: 21, z: -87.2, name: 'Maison des Travaux de la Couronne' },
 ] as const;
 
 const PROJECT_IDS = [
+  'starter_tools',
+  'trail_markers',
+  'tidal_nursery',
   'timber_reserve',
   'towing_paths',
   'shared_warehouse',
@@ -259,10 +263,10 @@ const completeProjectsUntil = async (
     if (await page.locator('#projects-panel').isHidden()) {
       await moveTo(hall.x, hall.z, 0.9);
       await expect(page.locator('#context-prompt')).toContainText(hall.name);
-      const hallIndex = Math.floor(before / 3);
-      if ((await diagnostics(page)).projectHalls <= hallIndex) {
+      if (await page.locator('#action-button').getByText('BÂTIR', { exact: true }).isVisible()) {
+        const hallCount = (await diagnostics(page)).projectHalls;
         await page.locator('#action-button').tap();
-        await expect.poll(async () => (await diagnostics(page)).projectHalls).toBe(hallIndex + 1);
+        await expect.poll(async () => (await diagnostics(page)).projectHalls).toBe(hallCount + 1);
       }
       await page.locator('#action-button').tap();
       await expect(page.locator('#projects-panel')).toBeVisible();
@@ -303,7 +307,7 @@ test('la première marée explique puis assemble le dépôt physique avant toute
 
   expect((await diagnostics(page)).warehouses).toBe(0);
   const { moveTo } = createNavigator(page);
-  await moveTo(-5.2, 1.2, 0.7);
+  await moveTo(-7, -3.8, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('Assembler Dépôt des Marées');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).warehouses).toBe(1);
@@ -312,13 +316,13 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await expect(page.locator('#tutorial-detail')).toContainText('tomberont une à une');
   await page.locator('#tutorial-continue-button').click();
 
-  await moveTo(0, 7.2, 0.55);
+  await moveTo(-10, 0, 0.55);
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(1);
   expect((await diagnostics(page)).wood).toBe(0);
   await page.screenshot({ path: 'test-results/ilota-visible-player-cargo.png' });
 
-  await moveTo(-5.2, 1.2, 0.7);
+  await moveTo(-7, -3.8, 0.7);
   await expect(page.locator('#action-button')).toContainText('DÉCHARGER');
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(0);
@@ -336,7 +340,7 @@ test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', as
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
-  await moveTo(-4, 8.5, 0.7);
+  await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('faille temporelle scellée');
   await expect(page.locator('#context-prompt')).toContainText('31/32');
   await expect(page.locator('#action-button')).toContainText('VERROUILLÉ');
@@ -356,24 +360,24 @@ test('le portail mène à onze terrasses praticables puis permet le retour au Wo
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
-  await moveTo(-4, 8.5, 0.7);
+  await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('Ascension du Zénith');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
   await expect(page.locator('#objective-eyebrow')).toHaveText('WORLD 2 · MONTAGNE DU ZÉNITH');
   await expect(page.locator('#island-goal-island')).toContainText('BASE DES ÉCHOS');
 
-  await moveTo(WORLD_TWO_TERRACES[0]!.x - 5.5, WORLD_TWO_TERRACES[0]!.z + 2, 0.3);
+  await moveTo(WORLD_TWO_TERRACES[0]!.x - 7, WORLD_TWO_TERRACES[0]!.z, 0.3);
   await expect.poll(async () => (await diagnostics(page)).interaction).toBe('warehouse');
   await expect(page.locator('#context-prompt')).toBeVisible();
   await expect(page.locator('#context-prompt')).toContainText('Refuge des Échos');
   await expect(page.locator('#action-button')).toContainText('DÉPÔT VIDE');
-  await moveTo(WORLD_TWO_TERRACES[0]!.x, WORLD_TWO_TERRACES[0]!.z + 4.8, 0.65);
+  await moveTo(WORLD_TWO_TERRACES[0]!.x, WORLD_TWO_TERRACES[0]!.z + 6.3, 0.65);
   await expect(page.locator('#context-prompt')).toContainText('Portail de retour');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
 
-  await moveTo(-4, 8.5, 0.7);
+  await moveTo(-7.2, 7.2, 0.7);
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(2);
   for (const [index, terrace] of WORLD_TWO_TERRACES.entries()) {
@@ -432,12 +436,14 @@ test('le HUD compact garde le monde visible et déplie les objectifs à la deman
       menuWidth: menu.width,
       objectiveHeight: objective.height,
       goalHeight: goal.height,
+      goalRightGap: innerWidth - goal.right,
       topGap: resources.left - objective.right,
     };
   });
   expect(compact.menuWidth).toBeLessThanOrEqual(46);
   expect(compact.objectiveHeight).toBeLessThanOrEqual(46);
   expect(compact.goalHeight).toBeLessThanOrEqual(90);
+  expect(compact.goalRightGap).toBeLessThanOrEqual(10);
   expect(compact.topGap).toBeGreaterThanOrEqual(12);
 
   const toggle = page.locator('#island-goal-toggle');
@@ -445,7 +451,7 @@ test('le HUD compact garde le monde visible et déplie les objectifs à la deman
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#island-goal')).toHaveClass(/expanded/);
-  await expect(page.locator('#island-goal li')).toHaveCount(6);
+  await expect(page.locator('#island-goal li')).toHaveCount(8);
   const itemFont = await page.locator('#island-goal li').first().evaluate((item) =>
     Number.parseFloat(getComputedStyle(item).fontSize));
   expect(itemFont).toBeGreaterThanOrEqual(9);
@@ -482,8 +488,8 @@ test('l’Autel du Savoir exige les quatre grandes réserves sur l’île de Cri
   await moveTo(4.68, -61.64, 0.65);
   await moveTo(5, -66, 0.8);
   await moveTo(5, -70, 0.8);
-  await moveTo(2, -72.4, 0.9);
-  await moveTo(0, -72.4, 1.1);
+  await moveTo(2, -75.8, 0.9);
+  await moveTo(-1, -75.8, 1.1);
   await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
   await expect(page.locator('#context-prompt')).toContainText('78 bois · 68 pierre · 48 cuivre · 24 cristal');
   await page.locator('#action-button').tap();
@@ -542,6 +548,7 @@ test('le Conseil itinérant ouvre métiers, recrutement et formations depuis le 
 });
 
 test('le tutoriel neuf explique la nurserie puis le panneau d’objectifs', async ({ page }) => {
+  test.setTimeout(45_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     version: 6,
@@ -553,7 +560,7 @@ test('le tutoriel neuf explique la nurserie puis le panneau d’objectifs', asyn
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
-  await moveTo(0, 0, 1.15);
+  await moveTo(0, 6.8, 1.15);
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).campBuilt).toBe(true);
   await expect(page.locator('#tutorial-title')).toHaveText('La nurserie');
@@ -582,7 +589,7 @@ test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
-  await moveTo(0, 7.2, 0.55);
+  await moveTo(-10, 0, 0.55);
 
   const beforeStock = (await diagnostics(page)).wood;
   const beforeCargo = (await diagnostics(page)).playerCargo;
@@ -671,7 +678,7 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   const { moveTo } = createNavigator(page);
   await moveTo(0, -12.1, 0.6);
   await moveTo(0, -17.9, 0.7);
-  await moveTo(0, -30.4, 1.2);
+  await moveTo(0, -33.8, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('Atelier des Pins');
   await page.locator('#action-button').tap();
   await expect(page.getByRole('heading', { name: 'Former au niveau 2' })).toBeVisible();
@@ -752,12 +759,10 @@ test('une Maison identique présente et assemble les trois Travaux de chaque îl
     ...richSave(),
     campBuilt: true,
     workshopBuilt: true,
-    bridgesBuilt: [true, false, false, false],
+    bridgesBuilt: [false, false, false, false],
   });
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
-  await moveTo(0, -12.1, 0.6);
-  await moveTo(0, -17.9, 0.7);
   await moveTo(PROJECT_HALLS[0].x, PROJECT_HALLS[0].z, 0.9);
   await expect(page.locator('#context-prompt')).toContainText(PROJECT_HALLS[0].name);
   await page.locator('#action-button').tap();
@@ -788,8 +793,8 @@ test('une Maison identique présente et assemble les trois Travaux de chaque îl
   await expect.poll(async () => (await diagnostics(page)).assemblingBuildings).toBeGreaterThan(0);
   await expect.poll(async () => (await diagnostics(page)).assemblingBuildings, { timeout: 4_000 }).toBe(0);
   await expect(page.locator('#projects-panel')).toBeHidden();
-  await expect(page.locator('#island-goal')).toContainText('4/6');
-  await expect(page.locator('#island-goal')).toContainText('Achever les 3 Travaux à la Maison des Pins');
+  await expect(page.locator('#island-goal')).toContainText('5/8');
+  await expect(page.locator('#island-goal')).toContainText('Réunir 2 renards');
   await page.screenshot({ path: 'test-results/ilota-grand-works.png' });
 });
 
@@ -1124,7 +1129,7 @@ test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisi
   await page.screenshot({ path: 'test-results/ilota-industry-surge.png' });
 
   const { moveTo } = createNavigator(page);
-  await moveTo(0, 7.2, 0.55);
+  await moveTo(-10, 0, 0.55);
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await diagnostics(page)).playerCargo).toBe(6);
   await expect.poll(async () => (await diagnostics(page)).explorationFlow).toBe(false);
@@ -1279,7 +1284,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await waitForGame(page);
   const { moveTo } = createNavigator(page);
 
-  await moveTo(0, 0, 1.4);
+  await moveTo(0, 6.8, 1.4);
   await expect(page.locator('#context-prompt')).toContainText('camp des Marées');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).campBuilt).toBe(true);
@@ -1289,6 +1294,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await expect(page.getByRole('heading', { name: 'Recrute et place tes renards' })).toBeVisible();
   await recruitUntil(page, 2);
   await closeCrew(page);
+  await completeProjectsUntil(page, 3, moveTo);
   await expect.poll(async () => (await diagnostics(page)).bridgeGuides).toBe(1);
   await moveTo(0, -11.25, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont des Pins');
@@ -1299,7 +1305,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
 
   await moveTo(0, -12.1, 0.5);
   await moveTo(0, -17.9, 0.65);
-  await moveTo(0, -30.4, 1.15);
+  await moveTo(0, -33.8, 1.15);
   await expect(page.locator('#context-prompt')).toContainText('atelier des Pins');
   await page.locator('#action-button').tap();
   await openCrew(page);
@@ -1310,7 +1316,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await upgradeWorker(page, 'Milo');
   await upgradeWorker(page, 'Nila');
   await closeCrew(page);
-  await completeProjectsUntil(page, 3, moveTo);
+  await completeProjectsUntil(page, 6, moveTo);
 
   await moveTo(5.15, -33.44, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont Cuivré');
@@ -1320,7 +1326,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
 
   await moveTo(5.68, -34.11, 0.5);
   await moveTo(10.13, -39.66, 0.65);
-  await moveTo(16, -50.4, 1.2);
+  await moveTo(16, -53.8, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('fonderie Cuivrée');
   await page.locator('#action-button').tap();
   await openCrew(page);
@@ -1332,7 +1338,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await upgradeWorker(page, 'Milo');
   await upgradeWorker(page, 'Nila');
   await closeCrew(page);
-  await completeProjectsUntil(page, 6, moveTo);
+  await completeProjectsUntil(page, 9, moveTo);
 
   await moveTo(10.78, -53.76, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont des Cristaux');
@@ -1343,7 +1349,7 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   // Le cristal découvert, le joueur bâtit désormais le grand Autel sur cette
   // île spécialisée au lieu de retraverser tout l’archipel.
   await moveTo(4.68, -61.64, 0.65);
-  await moveTo(-1, -72.4, 1.2);
+  await moveTo(-1, -75.8, 1.2);
   await expect(page.locator('#context-prompt')).toContainText('Autel du Savoir');
   const preAltar = await diagnostics(page);
   await page.locator('#action-button').tap();
@@ -1385,8 +1391,8 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await moveTo(10.13, -39.66, 0.65);
   await moveTo(10.26, -54.44, 0.65);
   await moveTo(4.68, -61.64, 0.65);
-  await moveTo(2, -67.1, 0.9);
-  await completeProjectsUntil(page, 9, moveTo);
+  await moveTo(5, -65.2, 0.9);
+  await completeProjectsUntil(page, 12, moveTo);
 
   await moveTo(3.97, -75.84, 0.75);
   await expect(page.locator('#context-prompt')).toContainText('Pont de la Couronne');
@@ -1400,8 +1406,8 @@ test('parcourt les cinq chapitres et éveille le Cœur de l’Archipel', async (
   await recruitUntil(page, 8);
   await expect.poll(async () => (await diagnostics(page)).workerLevels).toBeGreaterThanOrEqual(12);
   await closeCrew(page);
-  await completeProjectsUntil(page, 12, moveTo);
-  await expect.poll(async () => (await diagnostics(page)).projects).toBe(12);
+  await completeProjectsUntil(page, 15, moveTo);
+  await expect.poll(async () => (await diagnostics(page)).projects).toBe(15);
 
   await moveTo(15, -91, 1.35);
   await expect(page.locator('#context-prompt')).toContainText('Éveiller le Cœur');

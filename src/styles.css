@@ -203,7 +203,8 @@ button:focus-visible {
 }
 
 .crew-button:not([hidden]) ~ .island-goal {
-  left: max(122px, calc(env(safe-area-inset-left) + 112px));
+  right: max(8px, env(safe-area-inset-right));
+  left: auto;
 }
 
 .talent-button {
@@ -1874,7 +1875,8 @@ button:focus-visible {
 .island-goal {
   position: absolute;
   top: max(62px, calc(env(safe-area-inset-top) + 52px));
-  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  left: auto;
   width: min(264px, 35vw);
   max-height: min(224px, calc(100vh - 148px));
   overflow: hidden;
@@ -2326,7 +2328,8 @@ button:focus-visible {
 
   .island-goal {
     top: 55px;
-    left: 7px;
+    right: 7px;
+    left: auto;
     width: min(218px, 38vw);
     max-height: 158px;
   }

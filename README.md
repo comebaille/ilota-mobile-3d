@@ -18,7 +18,8 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - neuf postes par les bâtiments, dix postes supplémentaires via projets et savoirs, et trois niveaux de rendement ;
 - vraie nurserie, dépôts, atelier, fonderie et Autel du Savoir fondés sur des modèles 3D CC0, assemblés pièce par pièce lors de leur construction et séparés par une marge anti-collision vérifiée ;
 - Autel de Cristal rééquilibré à `78 bois + 68 pierre + 48 cuivre + 24 cristal`, construit directement sur la quatrième île avant l’ouverture de l’arbre ;
-- douze Grands Travaux regroupés dans quatre Maisons à construire après le bâtiment principal de chaque île ; chacune ouvre trois grandes cartes lisibles et allume trois sceaux d’avancement ;
+- quinze Grands Travaux regroupés dans cinq Maisons, dont une dès l’île de départ, à construire après le bâtiment principal de chaque île ; chacune ouvre trois grandes cartes lisibles et allume trois sceaux d’avancement ;
+- trois pôles bâtis en triangle sur chaque île du World 1, repoussés vers les rives tout en gardant le centre et les accès aux ponts dégagés ;
 - HUD paysage compact : l’étape suivante reste visible, le détail des objectifs se déplie à la demande, disparaît définitivement après le paiement du pont, puis des flèches 3D partent du renard et le suivent jusqu’au passage ;
 - tutoriel contextuel réservé aux sauvegardes neuves : dépôt, cargaison, nurserie, objectifs, formations, talents et Nouvelle Marée ;
 - arbre hexagonal à 32 nœuds : futur invisible, doubles prérequis stricts, capacité de cargaison évolutive, tournées complètes, Frappe de maîtrise à deux rangs, Instinct de relève anti-inactivité, Conseil itinérant optionnel, héritage de Marée progressif, pincement tactile robuste, trois sommets et convergence finale très coûteuse ;

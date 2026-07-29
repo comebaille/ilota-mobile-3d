@@ -8,7 +8,7 @@
 - Durée cible des Marées suivantes : 35 à 60 minutes chacune, avec davantage de coûts mais des talents permanents et un départ accélérable.
 - Durée optionnelle : cycle ouvert de Marées et maîtrise d’une constellation de 32 nœuds (363 Savoir pour tout maximiser).
 - État initial : un renard, deux ressources, un kit de dépôt gratuit à assembler et aucun talent.
-- Conclusion d’une Marée : achever douze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
+- Conclusion d’une Marée : achever quinze Grands Travaux, relier cinq îles, couvrir les quatre métiers puis éveiller le Cœur.
 - Conclusion méta : chaque Cœur éveillé permet soit le mode libre, soit une Nouvelle Marée ; après cinq rebirths et la maîtrise totale de l’arbre, le World 2 devient accessible.
 - Nombre de chapitres jouables par Marée : 5.
 
@@ -16,15 +16,15 @@
 
 | Chapitre | État | Durée cible | Objectif | Nouveauté | Mécaniques réutilisées | Déblocage | Climax | Transition |
 |---|---|---:|---|---|---|---|---|---|
-| 1. Camp des Marées | jouable | 8–12 min | Dépôt, nurserie, 2 travailleurs, pont des Pins | Cargaison visible, déchargement, recrutement et affectation bois/pierre | Récolte manuelle | Capacité 3 | Premier pont puis émergence | Accès aux Pins |
-| 2. Atelier des Pins | jouable | 10–15 min | Atelier, équipe de 4, niveau 2 et 3 travaux | Première infrastructure durable | Affectations et vrais trajets | Capacité 5 puis +1 | Pont cuivré | Accès au cuivre |
-| 3. Île Cuivrée | jouable | 10–16 min | Fonderie, cuivrier, équipe de 5 et 6 travaux cumulés | Troisième ressource et industrie | Arbitrage stocks / coûts | Capacité 7, niveau 3 | Pont des Cristaux | Accès au cristal |
-| 4. Autel de Cristal | jouable | 12–18 min | Cristallier, 9 travaux, puis Autel local avec 78 bois, 68 pierre, 48 cuivre et 24 cristal | Quatrième ressource et bâtiment spécialisé | Tous les systèmes précédents et la logistique inter-îles | Capacité 9, métier cristal et arbre physique | Construction de l’Autel puis pont de la Couronne | Accès au Cœur |
-| 5. Cœur de l’Archipel | jouable | 10–16 min | 8 travailleurs, 4 métiers, 12 niveaux, 12 travaux et offrande | Réseau final de l’archipel | Économie et logistique combinées | +5 Savoir des travaux, puis +2 du Cœur | Éveil du Cœur | Mode libre ou rebirth |
+| 1. Camp des Marées | jouable | 8–12 min | Dépôt, nurserie, Maison des Travaux, 3 travaux, 2 travailleurs et pont des Pins | Cargaison visible, déchargement, recrutement et premiers choix d’infrastructure | Récolte manuelle | Capacité 3 puis +1 | Premier pont puis émergence | Accès aux Pins |
+| 2. Atelier des Pins | jouable | 10–15 min | Atelier, équipe de 4, niveau 2 et 6 travaux cumulés | Infrastructure durable | Affectations et vrais trajets | Capacité 5 puis +1 | Pont cuivré | Accès au cuivre |
+| 3. Île Cuivrée | jouable | 10–16 min | Fonderie, cuivrier, équipe de 5 et 9 travaux cumulés | Troisième ressource et industrie | Arbitrage stocks / coûts | Capacité 7, niveau 3 | Pont des Cristaux | Accès au cristal |
+| 4. Autel de Cristal | jouable | 12–18 min | Cristallier, 12 travaux, puis Autel local avec 78 bois, 68 pierre, 48 cuivre et 24 cristal | Quatrième ressource et bâtiment spécialisé | Tous les systèmes précédents et la logistique inter-îles | Capacité 9, métier cristal et arbre physique | Construction de l’Autel puis pont de la Couronne | Accès au Cœur |
+| 5. Cœur de l’Archipel | jouable | 10–16 min | 8 travailleurs, 4 métiers, 12 niveaux, 15 travaux et offrande | Réseau final de l’archipel | Économie et logistique combinées | +5 Savoir des travaux, puis +2 du Cœur | Éveil du Cœur | Mode libre ou rebirth |
 
 ## Méta-progression persistante
 
-Chaque structure, Maison des Travaux et pont rapporte 1 Savoir ; onze Grands Travaux rapportent 1, le Phare de l’unisson en rapporte 3, et le Cœur en rapporte 2. Une Marée complète donne donc 28 Savoir avant la récompense de Nouvelle Marée. Ce revenu ouvre plusieurs choix immédiats, mais aucun sommet en un seul cycle.
+Chaque structure, Maison des Travaux et pont rapporte 1 Savoir ; quatorze Grands Travaux rapportent 1, le Phare de l’unisson en rapporte 3, et le Cœur en rapporte 2. Une Marée complète donne donc 32 Savoir avant la récompense de Nouvelle Marée. Ce revenu ouvre plusieurs choix immédiats, mais aucun sommet en un seul cycle.
 
 L’arbre commence par l’hexagone gratuit **Démarrer**. Il révèle trois portes, puis uniquement les nœuds dont **tous** les prérequis sont acquis. Un nœud à deux entrées reste totalement invisible tant que les deux parents ne sont pas débloqués. Les voies ne sont pas des colonnes isolées : trois savoirs hybrides créent des passerelles, chaque sommet exige un croisement, puis les trois sommets révèlent ensemble le pouvoir final. La carte se déplace d’un doigt et se zoome par pincement à deux doigts. Toucher un hexagone ne dépense rien : une fiche lisible présente d’abord son pouvoir et un bouton séparé confirme l’achat.
 
@@ -82,10 +82,11 @@ Le contenu supplémentaire ne multiplie pas les minerais. Il multiplie les usage
 
 | Palier | Projets | Effets durables | Verrou |
 |---|---|---|---|
-| Pins | Réserve de charpente, Chemins de halage, Entrepôt partagé | +1 poste, vitesse ouvrière +8 %, livraisons +10 % | 3 travaux avant le pont Cuivré |
-| Cuivrée | Scierie commune, Murets de rive, Bureau des plans | récolte manuelle +1, repousse +12 %, investissements −6 % | 6 travaux avant les Cristaux |
-| Cristal | Treuils cuivrés, Rails de débardage, Cour de maintenance | récolte ouvrière +18 %, vitesse +12 %, recrutement/niveaux −15 % | 9 travaux avant la Couronne |
-| Couronne | Balises cristallines, Réservoir prismatique, Phare de l’unisson | repousse +18 %, livraisons +15 % puis +25 %, bonus de Savoir | 12 travaux avant le Cœur |
+| Marées | Établi des bâtisseurs, Bornes des Marées, Terrier communautaire | récolte manuelle +1, vitesse ouvrière +5 %, +1 poste | 3 travaux avant le pont des Pins |
+| Pins | Réserve de charpente, Chemins de halage, Entrepôt partagé | +1 poste, vitesse ouvrière +8 %, livraisons +10 % | 6 travaux avant le pont Cuivré |
+| Cuivrée | Scierie commune, Murets de rive, Bureau des plans | récolte manuelle +1, repousse +12 %, investissements −6 % | 9 travaux avant les Cristaux |
+| Cristal | Treuils cuivrés, Rails de débardage, Cour de maintenance | récolte ouvrière +18 %, vitesse +12 %, recrutement/niveaux −15 % | 12 travaux avant la Couronne |
+| Couronne | Balises cristallines, Réservoir prismatique, Phare de l’unisson | repousse +18 %, livraisons +15 % puis +25 %, bonus de Savoir | 15 travaux avant le Cœur |
 
 Un palier futur n’apparaît qu’après le pont et le bâtiment principal correspondants. La Maison des Travaux locale devient alors un chantier à financer avant d’ouvrir ses trois cartes de projet indépendantes. Elle matérialise leur achèvement par trois sceaux sur sa façade. Les trois travaux restent libres dans leur ordre, sans ajouter trois bâtiments qui surchargeraient l’île.
 
@@ -155,7 +156,7 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 
 ## Contrôle anti-remplissage
 
-- La durée supplémentaire vient des douze choix d’infrastructure, de la logistique, des spécialisations et du cycle persistant, pas de points de vie artificiels.
+- La durée supplémentaire vient des quinze choix d’infrastructure, de la logistique, des spécialisations et du cycle persistant, pas de points de vie artificiels.
 - Les quatre ressources restent utiles dans les coûts jusqu’au Phare ; aucune n’est remplacée par une simple série de nouveaux minerais.
 - Les distances comptent parce que les ouvriers les parcourent réellement ; le talent d’itinéraire change donc une décision mesurable.
 - Un sommet transforme la boucle : équipe autonome, pénurie régénérée ou transport accéléré avec transmission entre les cycles.
@@ -165,14 +166,14 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 ## Preuve de complétion
 
 - Un test automatisé parcourt les cinq chapitres jusqu’au Cœur.
-- Des tests unitaires contrôlent le brouillard strict, les doubles prérequis, la convergence finale, les douze projets, les coûts de rang, le rebirth et l’auto-régulation.
+- Des tests unitaires contrôlent le brouillard strict, les doubles prérequis, la convergence finale, les quinze projets, les coûts de rang, le rebirth et l’auto-régulation.
 - Le graphe de navigation refuse une île sans pont et inclut les deux extrémités de chaque pont utilisé.
 - Un test navigateur réaffecte un ouvrier en mouvement, confirme l’absence de téléportation et échantillonne sa présence sur le réseau marchable.
 - Un test navigateur confirme qu’un ouvrier vide le filon ciblé, en transporte au plus la quantité restante, puis choisit une autre cible.
 - Des tests unitaires vérifient que chaque profil totalise 100 % et qu’aucun cuivre ou cristal ne peut repousser sur les deux premières îles.
 - Un test navigateur fait apparaître les trois voies depuis le nœud gratuit, confirme que le futur reste absent, atteint l’auto-régulation, vérifie l’inspecteur avant achat et simule un pincement tactile.
 - Un test navigateur affiche seize renards, fait défiler la nurserie, ouvre la dernière fiche et confirme que la formation n’y est pas achetable.
-- Un test navigateur achève les douze Grands Travaux depuis les quatre Maisons physiques, une par île, avant d’autoriser le Cœur.
+- Un test navigateur achève les quinze Grands Travaux depuis les cinq Maisons physiques, une par île, avant d’autoriser le Cœur.
 - Un test navigateur ouvre une Maison sur un écran de 568 × 320, vérifie que ses trois cartes restent simultanément lisibles et interdit tout achat fantôme au relâchement du toucher.
 - Des tests de géométrie imposent une marge intérieure aux îles et au moins deux unités libres entre les volumes de tous les bâtiments d’une même île.
 - Un test navigateur traverse les trois ponts, construit l’Autel sur l’île de Cristal pour exactement 78 bois, 68 pierre, 48 cuivre et 24 cristal, puis ouvre l’arbre.

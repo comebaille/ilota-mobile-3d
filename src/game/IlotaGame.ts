@@ -44,6 +44,7 @@ import {
   hasProject,
   hasSkill,
   isProjectVisible,
+  isProjectHallBuilt,
   isProjectHallReady,
   isWarehouseUnlocked,
   isWorldTwoUnlocked,
@@ -482,7 +483,7 @@ export class IlotaGame {
       powerNotifications: progress.powerNotifications,
       powerVfx: progress.powerVfx,
       projects: getCompletedProjectCount(progress),
-      projectHalls: progress.projectHallsBuilt.filter(Boolean).length,
+      projectHalls: progress.projectHallsBuilt.filter(Boolean).length + (isProjectHallBuilt(progress, 0) ? 1 : 0),
       warehouses: progress.warehousesBuilt.filter(Boolean).length,
       playerCargo: getPlayerCargoTotal(progress),
       playerCargoStackHeight: 0,
@@ -919,9 +920,9 @@ export class IlotaGame {
       this.scene.add(rampMesh);
     });
 
-    this.createWorldPortal(new THREE.Vector3(-4, 0, 8.5), 2, 'WORLD 2 · FAILLE DU ZÉNITH', false);
+    this.createWorldPortal(new THREE.Vector3(-7.2, 0, 7.2), 2, 'WORLD 2 · FAILLE DU ZÉNITH', false);
     const base = WORLD_TWO_TERRACES[0]!;
-    this.createWorldPortal(new THREE.Vector3(base.x, base.elevation, base.z + 4.8), 1, 'RETOUR · WORLD 1', true);
+    this.createWorldPortal(new THREE.Vector3(base.x, base.elevation, base.z + 6.3), 1, 'RETOUR · WORLD 1', true);
     this.createWorldTwoDepot();
     this.createWorldTwoResources();
     this.decorateWorldTwo();
@@ -976,8 +977,8 @@ export class IlotaGame {
     const definition: WarehouseDefinition = {
       islandIndex: 0,
       name: 'Refuge des Échos',
-      x: base.x - 5.5,
-      z: base.z + 2,
+      x: base.x - 7,
+      z: base.z,
       radius: 1.45,
       rotation: 1.25,
     };
@@ -1051,7 +1052,7 @@ export class IlotaGame {
 
     const summit = WORLD_TWO_TERRACES[WORLD_TWO_TERRACES.length - 1]!;
     const beacon = this.assets.createBuilding('unityLighthouse', 5.4);
-    beacon.position.set(summit.x, summit.elevation, summit.z + 3.2);
+    beacon.position.set(summit.x, summit.elevation, summit.z + 5.8);
     beacon.rotation.y = Math.PI;
     this.scene.add(beacon);
     const crown = new THREE.Mesh(
@@ -1064,7 +1065,7 @@ export class IlotaGame {
         roughness: 0.18,
       }),
     );
-    crown.position.set(summit.x, summit.elevation + 5.9, summit.z + 3.2);
+    crown.position.set(summit.x, summit.elevation + 5.9, summit.z + 5.8);
     crown.userData.temporalRing = 0.35;
     this.scene.add(crown);
   }
@@ -1785,8 +1786,9 @@ export class IlotaGame {
     this.projects.forEach((entity) => {
       const tierProjects = ISLAND_PROJECTS.filter((project) => project.islandIndex === entity.definition.islandIndex);
       const completed = tierProjects.filter((project) => hasProject(progress, project.id)).length;
-      const accessible = Boolean(progress.bridgesBuilt[entity.definition.islandIndex - 1]);
-      const hallBuilt = Boolean(progress.projectHallsBuilt[entity.definition.islandIndex - 1]);
+      const accessible = entity.definition.islandIndex === 0
+        || Boolean(progress.bridgesBuilt[entity.definition.islandIndex - 1]);
+      const hallBuilt = isProjectHallBuilt(progress, entity.definition.islandIndex);
       const readyToBuild = isProjectHallReady(progress, entity.definition.islandIndex);
       const unlocked = hallBuilt && tierProjects.some((project) => isProjectVisible(progress, project));
       entity.building.visible = accessible && hallBuilt;
@@ -2641,7 +2643,7 @@ export class IlotaGame {
       if (target.visible && near(target.position, entity.definition.radius + 1.15)) return { type: 'structure', entity };
     }
     for (const entity of this.projects) {
-      const hallBuilt = Boolean(this.economy.progress.projectHallsBuilt[entity.definition.islandIndex - 1]);
+      const hallBuilt = isProjectHallBuilt(this.economy.progress, entity.definition.islandIndex);
       const target = hallBuilt ? entity.building : entity.pad;
       if (
         target.visible
@@ -2781,7 +2783,7 @@ export class IlotaGame {
       const { islandIndex, name } = interaction.entity.definition;
       const projects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
       const completed = projects.filter((project) => hasProject(this.economy.progress, project.id)).length;
-      const hallBuilt = Boolean(this.economy.progress.projectHallsBuilt[islandIndex - 1]);
+      const hallBuilt = isProjectHallBuilt(this.economy.progress, islandIndex);
       const hallReady = isProjectHallReady(this.economy.progress, islandIndex);
       const unlocked = projects.some((project) => isProjectVisible(this.economy.progress, project));
       const requirement = projects[0]?.requiresStructure;
@@ -2972,7 +2974,7 @@ export class IlotaGame {
     if (this.interaction.type === 'projects') {
       const entity = this.interaction.entity;
       const { islandIndex } = entity.definition;
-      if (!this.economy.progress.projectHallsBuilt[islandIndex - 1]) {
+      if (!isProjectHallBuilt(this.economy.progress, islandIndex)) {
         const hallCost = getProjectHallCost(this.economy.progress, islandIndex);
         if (this.economy.buildProjectHall(islandIndex)) {
           entity.building.visible = true;
@@ -3281,7 +3283,7 @@ export class IlotaGame {
         '▲',
       );
     } else {
-      this.player.position.set(-1.8, 0, 8.5);
+      this.player.position.set(-4.8, 0, 7.2);
       this.applyWorldPalette(1);
       this.spawnParticles(this.player.position.clone().setY(1), 'crystal', 24);
       this.ui.toast('Retour sur l’Îlot des Marées.');
@@ -3568,7 +3570,8 @@ export class IlotaGame {
     this.diagnostics.powerNotifications = progress.powerNotifications;
     this.diagnostics.powerVfx = progress.powerVfx;
     this.diagnostics.projects = getCompletedProjectCount(progress);
-    this.diagnostics.projectHalls = this.economy.progress.projectHallsBuilt.filter(Boolean).length;
+    this.diagnostics.projectHalls = this.economy.progress.projectHallsBuilt.filter(Boolean).length
+      + (isProjectHallBuilt(this.economy.progress, 0) ? 1 : 0);
     this.diagnostics.warehouses = progress.warehousesBuilt.filter(Boolean).length;
     this.diagnostics.playerCargo = getPlayerCargoTotal(progress);
     this.diagnostics.playerCargoStackHeight = this.playerCargoRack.children.length > 1

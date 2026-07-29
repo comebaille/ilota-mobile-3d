@@ -8,6 +8,9 @@ export type SkillFamily = SkillBranch | 'core' | 'hybrid';
 export type WarehouseState = [boolean, boolean, boolean, boolean, boolean];
 export type ProjectHallState = [boolean, boolean, boolean, boolean];
 export type ProjectId =
+  | 'starter_tools'
+  | 'trail_markers'
+  | 'tidal_nursery'
   | 'timber_reserve'
   | 'towing_paths'
   | 'shared_warehouse'
@@ -188,8 +191,8 @@ export interface SkillDefinition {
 
 export interface IslandProjectDefinition {
   id: ProjectId;
-  tier: 1 | 2 | 3 | 4;
-  islandIndex: 1 | 2 | 3 | 4;
+  tier: 0 | 1 | 2 | 3 | 4;
+  islandIndex: 0 | 1 | 2 | 3 | 4;
   name: string;
   detail: string;
   effect: string;
@@ -232,6 +235,7 @@ const WAREHOUSE_COSTS: readonly Cost[] = [
 ];
 
 const PROJECT_HALL_COSTS: readonly Cost[] = [
+  cost(16, 12),
   cost(18, 14),
   cost(24, 22, 10),
   cost(30, 28, 18, 8),
@@ -309,13 +313,29 @@ export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
 ];
 
 const SKILL_IDS = new Set<SkillId>(SKILL_DEFINITIONS.map((skill) => skill.id));
+const STARTER_PROJECTS = ['starter_tools', 'trail_markers', 'tidal_nursery'] as const;
 const TIER_ONE_PROJECTS = ['timber_reserve', 'towing_paths', 'shared_warehouse'] as const;
 const TIER_TWO_PROJECTS = ['communal_sawmill', 'shore_walls', 'orders_office'] as const;
 const TIER_THREE_PROJECTS = ['copper_winches', 'hauling_rails', 'maintenance_yard'] as const;
 
 export const ISLAND_PROJECTS: readonly IslandProjectDefinition[] = [
   {
-    id: 'timber_reserve', tier: 1, islandIndex: 1, requiresStructure: 'workshop',
+    id: 'starter_tools', tier: 0, islandIndex: 0, requiresStructure: 'camp',
+    name: 'Établi des bâtisseurs', detail: 'Les premiers outils sont rangés et entretenus au même endroit.', effect: 'Récolte manuelle +1.',
+    icon: '⚒', cost: cost(18, 12), knowledge: 1,
+  },
+  {
+    id: 'trail_markers', tier: 0, islandIndex: 0, requiresStructure: 'camp',
+    name: 'Bornes des Marées', detail: 'Des repères simples dégagent les chemins autour de la place.', effect: 'Déplacements ouvriers +5 %.',
+    icon: '⇢', cost: cost(14, 18), knowledge: 1,
+  },
+  {
+    id: 'tidal_nursery', tier: 0, islandIndex: 0, requiresStructure: 'camp',
+    name: 'Terrier communautaire', detail: 'Une première extension accueille un renard supplémentaire.', effect: '+1 place dans la nurserie.',
+    icon: '🦊', cost: cost(22, 16), knowledge: 1,
+  },
+  {
+    id: 'timber_reserve', tier: 1, islandIndex: 1, requiresStructure: 'workshop', requires: STARTER_PROJECTS,
     name: 'Réserve de charpente', detail: 'Un dépôt durable pour que le bois reste stratégique.', effect: '+1 place dans la nurserie.',
     icon: '▰', cost: cost(34, 20), knowledge: 1,
   },
@@ -578,19 +598,24 @@ const projectStructureBuilt = (progress: IslandProgress, kind: StructureKind): b
   }
 };
 
-export const isProjectHallReady = (progress: IslandProgress, islandIndex: 1 | 2 | 3 | 4): boolean => {
+export const isProjectHallBuilt = (progress: IslandProgress, islandIndex: 0 | 1 | 2 | 3 | 4): boolean =>
+  islandIndex === 0
+    ? progress.cycleMilestones.includes('project-hall:0')
+    : Boolean(progress.projectHallsBuilt[islandIndex - 1]);
+
+export const isProjectHallReady = (progress: IslandProgress, islandIndex: 0 | 1 | 2 | 3 | 4): boolean => {
   const requirement = ISLAND_PROJECTS.find((project) => project.islandIndex === islandIndex)?.requiresStructure;
   return Boolean(
     requirement
     && projectStructureBuilt(progress, requirement)
-    && progress.bridgesBuilt[islandIndex - 1],
+    && (islandIndex === 0 || progress.bridgesBuilt[islandIndex - 1]),
   );
 };
 
 export const projectPrerequisitesMet = (progress: IslandProgress, definition: IslandProjectDefinition): boolean =>
   projectStructureBuilt(progress, definition.requiresStructure)
-  && Boolean(progress.bridgesBuilt[definition.islandIndex - 1])
-  && Boolean(progress.projectHallsBuilt[definition.islandIndex - 1])
+  && (definition.islandIndex === 0 || Boolean(progress.bridgesBuilt[definition.islandIndex - 1]))
+  && isProjectHallBuilt(progress, definition.islandIndex)
   && (definition.requires ?? []).every((required) => hasProject(progress, required));
 
 export const isProjectVisible = (progress: IslandProgress, definition: IslandProjectDefinition): boolean =>
@@ -641,8 +666,8 @@ export const getBridgeCost = (progress: IslandProgress, index: number): Cost | n
 export const getFinalCost = (progress: IslandProgress): Cost => scaleCost(progress, FINAL_COST);
 export const getProjectCost = (progress: IslandProgress, definition: IslandProjectDefinition): Cost =>
   scaleCost(progress, definition.cost);
-export const getProjectHallCost = (progress: IslandProgress, islandIndex: 1 | 2 | 3 | 4): Cost =>
-  scaleCost(progress, PROJECT_HALL_COSTS[islandIndex - 1] ?? cost());
+export const getProjectHallCost = (progress: IslandProgress, islandIndex: 0 | 1 | 2 | 3 | 4): Cost =>
+  scaleCost(progress, PROJECT_HALL_COSTS[islandIndex] ?? cost());
 
 export const getWorkerCapacity = (progress: IslandProgress): number => {
   if (!progress.campBuilt) return 0;
@@ -652,6 +677,7 @@ export const getWorkerCapacity = (progress: IslandProgress): number => {
         : 3;
   return buildingCapacity
     + getSkillRank(progress, 'expanded_roster')
+    + (hasProject(progress, 'tidal_nursery') ? 1 : 0)
     + (hasProject(progress, 'timber_reserve') ? 1 : 0)
     + (hasSkill(progress, 'archipelago_consciousness') ? 4 : 0);
 };
@@ -711,6 +737,7 @@ export const getWorkerCycleSeconds = (level: WorkerLevel): number => level === 1
 export const getWorkerTravelSpeed = (level: WorkerLevel, progress: IslandProgress): number =>
   (2.35 + (level - 1) * 0.28)
   * (hasSkill(progress, 'trail_sense') ? 1.18 : 1)
+  * (hasProject(progress, 'trail_markers') ? 1.05 : 1)
   * (hasSkill(progress, 'logistics_network') ? 1.18 : 1)
   * (hasProject(progress, 'towing_paths') ? 1.08 : 1)
   * (hasProject(progress, 'hauling_rails') ? 1.12 : 1)
@@ -731,6 +758,7 @@ export const getTidalRetentionRate = (progress: IslandProgress): number =>
     : 0;
 export const getManualYield = (progress: IslandProgress, kind?: ResourceKind): number =>
   (hasSkill(progress, 'sharp_tools') ? 2 : 1)
+  + (hasProject(progress, 'starter_tools') ? 1 : 0)
   + (hasProject(progress, 'communal_sawmill') ? 1 : 0)
   + (kind && hasSkill(progress, 'adaptive_harvest') && getPriorityShortage(progress) === kind ? 1 : 0);
 export const getRespawnMultiplier = (progress: IslandProgress): number =>
@@ -821,6 +849,8 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
       items = [
         { id: 'warehouse', label: 'Assembler le Dépôt des Marées', done: progress.warehousesBuilt[0] },
         { id: 'camp', label: 'Construire le Camp des Marées', done: progress.campBuilt },
+        { id: 'project-hall', label: 'Construire la Maison des Travaux des Marées', done: isProjectHallBuilt(progress, 0) },
+        { id: 'projects', label: 'Achever les 3 Travaux des Marées', done: completedProjects >= 3 },
         { id: 'workers', label: 'Réunir 2 renards', done: progress.workers.length >= 2 },
         { id: 'wood-job', label: 'Assigner 1 bûcheron', done: hasTask('wood') },
         { id: 'stone-job', label: 'Assigner 1 mineur', done: hasTask('stone') },
@@ -831,10 +861,10 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
       destination = 'Île Cuivrée';
       items = [
         { id: 'workshop', label: 'Construire l’Atelier des Pins', done: progress.workshopBuilt },
-        { id: 'project-hall', label: 'Construire la Maison des Travaux des Pins', done: progress.projectHallsBuilt[0] },
+        { id: 'project-hall', label: 'Construire la Maison des Travaux des Pins', done: isProjectHallBuilt(progress, 1) },
         { id: 'workers', label: 'Réunir 4 renards', done: progress.workers.length >= 4 },
         { id: 'level', label: 'Former 1 renard niveau 2', done: progress.workers.some((worker) => worker.level >= 2) },
-        { id: 'projects', label: 'Achever les 3 Travaux à la Maison des Pins', done: completedProjects >= 3 },
+        { id: 'projects', label: 'Achever les 3 Travaux à la Maison des Pins', done: completedProjects >= 6 },
         { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
       ];
       break;
@@ -842,10 +872,10 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
       destination = 'Île de Cristal';
       items = [
         { id: 'foundry', label: 'Construire la Fonderie Cuivrée', done: progress.foundryBuilt },
-        { id: 'project-hall', label: 'Construire la Maison des Travaux Cuivrée', done: progress.projectHallsBuilt[1] },
+        { id: 'project-hall', label: 'Construire la Maison des Travaux Cuivrée', done: isProjectHallBuilt(progress, 2) },
         { id: 'workers', label: 'Réunir 5 renards', done: progress.workers.length >= 5 },
         { id: 'copper-job', label: 'Assigner 1 cuivrier', done: hasTask('copper') },
-        { id: 'projects', label: 'Achever 6 Grands Travaux', done: completedProjects >= 6 },
+        { id: 'projects', label: 'Achever 9 Grands Travaux', done: completedProjects >= 9 },
         { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
       ];
       break;
@@ -853,21 +883,21 @@ export const getIslandGoal = (progress: IslandProgress, islandIndex: number): Is
       destination = 'Île Couronne';
       items = [
         { id: 'altar', label: 'Bâtir l’Autel du Savoir sur l’île de Cristal', done: progress.observatoryBuilt },
-        { id: 'project-hall', label: 'Construire la Maison des Travaux de Cristal', done: progress.projectHallsBuilt[2] },
+        { id: 'project-hall', label: 'Construire la Maison des Travaux de Cristal', done: isProjectHallBuilt(progress, 3) },
         { id: 'workers', label: 'Réunir 7 renards', done: progress.workers.length >= 7 },
         { id: 'crystal-job', label: 'Assigner 1 cristallier', done: hasTask('crystal') },
         { id: 'levels', label: 'Atteindre 10 niveaux cumulés', done: totalLevels >= 10 },
-        { id: 'projects', label: 'Achever 9 Grands Travaux', done: completedProjects >= 9 },
+        { id: 'projects', label: 'Achever 12 Grands Travaux', done: completedProjects >= 12 },
         { id: 'reserves', label: `Réserver ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
       ];
       break;
     default:
       items = [
-        { id: 'project-hall', label: 'Construire la Maison des Travaux de la Couronne', done: progress.projectHallsBuilt[3] },
+        { id: 'project-hall', label: 'Construire la Maison des Travaux de la Couronne', done: isProjectHallBuilt(progress, 4) },
         { id: 'workers', label: 'Réunir 8 renards', done: progress.workers.length >= 8 },
         { id: 'jobs', label: 'Maintenir les 4 métiers', done: RESOURCE_KINDS.every(hasTask) },
         { id: 'levels', label: 'Atteindre 12 niveaux cumulés', done: totalLevels >= 12 },
-        { id: 'projects', label: 'Achever les 12 Grands Travaux', done: completedProjects >= ISLAND_PROJECTS.length },
+        { id: 'projects', label: 'Achever les 15 Grands Travaux', done: completedProjects >= ISLAND_PROJECTS.length },
         { id: 'offering', label: `Préparer ${formatCost(bridgeCost ?? cost())}`, done: reservesReady },
         { id: 'heart', label: 'Éveiller le Cœur', done: progress.completed },
       ];
@@ -892,34 +922,39 @@ export const getNextProject = (progress: IslandProgress): IslandProjectDefinitio
 export const getNextStrategicCost = (progress: IslandProgress): Cost => {
   if (!progress.warehousesBuilt[0]) return getWarehouseCost(progress, 0) ?? cost();
   if (!progress.campBuilt) return getStructureCost(progress, 'camp');
+  if (!isProjectHallBuilt(progress, 0)) return getProjectHallCost(progress, 0);
+  if (getCompletedProjectCount(progress) < 3) {
+    const nextProject = getNextProject(progress);
+    if (nextProject) return getProjectCost(progress, nextProject);
+  }
   if (progress.workers.length < 2) return getRecruitCost(progress);
   if (!progress.bridgesBuilt[0]) return getBridgeCost(progress, 0) ?? cost();
   if (!progress.workshopBuilt) return getStructureCost(progress, 'workshop');
-  if (!progress.projectHallsBuilt[0]) return getProjectHallCost(progress, 1);
+  if (!isProjectHallBuilt(progress, 1)) return getProjectHallCost(progress, 1);
   if (progress.workers.length < 4) return getRecruitCost(progress);
   if (!progress.workers.some((worker) => worker.level >= 2)) return getUpgradeCost(progress.workers[0] ?? { id: '', name: '', task: 'wood', level: 1 }, progress);
-  if (getCompletedProjectCount(progress) < 3) {
+  if (getCompletedProjectCount(progress) < 6) {
     const nextProject = getNextProject(progress);
     if (nextProject) return getProjectCost(progress, nextProject);
   }
   if (!progress.bridgesBuilt[1]) return getBridgeCost(progress, 1) ?? cost();
   if (!progress.foundryBuilt) return getStructureCost(progress, 'foundry');
-  if (!progress.projectHallsBuilt[1]) return getProjectHallCost(progress, 2);
+  if (!isProjectHallBuilt(progress, 2)) return getProjectHallCost(progress, 2);
   if (progress.workers.length < 5) return getRecruitCost(progress);
-  if (getCompletedProjectCount(progress) < 6) {
+  if (getCompletedProjectCount(progress) < 9) {
     const nextProject = getNextProject(progress);
     if (nextProject) return getProjectCost(progress, nextProject);
   }
   if (!progress.bridgesBuilt[2]) return getBridgeCost(progress, 2) ?? cost();
   if (!progress.observatoryBuilt) return getStructureCost(progress, 'observatory');
-  if (!progress.projectHallsBuilt[2]) return getProjectHallCost(progress, 3);
+  if (!isProjectHallBuilt(progress, 3)) return getProjectHallCost(progress, 3);
   if (progress.workers.length < 7) return getRecruitCost(progress);
-  if (getCompletedProjectCount(progress) < 9) {
+  if (getCompletedProjectCount(progress) < 12) {
     const nextProject = getNextProject(progress);
     if (nextProject) return getProjectCost(progress, nextProject);
   }
   if (!progress.bridgesBuilt[3]) return getBridgeCost(progress, 3) ?? cost();
-  if (!progress.projectHallsBuilt[3]) return getProjectHallCost(progress, 4);
+  if (!isProjectHallBuilt(progress, 4)) return getProjectHallCost(progress, 4);
   if (progress.workers.length < 8) return getRecruitCost(progress);
   if (getCompletedProjectCount(progress) < ISLAND_PROJECTS.length) {
     const nextProject = getNextProject(progress);
@@ -990,19 +1025,21 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
     detail: `${getPlayerCargoTotal(progress)}/${getCargoCapacity(progress)} unités sont visibles sur ton dos.`,
   };
   if (!progress.campBuilt) return { chapter, eyebrow, title: 'Bâtis le camp des Marées', detail: `Coût : ${formatCost(getStructureCost(progress, 'camp'))}` };
+  if (!isProjectHallBuilt(progress, 0)) return { chapter, eyebrow, title: 'Construis la Maison des Travaux des Marées', detail: `Après le Camp · coût : ${formatCost(getProjectHallCost(progress, 0))}` };
+  if (getCompletedProjectCount(progress) < 3) return { chapter, eyebrow, title: 'Aménage l’Îlot des Marées', detail: `${getCompletedProjectCount(progress)}/3 premiers Travaux avant le pont des Pins.` };
   if (progress.workers.length < 2) return { chapter, eyebrow, title: 'Forme ta première équipe', detail: 'Entre dans la nurserie centrale : recrute 2 renards et assigne bois + pierre.' };
   if (!progress.bridgesBuilt[0]) return { chapter, eyebrow, title: 'Ouvre le pont des Pins', detail: `Coût : ${formatCost(getBridgeCost(progress, 0) ?? cost())}` };
   if (!progress.workshopBuilt) return { chapter, eyebrow, title: 'Construis l’atelier des Pins', detail: `Coût : ${formatCost(getStructureCost(progress, 'workshop'))}` };
-  if (!progress.projectHallsBuilt[0]) return { chapter, eyebrow, title: 'Construis la Maison des Travaux des Pins', detail: `Après l’Atelier · coût : ${formatCost(getProjectHallCost(progress, 1))}` };
+  if (!isProjectHallBuilt(progress, 1)) return { chapter, eyebrow, title: 'Construis la Maison des Travaux des Pins', detail: `Après l’Atelier · coût : ${formatCost(getProjectHallCost(progress, 1))}` };
   if (progress.workers.length < 4) return { chapter, eyebrow, title: 'Agrandis l’équipe à 4', detail: 'L’atelier porte la capacité à 5 travailleurs.' };
   if (!progress.workers.some((worker) => worker.level >= 2)) return { chapter, eyebrow, title: 'Forme un travailleur', detail: 'Entre dans l’Atelier des Pins et passe un renard au niveau 2.' };
-  if (getCompletedProjectCount(progress) < 3) return { chapter, eyebrow, title: 'Développe l’île des Pins', detail: `${getCompletedProjectCount(progress)}/3 Grands Travaux avant le pont Cuivré.` };
+  if (getCompletedProjectCount(progress) < 6) return { chapter, eyebrow, title: 'Développe l’île des Pins', detail: `${getCompletedProjectCount(progress)}/6 Grands Travaux avant le pont Cuivré.` };
   if (!progress.bridgesBuilt[1]) return { chapter, eyebrow, title: 'Relie l’île Cuivrée', detail: `Coût : ${formatCost(getBridgeCost(progress, 1) ?? cost())}` };
   if (!progress.foundryBuilt) return { chapter, eyebrow, title: 'Récolte le cuivre et bâtis la fonderie', detail: `Coût : ${formatCost(getStructureCost(progress, 'foundry'))}` };
-  if (!progress.projectHallsBuilt[1]) return { chapter, eyebrow, title: 'Construis la Maison des Travaux Cuivrée', detail: `Après la Fonderie · coût : ${formatCost(getProjectHallCost(progress, 2))}` };
+  if (!isProjectHallBuilt(progress, 2)) return { chapter, eyebrow, title: 'Construis la Maison des Travaux Cuivrée', detail: `Après la Fonderie · coût : ${formatCost(getProjectHallCost(progress, 2))}` };
   if (!progress.workers.some((worker) => worker.task === 'copper')) return { chapter, eyebrow, title: 'Assigne un cuivrier', detail: 'Retourne à la nurserie ; la fonderie autorise désormais le métier cuivre.' };
   if (progress.workers.length < 5) return { chapter, eyebrow, title: 'Dirige au moins 5 travailleurs', detail: 'Diversifie la production avant la prochaine traversée.' };
-  if (getCompletedProjectCount(progress) < 6) return { chapter, eyebrow, title: 'Industrialise l’île Cuivrée', detail: `${getCompletedProjectCount(progress)}/6 Grands Travaux avant les Cristaux.` };
+  if (getCompletedProjectCount(progress) < 9) return { chapter, eyebrow, title: 'Industrialise l’île Cuivrée', detail: `${getCompletedProjectCount(progress)}/9 Grands Travaux avant les Cristaux.` };
   if (!progress.bridgesBuilt[2]) return { chapter, eyebrow, title: 'Ouvre la voie des Cristaux', detail: `Coût : ${formatCost(getBridgeCost(progress, 2) ?? cost())}` };
   if (!progress.observatoryBuilt) return {
     chapter,
@@ -1010,12 +1047,12 @@ export const getObjective = (progress: IslandProgress): ObjectiveCopy => {
     title: 'Bâtis l’Autel sur l’île de Cristal',
     detail: `Le site spécialisé t’attend sur la quatrième île · grand coût : ${formatCost(getStructureCost(progress, 'observatory'))}`,
   };
-  if (!progress.projectHallsBuilt[2]) return { chapter, eyebrow, title: 'Construis la Maison des Travaux de Cristal', detail: `Après l’Autel · coût : ${formatCost(getProjectHallCost(progress, 3))}` };
+  if (!isProjectHallBuilt(progress, 3)) return { chapter, eyebrow, title: 'Construis la Maison des Travaux de Cristal', detail: `Après l’Autel · coût : ${formatCost(getProjectHallCost(progress, 3))}` };
   if (!progress.workers.some((worker) => worker.task === 'crystal')) return { chapter, eyebrow, title: 'Forme un cristallier', detail: 'Retourne à la nurserie et assigne le métier cristal.' };
   if (progress.workers.length < 7 || getTotalWorkerLevels(progress) < 10) return { chapter, eyebrow, title: 'Prépare l’expédition finale', detail: '7 travailleurs et 10 niveaux cumulés requis.' };
-  if (getCompletedProjectCount(progress) < 9) return { chapter, eyebrow, title: 'Équipe l’île de Cristal', detail: `${getCompletedProjectCount(progress)}/9 Grands Travaux avant la Couronne.` };
+  if (getCompletedProjectCount(progress) < 12) return { chapter, eyebrow, title: 'Équipe l’île de Cristal', detail: `${getCompletedProjectCount(progress)}/12 Grands Travaux avant la Couronne.` };
   if (!progress.bridgesBuilt[3]) return { chapter, eyebrow, title: 'Bâtis le pont de la Couronne', detail: `Coût : ${formatCost(getBridgeCost(progress, 3) ?? cost())}` };
-  if (!progress.projectHallsBuilt[3]) return { chapter, eyebrow, title: 'Construis la Maison des Travaux de la Couronne', detail: `Dernier atelier · coût : ${formatCost(getProjectHallCost(progress, 4))}` };
+  if (!isProjectHallBuilt(progress, 4)) return { chapter, eyebrow, title: 'Construis la Maison des Travaux de la Couronne', detail: `Dernier atelier · coût : ${formatCost(getProjectHallCost(progress, 4))}` };
   if (!Economy.finalRequirementsMet(progress)) return { chapter, eyebrow, title: 'Rassemble les quatre métiers', detail: '8 travailleurs, chaque ressource et 12 niveaux cumulés.' };
   if (getCompletedProjectCount(progress) < ISLAND_PROJECTS.length) return { chapter, eyebrow, title: 'Achève le réseau de la Couronne', detail: `${getCompletedProjectCount(progress)}/${ISLAND_PROJECTS.length} Grands Travaux avant le Cœur.` };
   if (!progress.completed) return { chapter, eyebrow, title: 'Éveille le Cœur de l’Archipel', detail: `Offrande : ${formatCost(getFinalCost(progress))}` };
@@ -1246,20 +1283,21 @@ export class Economy {
       case 0:
         return this.progress.campBuilt && workers.length >= 2
           && workers.some((worker) => worker.task === 'wood')
-          && workers.some((worker) => worker.task === 'stone');
+          && workers.some((worker) => worker.task === 'stone')
+          && getCompletedProjectCount(this.progress) >= 3;
       case 1:
         return this.progress.workshopBuilt && workers.length >= 4
           && workers.some((worker) => worker.level >= 2)
-          && getCompletedProjectCount(this.progress) >= 3;
+          && getCompletedProjectCount(this.progress) >= 6;
       case 2:
         return this.progress.foundryBuilt && workers.length >= 5
           && workers.some((worker) => worker.task === 'copper')
-          && getCompletedProjectCount(this.progress) >= 6;
+          && getCompletedProjectCount(this.progress) >= 9;
       case 3:
         return this.progress.observatoryBuilt && workers.length >= 7
           && workers.some((worker) => worker.task === 'crystal')
           && getTotalWorkerLevels(this.progress) >= 10
-          && getCompletedProjectCount(this.progress) >= 9;
+          && getCompletedProjectCount(this.progress) >= 12;
       default:
         return false;
     }
@@ -1300,18 +1338,17 @@ export class Economy {
     return true;
   }
 
-  buildProjectHall(islandIndex: 1 | 2 | 3 | 4): boolean {
-    const slot = islandIndex - 1;
-    if (this.progress.projectHallsBuilt[slot]) return false;
+  buildProjectHall(islandIndex: 0 | 1 | 2 | 3 | 4): boolean {
+    if (isProjectHallBuilt(this.progress, islandIndex)) return false;
     const projects = ISLAND_PROJECTS.filter((project) => project.islandIndex === islandIndex);
     const requirement = projects[0]?.requiresStructure;
     if (
       !requirement
       || !projectStructureBuilt(this.progress, requirement)
-      || !this.progress.bridgesBuilt[slot]
+      || (islandIndex > 0 && !this.progress.bridgesBuilt[islandIndex - 1])
       || !this.spend(getProjectHallCost(this.progress, islandIndex))
     ) return false;
-    this.progress.projectHallsBuilt[slot] = true;
+    if (islandIndex > 0) this.progress.projectHallsBuilt[islandIndex - 1] = true;
     this.awardMilestone(`project-hall:${islandIndex}`);
     return true;
   }

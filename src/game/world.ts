@@ -36,8 +36,8 @@ export interface StructureDefinition extends Point2 {
 }
 
 export interface ProjectHallDefinition extends Point2 {
-  islandIndex: 1 | 2 | 3 | 4;
-  tier: 1 | 2 | 3 | 4;
+  islandIndex: 0 | 1 | 2 | 3 | 4;
+  tier: 0 | 1 | 2 | 3 | 4;
   name: string;
   radius: number;
   color: number;
@@ -132,8 +132,8 @@ export const WORLD_TWO_RAMPS: readonly WorldTwoRampDefinition[] = WORLD_TWO_TERR
   .map((_, index) => ({ from: index, to: index + 1, width: index >= 7 ? 3.6 : 4.2 }));
 
 export const WORLD_TWO_RESOURCES: readonly WorldTwoResourceSpawn[] = [
-  { terraceIndex: 0, kind: 'wood', model: 'treeA', dx: -5.2, dz: -1.7, capacity: 10, scale: 1.02, respawnSeconds: 13, rarity: 'Bois de montagne' },
-  { terraceIndex: 0, kind: 'stone', model: 'rock', dx: 5, dz: -1.8, capacity: 10, scale: 1.05, respawnSeconds: 14, rarity: 'Schiste ancien' },
+  { terraceIndex: 0, kind: 'wood', model: 'treeA', dx: -3.8, dz: -3.8, capacity: 10, scale: 1.02, respawnSeconds: 13, rarity: 'Bois de montagne' },
+  { terraceIndex: 0, kind: 'stone', model: 'rock', dx: 3.8, dz: -3.8, capacity: 10, scale: 1.05, respawnSeconds: 14, rarity: 'Schiste ancien' },
   { terraceIndex: 1, kind: 'wood', model: 'treeB', dx: -3.7, dz: -1.5, capacity: 11, scale: 1.06, respawnSeconds: 15, rarity: 'Pin ferrique' },
   { terraceIndex: 1, kind: 'stone', model: 'rock', dx: 3.6, dz: -1.6, capacity: 11, scale: 1.08, respawnSeconds: 16, rarity: 'Schiste ancien' },
   { terraceIndex: 2, kind: 'stone', model: 'rock', dx: -3.8, dz: -1.5, capacity: 12, scale: 1.1, respawnSeconds: 17, rarity: 'Roche dense' },
@@ -261,20 +261,20 @@ export const BRIDGES: readonly BridgeDefinition[] = [
 ];
 
 export const STRUCTURES: readonly StructureDefinition[] = [
-  { kind: 'camp', name: 'Camp des Marées', x: 0, z: 0, radius: 1.65, color: 0xf2b958, rotation: Math.PI },
+  { kind: 'camp', name: 'Camp des Marées', x: 0, z: 6.8, radius: 1.65, color: 0xf2b958, rotation: Math.PI },
   // Sur chaque île, bâtiment principal, dépôt et Maison dessinent un triangle
   // lisible dont les façades regardent la place centrale.
-  { kind: 'workshop', name: 'Atelier des Pins', x: 0, z: -30.4, radius: 1.65, color: 0xe29449, rotation: 0 },
-  { kind: 'foundry', name: 'Fonderie Cuivrée', x: 16, z: -50.4, radius: 1.75, color: 0xd47743, rotation: 0 },
-  { kind: 'observatory', name: 'Autel du Savoir', x: -1, z: -72.4, radius: 1.75, color: 0xb9afe9, rotation: 0 },
+  { kind: 'workshop', name: 'Atelier des Pins', x: 0, z: -33.8, radius: 1.65, color: 0xe29449, rotation: 0 },
+  { kind: 'foundry', name: 'Fonderie Cuivrée', x: 16, z: -53.8, radius: 1.75, color: 0xd47743, rotation: 0 },
+  { kind: 'observatory', name: 'Autel du Savoir', x: -1, z: -75.8, radius: 1.75, color: 0xb9afe9, rotation: 0 },
 ];
 
 export const WAREHOUSES: readonly WarehouseDefinition[] = [
-  { islandIndex: 0, name: 'Dépôt des Marées', x: -5.2, z: 1.2, radius: 1.45, rotation: 0.22 },
-  { islandIndex: 1, name: 'Dépôt des Pins', x: -3, z: -25.1, radius: 1.45, rotation: 2.14 },
-  { islandIndex: 2, name: 'Dépôt Cuivré', x: 13, z: -45.1, radius: 1.45, rotation: 2.14 },
-  { islandIndex: 3, name: 'Dépôt de Cristal', x: -4, z: -67.1, radius: 1.45, rotation: 2.14 },
-  { islandIndex: 4, name: 'Dépôt de la Couronne', x: 12, z: -89.1, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 0, name: 'Dépôt des Marées', x: -7, z: -3.8, radius: 1.45, rotation: 2.08 },
+  { islandIndex: 1, name: 'Dépôt des Pins', x: -6, z: -23.2, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 2, name: 'Dépôt Cuivré', x: 9.5, z: -43.8, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 3, name: 'Dépôt de Cristal', x: -7, z: -65.2, radius: 1.45, rotation: 2.14 },
+  { islandIndex: 4, name: 'Dépôt de la Couronne', x: 8.5, z: -87.8, radius: 1.45, rotation: 2.14 },
 ];
 
 /**
@@ -282,10 +282,11 @@ export const WAREHOUSES: readonly WarehouseDefinition[] = [
  * trois sceaux indiquent physiquement l'avancement des trois projets locaux.
  */
 export const PROJECT_HALLS: readonly ProjectHallDefinition[] = [
-  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: 3, z: -25.1, radius: 1.35, color: 0xd89a4c, rotation: -2.14 },
-  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 19, z: -45.1, radius: 1.35, color: 0xc97a4a, rotation: -2.14 },
-  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: 2, z: -67.1, radius: 1.35, color: 0x9a8fc4, rotation: -2.14 },
-  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 18, z: -89.1, radius: 1.35, color: 0xf2b958, rotation: -2.14 },
+  { islandIndex: 0, tier: 0, name: 'Maison des Travaux des Marées', x: 7, z: -3.8, radius: 1.35, color: 0xe2ad57, rotation: -2.08 },
+  { islandIndex: 1, tier: 1, name: 'Maison des Travaux des Pins', x: 6, z: -23.2, radius: 1.35, color: 0xd89a4c, rotation: -2.14 },
+  { islandIndex: 2, tier: 2, name: 'Maison des Travaux Cuivrée', x: 22, z: -43.2, radius: 1.35, color: 0xc97a4a, rotation: -2.14 },
+  { islandIndex: 3, tier: 3, name: 'Maison des Travaux de Cristal', x: 5, z: -65.2, radius: 1.35, color: 0x9a8fc4, rotation: -2.14 },
+  { islandIndex: 4, tier: 4, name: 'Maison des Travaux de la Couronne', x: 21, z: -87.2, radius: 1.35, color: 0xf2b958, rotation: -2.14 },
 ];
 
 /**
@@ -332,41 +333,41 @@ export const CACHES: readonly CacheDefinition[] = [
 ];
 
 export const RESOURCE_SPAWNS: readonly ResourceSpawn[] = [
-  { kind: 'wood', model: 'treeA', x: 0, z: 8, capacity: 5, scale: 0.78, respawnSeconds: 10 },
-  { kind: 'wood', model: 'treeB', x: -7.5, z: 6, capacity: 7, scale: 0.9, respawnSeconds: 13 },
-  { kind: 'wood', model: 'treeA', x: -10, z: 1, capacity: 4, scale: 0.7, respawnSeconds: 9 },
+  { kind: 'wood', model: 'treeA', x: 4, z: 9, capacity: 5, scale: 0.78, respawnSeconds: 10 },
+  { kind: 'wood', model: 'treeB', x: -3, z: 10, capacity: 7, scale: 0.9, respawnSeconds: 13 },
+  { kind: 'wood', model: 'treeA', x: -10, z: 0, capacity: 4, scale: 0.7, respawnSeconds: 9 },
   { kind: 'wood', model: 'treeB', x: -7, z: -7, capacity: 8, scale: 0.98, respawnSeconds: 14 },
   { kind: 'wood', model: 'treeA', x: 6.5, z: 7, capacity: 6, scale: 0.84, respawnSeconds: 11 },
   { kind: 'wood', model: 'treeB', x: -2, z: -9.5, capacity: 5, scale: 0.8, respawnSeconds: 10 },
-  { kind: 'stone', model: 'rock', x: 8, z: 3, capacity: 5, scale: 0.82, respawnSeconds: 11 },
-  { kind: 'stone', model: 'rock', x: 9, z: -3, capacity: 7, scale: 0.98, respawnSeconds: 14 },
+  { kind: 'stone', model: 'rock', x: 10, z: 4, capacity: 5, scale: 0.82, respawnSeconds: 11 },
+  { kind: 'stone', model: 'rock', x: 10, z: -4.5, capacity: 7, scale: 0.98, respawnSeconds: 14 },
   { kind: 'stone', model: 'rock', x: 6, z: -8, capacity: 4, scale: 0.72, respawnSeconds: 9 },
-  { kind: 'stone', model: 'rock', x: -9, z: -5, capacity: 6, scale: 0.88, respawnSeconds: 12 },
+  { kind: 'stone', model: 'rock', x: -5, z: -9.5, capacity: 6, scale: 0.88, respawnSeconds: 12 },
   { kind: 'stone', model: 'rock', x: 2.5, z: 10, capacity: 5, scale: 0.8, respawnSeconds: 10 },
 
-  { kind: 'wood', model: 'treeA', x: -6.8, z: -21.8, capacity: 7, scale: 0.92, respawnSeconds: 12 },
+  { kind: 'wood', model: 'treeA', x: -3, z: -20, capacity: 7, scale: 0.92, respawnSeconds: 12 },
   { kind: 'wood', model: 'treeB', x: 5.2, z: -20.2, capacity: 9, scale: 1.04, respawnSeconds: 15 },
   { kind: 'wood', model: 'treeA', x: -6.6, z: -32.2, capacity: 6, scale: 0.84, respawnSeconds: 11 },
   { kind: 'wood', model: 'treeB', x: 6.8, z: -31.3, capacity: 8, scale: 0.96, respawnSeconds: 14 },
   { kind: 'stone', model: 'rock', x: 8, z: -26.7, capacity: 6, scale: 0.88, respawnSeconds: 12 },
   { kind: 'stone', model: 'rock', x: -7.8, z: -27, capacity: 5, scale: 0.8, respawnSeconds: 11 },
 
-  { kind: 'copper', x: 9.5, z: -44.5, capacity: 6, scale: 0.82, respawnSeconds: 13 },
+  { kind: 'copper', x: 12, z: -47, capacity: 6, scale: 0.82, respawnSeconds: 13 },
   { kind: 'copper', x: 19, z: -39.7, capacity: 8, scale: 0.98, respawnSeconds: 16 },
   { kind: 'copper', x: 24, z: -49, capacity: 9, scale: 1.08, respawnSeconds: 18 },
-  { kind: 'copper', x: 18.5, z: -55, capacity: 7, scale: 0.9, respawnSeconds: 15 },
+  { kind: 'copper', x: 20, z: -55.5, capacity: 7, scale: 0.9, respawnSeconds: 15 },
   { kind: 'stone', model: 'rock', x: 23, z: -53.3, capacity: 7, scale: 0.92, respawnSeconds: 14 },
   { kind: 'wood', model: 'treeA', x: 9.5, z: -51, capacity: 7, scale: 0.9, respawnSeconds: 13 },
 
-  { kind: 'crystal', x: -8.2, z: -63.8, capacity: 5, scale: 0.8, respawnSeconds: 14 },
+  { kind: 'crystal', x: -4, z: -61.5, capacity: 5, scale: 0.8, respawnSeconds: 14 },
   { kind: 'crystal', x: 5.8, z: -62.5, capacity: 7, scale: 0.98, respawnSeconds: 17 },
   { kind: 'crystal', x: 7, z: -72, capacity: 8, scale: 1.08, respawnSeconds: 19 },
   { kind: 'crystal', x: -7, z: -75, capacity: 6, scale: 0.9, respawnSeconds: 16 },
-  { kind: 'copper', x: -1, z: -78, capacity: 7, scale: 0.88, respawnSeconds: 15 },
+  { kind: 'copper', x: -4, z: -78, capacity: 7, scale: 0.88, respawnSeconds: 15 },
   { kind: 'wood', model: 'treeB', x: 7.5, z: -68, capacity: 8, scale: 0.92, respawnSeconds: 14 },
 
-  { kind: 'wood', model: 'treeA', x: 9, z: -85.5, capacity: 9, scale: 1.02, respawnSeconds: 15 },
-  { kind: 'stone', model: 'rock', x: 21, z: -85.5, capacity: 9, scale: 1.05, respawnSeconds: 16 },
+  { kind: 'wood', model: 'treeA', x: 13, z: -84, capacity: 9, scale: 1.02, respawnSeconds: 15 },
+  { kind: 'stone', model: 'rock', x: 17, z: -84, capacity: 9, scale: 1.05, respawnSeconds: 16 },
   { kind: 'copper', x: 9, z: -96.5, capacity: 9, scale: 1.02, respawnSeconds: 17 },
   { kind: 'crystal', x: 21, z: -96.5, capacity: 9, scale: 1.08, respawnSeconds: 19 },
 ];

@@ -5,6 +5,7 @@ import {
   BUILDING_PLACEMENTS,
   ISLANDS,
   RESOURCE_SPAWN_PROFILES,
+  RESOURCE_SPAWNS,
   WORLD_TWO_RAMPS,
   WORLD_TWO_RESOURCES,
   WORLD_TWO_TERRACES,
@@ -13,6 +14,21 @@ import {
   getWorldTwoSurfaceAt,
   pickResourceKindForIsland,
 } from './world';
+import { BRIDGE_GEOMETRIES } from './pathfinding';
+
+const distanceToSegment = (
+  point: { x: number; z: number },
+  start: { x: number; z: number },
+  end: { x: number; z: number },
+): number => {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const lengthSquared = dx * dx + dz * dz;
+  const ratio = Math.max(0, Math.min(1, (
+    (point.x - start.x) * dx + (point.z - start.z) * dz
+  ) / Math.max(0.001, lengthSquared)));
+  return Math.hypot(point.x - (start.x + dx * ratio), point.z - (start.z + dz * ratio));
+};
 
 describe('profils de repousse par île', () => {
   it('publie des pourcentages complets et respecte les ressources interdites', () => {
@@ -71,13 +87,41 @@ describe('implantation des bâtiments', () => {
     });
   });
 
+  it('écarte tous les bâtiments des accès aux ponts', () => {
+    BUILDING_PLACEMENTS.forEach((building) => {
+      BRIDGE_GEOMETRIES
+        .filter((bridge) => bridge.fromIsland === building.islandIndex || bridge.toIsland === building.islandIndex)
+        .forEach((bridge) => {
+          expect(
+            distanceToSegment(building, bridge.start, bridge.end) - building.radius,
+            `${building.name} gêne l’accès au pont ${bridge.index + 1}`,
+          ).toBeGreaterThanOrEqual(2.2);
+        });
+    });
+  });
+
+  it('évite de superposer les bâtiments et les ressources', () => {
+    BUILDING_PLACEMENTS.forEach((building) => {
+      RESOURCE_SPAWNS
+        .filter((resource) => findIslandIndexForPoint(resource.x, resource.z) === building.islandIndex)
+        .forEach((resource) => {
+          const resourceRadius = Math.max(0.55, resource.scale * 0.8);
+          expect(
+            Math.hypot(building.x - resource.x, building.z - resource.z)
+              - building.radius - resourceRadius,
+            `${building.name} chevauche une ressource`,
+          ).toBeGreaterThanOrEqual(0.4);
+        });
+    });
+  });
+
   it('place l’Autel du Savoir comme bâtiment spécialisé de l’île de Cristal', () => {
     expect(BUILDING_PLACEMENTS.find((building) => building.id === 'structure:observatory'))
-      .toMatchObject({ islandIndex: 3, x: -1, z: -72.4 });
+      .toMatchObject({ islandIndex: 3, x: -1, z: -75.8 });
   });
 
   it('dessine trois pôles équilibrés autour de la place de chaque île spécialisée', () => {
-    [1, 2, 3].forEach((islandIndex) => {
+    [0, 1, 2, 3].forEach((islandIndex) => {
       const island = ISLANDS[islandIndex]!;
       const buildings = BUILDING_PLACEMENTS.filter((building) => building.islandIndex === islandIndex);
       expect(buildings).toHaveLength(3);

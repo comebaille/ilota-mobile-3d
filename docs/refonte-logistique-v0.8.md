@@ -133,7 +133,7 @@ qu’une seule fois, à la fin de l’animation.
 - Remplacer la tente centrale par un vrai bâtiment de nurserie.
 - Garder les bâtiments principaux imposants.
 - Regrouper les trois Grands Travaux de chaque île dans une seule Maison des
-  Travaux, avec le même modèle 3D sur les quatre îles.
+  Travaux, avec le même modèle 3D sur les cinq îles.
 - Afficher trois sceaux physiques sur cette Maison pour matérialiser les projets
   déjà achevés sans ajouter trois bâtiments supplémentaires.
 - Tous les bâtiments continuent à se construire par assemblage visible de leurs
