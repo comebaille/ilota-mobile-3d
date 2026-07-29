@@ -1477,18 +1477,35 @@ export class Economy {
   static restore(raw: string | null): Economy {
     if (!raw) return new Economy();
     try {
+      const restoreCompatible = (initial: Partial<IslandProgress>): Economy => {
+        const economy = new Economy(initial);
+        // Avant la Maison des Marées, le premier pont n’exigeait pas ces
+        // trois Travaux. Une ancienne partie déjà rendue aux Pins les reçoit
+        // donc sans altérer son total historique de Savoir.
+        if (economy.progress.bridgesBuilt[0]) {
+          economy.progress.projectsCompleted = [
+            ...STARTER_PROJECTS,
+            ...economy.progress.projectsCompleted.filter((id) =>
+              !STARTER_PROJECTS.includes(id as typeof STARTER_PROJECTS[number])),
+          ];
+          if (!economy.progress.cycleMilestones.includes('project-hall:0')) {
+            economy.progress.cycleMilestones.push('project-hall:0');
+          }
+        }
+        return economy;
+      };
       const value = JSON.parse(raw) as Partial<IslandProgress> | VersionEightProgress | VersionSevenProgress | VersionSixProgress | VersionFiveProgress | VersionFourProgress | VersionThreeProgress | VersionTwoProgress | LegacyProgress;
-      if (value.version === 9) return new Economy(value as Partial<IslandProgress>);
+      if (value.version === 9) return restoreCompatible(value as Partial<IslandProgress>);
       if (value.version === 8) {
         const previous = value as VersionEightProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({ ...migrated, currentWorld: 1, worldTwoPeakReached: false });
+        return restoreCompatible({ ...migrated, currentWorld: 1, worldTwoPeakReached: false });
       }
       if (value.version === 7) {
         const previous = value as VersionSevenProgress;
         const { version: _previousVersion, ...migrated } = previous;
         const completed = new Set(previous.projectsCompleted ?? []);
-        return new Economy({
+        return restoreCompatible({
           ...migrated,
           projectHallsBuilt: ([1, 2, 3, 4] as const).map((islandIndex) =>
             ISLAND_PROJECTS.some((project) =>
@@ -1498,7 +1515,7 @@ export class Economy {
       if (value.version === 6) {
         const previous = value as VersionSixProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({
+        return restoreCompatible({
           ...migrated,
           // Les notifications automatiques sont volontairement silencieuses
           // après migration pour supprimer immédiatement le spam existant.
@@ -1509,7 +1526,7 @@ export class Economy {
       if (value.version === 5) {
         const previous = value as VersionFiveProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({
+        return restoreCompatible({
           ...migrated,
           warehousesBuilt: legacyWarehouses(previous),
           playerCargo: cost(),
@@ -1521,7 +1538,7 @@ export class Economy {
       if (value.version === 4) {
         const previous = value as VersionFourProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({
+        return restoreCompatible({
           ...migrated,
           projectsCompleted: [],
           warehousesBuilt: legacyWarehouses(previous),
@@ -1531,7 +1548,7 @@ export class Economy {
       if (value.version === 3) {
         const previous = value as VersionThreeProgress;
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({
+        return restoreCompatible({
           ...migrated,
           skillRanks: {},
           warehousesBuilt: legacyWarehouses(previous),
@@ -1543,7 +1560,7 @@ export class Economy {
         const milestones = inferMilestones(previous);
         const knowledge = milestones.reduce((sum, id) => sum + (id === 'heart' ? 2 : 1), 0);
         const { version: _previousVersion, ...migrated } = previous;
-        return new Economy({
+        return restoreCompatible({
           ...migrated,
           knowledge,
           cycleMilestones: milestones,
@@ -1557,7 +1574,7 @@ export class Economy {
         if (legacy.woodWorker) workers.push({ id: 'worker-1', name: WORKER_NAMES[0]!, task: 'wood', level: 1 });
         if (legacy.stoneWorker) workers.push({ id: 'worker-2', name: WORKER_NAMES[1]!, task: 'stone', level: 1 });
         const milestones = [legacy.campBuilt ? 'structure:camp' : '', legacy.bridgeBuilt ? 'bridge:0' : ''].filter(Boolean);
-        return new Economy({
+        return restoreCompatible({
           wood: nonNegativeInteger(legacy.wood),
           stone: nonNegativeInteger(legacy.stone),
           campBuilt: Boolean(legacy.campBuilt),

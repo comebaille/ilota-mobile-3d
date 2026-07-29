@@ -9,6 +9,7 @@ import {
   getBridgeCost,
   getCargoCapacity,
   getCycleMultiplier,
+  getObjective,
   getIslandGoal,
   getPlayerCargoTotal,
   getPlayerFlowMultiplier,
@@ -58,6 +59,24 @@ const maximizedSkillTree = (): Pick<IslandProgress, 'skills' | 'skillRanks'> => 
 });
 
 describe('Economy v9', () => {
+  it('préserve le chapitre 2 des anciennes sauvegardes ayant déjà franchi le pont des Pins', () => {
+    const restored = Economy.restore(JSON.stringify({
+      version: 1,
+      campBuilt: true,
+      bridgeBuilt: true,
+      woodWorker: true,
+      stoneWorker: true,
+    }));
+    expect(restored.progress.bridgesBuilt[0]).toBe(true);
+    expect(restored.progress.projectsCompleted).toEqual(expect.arrayContaining([
+      'starter_tools',
+      'trail_markers',
+      'tidal_nursery',
+    ]));
+    expect(isProjectHallBuilt(restored.progress, 0)).toBe(true);
+    expect(getObjective(restored.progress).title).toBe('Construis l’atelier des Pins');
+  });
+
   it('rend l’Autel du Savoir atteignable en trois voyages de cristal de base', () => {
     const cost = getStructureCost(new Economy().progress, 'observatory');
     expect(cost).toEqual({ wood: 78, stone: 68, copper: 48, crystal: 24 });
@@ -213,7 +232,11 @@ describe('Economy v9', () => {
     }));
     expect(restored.progress).toMatchObject({ version: 9, wood: 17, stone: 13, campBuilt: true, completed: false, knowledge: 2 });
     expect(restored.progress.warehousesBuilt).toEqual([true, false, false, false, false]);
-    expect(restored.progress.projectsCompleted).toEqual([]);
+    expect(restored.progress.projectsCompleted).toEqual([
+      'starter_tools',
+      'trail_markers',
+      'tidal_nursery',
+    ]);
     expect(restored.progress.bridgesBuilt).toEqual([true, false, false, false]);
     expect(restored.progress.workers.map((worker) => worker.task)).toEqual(['wood', 'stone']);
     expect(restored.progress.cachesFound).toContain('main-cache');
@@ -241,10 +264,10 @@ describe('Economy v9', () => {
       elapsedSeconds: 600,
     }));
     expect(restored.progress).toMatchObject({ version: 9, completed: true, knowledge: 10, rebirths: 0 });
-    expect(restored.progress.cycleMilestones).toHaveLength(9);
+    expect(restored.progress.cycleMilestones).toHaveLength(10);
   });
 
-  it('migre une sauvegarde v4 sans inventer de Grands Travaux', () => {
+  it('migre une sauvegarde v4 en validant seulement les Travaux désormais placés avant son pont', () => {
     const restored = Economy.restore(JSON.stringify({
       version: 4,
       wood: 73,
@@ -262,7 +285,7 @@ describe('Economy v9', () => {
       stone: 51,
       campBuilt: true,
       workshopBuilt: true,
-      projectsCompleted: [],
+      projectsCompleted: ['starter_tools', 'trail_markers', 'tidal_nursery'],
     });
     expect(restored.progress.skills).toEqual(expect.arrayContaining(['awakening', 'insight_gateway', 'trail_sense']));
   });
