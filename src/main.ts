@@ -79,6 +79,8 @@ interface IlotaWindow extends Window {
     pixelRatio: number;
     maximumFps: number;
     shadowsEnabled: boolean;
+    adminOpen: boolean;
+    portalActivationStreak: number;
   };
 }
 

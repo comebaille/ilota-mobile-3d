@@ -8,6 +8,7 @@ import {
 import {
   Economy,
   ISLAND_PROJECTS,
+  SKILL_DEFINITIONS,
   RESOURCE_ICONS,
   RESOURCE_KINDS,
   RESOURCE_LABELS,
@@ -124,7 +125,7 @@ import {
   type StructureDefinition,
   type WarehouseDefinition,
 } from './world';
-import { GameUI } from '../ui/GameUI';
+import { GameUI, type AdminAction } from '../ui/GameUI';
 
 interface ResourceNode {
   readonly id: string;
@@ -442,6 +443,8 @@ interface Diagnostics {
   pixelRatio: number;
   maximumFps: number;
   shadowsEnabled: boolean;
+  adminOpen: boolean;
+  portalActivationStreak: number;
 }
 
 const SAVE_KEY = 'ilota-save-v1';
@@ -589,6 +592,7 @@ export class IlotaGame {
   private industryVfxCooldown = 0;
   private explorationFlowCooldown = 4;
   private explorationFlowRemaining = 0;
+  private portalActivationStreak = 0;
   private worldTravelAnimation: WorldTravelAnimation | null = null;
 
   constructor(
@@ -712,6 +716,8 @@ export class IlotaGame {
       pixelRatio: this.renderer.getPixelRatio(),
       maximumFps: this.profileConfig.maximumFps,
       shadowsEnabled: this.profileConfig.shadows,
+      adminOpen: false,
+      portalActivationStreak: 0,
     };
     this.ui.update(progress);
     this.animate();
@@ -812,6 +818,10 @@ export class IlotaGame {
       onOpenChange,
       onNewTide: () => this.beginNewTide(),
       onReset: () => this.resetProgress(),
+    });
+    this.ui.bindAdminHandlers({
+      onOpenChange,
+      onAction: (action) => this.runAdminAction(action),
     });
   }
 
@@ -4322,13 +4332,25 @@ export class IlotaGame {
     if (this.interaction.type === 'portal') {
       const destination = this.interaction.entity.destination;
       if (destination === 2 && !isWorldTwoUnlocked(this.economy.progress)) {
+        this.portalActivationStreak += 1;
+        this.diagnostics.portalActivationStreak = this.portalActivationStreak;
+        if (this.portalActivationStreak >= 11) {
+          this.portalActivationStreak = 0;
+          this.diagnostics.portalActivationStreak = 0;
+          this.feedback.play('level');
+          this.ui.showAdmin();
+          return;
+        }
         const completion = getSkillTreeCompletion(this.economy.progress);
         this.ui.toast(`World 2 verrouillé · Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · Savoirs ${completion.completed}/${completion.total}.`);
         return;
       }
+      this.portalActivationStreak = 0;
       this.travelToWorld(destination);
       return;
     }
+
+    this.portalActivationStreak = 0;
 
     if (this.interaction.type === 'worldTwoDen') {
       const worker = this.economy.hireWorldTwoWolf();
@@ -5031,6 +5053,35 @@ export class IlotaGame {
     this.save();
   }
 
+  private runAdminAction(action: AdminAction): void {
+    const progress = this.economy.progress;
+    if (action === 'world-one-supplies') {
+      RESOURCE_KINDS.forEach((kind) => {
+        progress[kind] = Math.min(999_999_999, progress[kind] + 9_999);
+      });
+      progress.knowledge = Math.min(999_999_999, progress.knowledge + 999);
+      this.ui.toast('ADMIN · stocks du World 1 et Savoir ajoutés.');
+    } else if (action === 'unlock-world-two') {
+      progress.rebirths = Math.max(5, progress.rebirths);
+      progress.skills = SKILL_DEFINITIONS.map((definition) => definition.id);
+      progress.skillRanks = {};
+      SKILL_DEFINITIONS.forEach((definition) => {
+        progress.skillRanks[definition.id] = definition.maxRank ?? 1;
+      });
+      this.ui.toast('ADMIN · portail du World 2 déverrouillé.');
+    } else if (action === 'world-two-fortune') {
+      progress.worldTwoMoney = Math.min(999_999_999, progress.worldTwoMoney + 1_000_000);
+      progress.worldTwoLifetimeMoney = Math.max(progress.worldTwoLifetimeMoney, progress.worldTwoMoney);
+      this.ui.toast('ADMIN · 1 000 000 d’argent ajouté au World 2.');
+    } else {
+      progress.worldTwoFangLevel = 30;
+      progress.worldTwoWolfFangLevel = 30;
+      this.ui.toast('ADMIN · crocs du joueur et de la meute au niveau maximum.');
+    }
+    this.feedback.play('build');
+    this.changed();
+  }
+
   private activateHeart(withBurst: boolean): void {
     this.heartLight.intensity = 24;
     const material = this.heartCore.material as THREE.MeshStandardMaterial;
@@ -5339,6 +5390,8 @@ export class IlotaGame {
     this.diagnostics.projectsOpen = this.ui.isProjectsOpen;
     this.diagnostics.talentOpen = this.ui.isTalentOpen;
     this.diagnostics.menuOpen = this.ui.isMenuOpen;
+    this.diagnostics.adminOpen = this.ui.isAdminOpen;
+    this.diagnostics.portalActivationStreak = this.portalActivationStreak;
     this.diagnostics.knowledge = progress.knowledge;
     this.diagnostics.rebirths = progress.rebirths;
     this.diagnostics.skills = progress.skills.join(',');
