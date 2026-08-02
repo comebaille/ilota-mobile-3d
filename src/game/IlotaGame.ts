@@ -89,7 +89,6 @@ import {
   chooseUninformedResourceIndex,
   isPointOnWalkableNetwork,
   planRoute,
-  WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH,
   type PlannedRoute,
 } from './pathfinding';
 import {
@@ -224,7 +223,6 @@ interface BridgeEntity {
   guide: THREE.Group;
   start: THREE.Vector3;
   end: THREE.Vector3;
-  visualWidth: number;
 }
 
 interface StructureEntity {
@@ -331,8 +329,6 @@ interface Diagnostics {
   bridgeBuilt: boolean;
   bridges: number;
   bridgeVisualParts: number;
-  bridgeVisualWidth: number;
-  bridgeWalkableWidth: number;
   bridgeGuides: number;
   chapter: number;
   cacheFound: boolean;
@@ -424,10 +420,6 @@ interface Diagnostics {
 const SAVE_KEY = 'ilota-save-v1';
 const SAVE_BACKUP_KEY = 'ilota-save-backup-v1';
 const HIDDEN_ISLAND_Y = -8.5;
-// Le centre du renard peut emprunter 4,4 m. Le tablier garde donc un mètre
-// visuel de sécurité de chaque côté afin que son corps ne flotte jamais hors
-// du pont lorsqu'il longe un bord.
-const WORLD_ONE_BRIDGE_MIN_VISUAL_WIDTH = WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH * 2 + 2;
 const WORKER_FEEL = {
   arrivalSeconds: 0.95,
   levelUpSeconds: 1.15,
@@ -619,12 +611,6 @@ export class IlotaGame {
       bridgeVisualParts: this.bridges
         .filter((bridge) => progress.bridgesBuilt[bridge.index])
         .reduce((total, bridge) => total + bridge.root.children.length, 0),
-      bridgeVisualWidth: progress.bridgesBuilt.some(Boolean)
-        ? Math.min(...this.bridges
-          .filter((bridge) => progress.bridgesBuilt[bridge.index])
-          .map((bridge) => bridge.visualWidth))
-        : 0,
-      bridgeWalkableWidth: WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH * 2,
       bridgeGuides: 0,
       chapter: getChapter(progress),
       cacheFound: progress.cachesFound.includes('main-cache'),
@@ -1904,16 +1890,8 @@ export class IlotaGame {
     bridge.add(bridgeModel);
     bridge.updateMatrixWorld(true);
     const naturalSize = new THREE.Box3().setFromObject(bridge).getSize(new THREE.Vector3());
-    const bridgeLengthScale = (length + 1.15) / Math.max(0.001, naturalSize.z);
-    const visualWidth = Math.max(
-      WORLD_ONE_BRIDGE_MIN_VISUAL_WIDTH,
-      naturalSize.x * bridgeLengthScale,
-    );
-    bridge.scale.set(
-      visualWidth / Math.max(0.001, naturalSize.x),
-      bridgeLengthScale,
-      bridgeLengthScale,
-    );
+    const bridgeScale = (length + 1.15) / Math.max(0.001, naturalSize.z);
+    bridge.scale.setScalar(bridgeScale);
     bridge.position.lerpVectors(start, end, 0.5).setY(0.015);
     bridge.rotation.y = yaw;
     bridge.userData.bridgePlank = 0;
@@ -1952,7 +1930,7 @@ export class IlotaGame {
     }
     guide.visible = false;
     this.addToIsland(guide, from.x, from.z);
-    this.bridges.push({ index, definition, root, pad, guide, start, end, visualWidth });
+    this.bridges.push({ index, definition, root, pad, guide, start, end });
   }
 
   private createWarehouse(definition: WarehouseDefinition): void {
@@ -3192,8 +3170,7 @@ export class IlotaGame {
       return accessible && Math.hypot(position.x - island.x, position.z - island.z) <= island.radius - 0.42;
     });
     onTerrain = onIsland || this.bridges.some((bridge) => this.economy.progress.bridgesBuilt[bridge.index]
-      && this.distanceToSegmentSquared(position, bridge.start, bridge.end)
-        <= WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH ** 2);
+      && this.distanceToSegmentSquared(position, bridge.start, bridge.end) <= 2.2 * 2.2);
     return onTerrain;
   }
 
@@ -5111,12 +5088,6 @@ export class IlotaGame {
     this.diagnostics.bridgeVisualParts = this.bridges
       .filter((bridge) => progress.bridgesBuilt[bridge.index])
       .reduce((total, bridge) => total + bridge.root.children.length, 0);
-    this.diagnostics.bridgeVisualWidth = progress.bridgesBuilt.some(Boolean)
-      ? Math.min(...this.bridges
-        .filter((bridge) => progress.bridgesBuilt[bridge.index])
-        .map((bridge) => bridge.visualWidth))
-      : 0;
-    this.diagnostics.bridgeWalkableWidth = WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH * 2;
     this.diagnostics.bridgeGuides = this.bridges.filter((bridge) => bridge.guide.visible).length;
     this.diagnostics.chapter = getChapter(progress);
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');

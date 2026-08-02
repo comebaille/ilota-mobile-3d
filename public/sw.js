@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v20-1-wide-world-one-bridges';
+const CACHE = 'ilota-v20-2-restored-world-one-bridges';
 const CORE = [
   './',
   './index.html',

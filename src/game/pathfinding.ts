@@ -1,7 +1,5 @@
 import { BRIDGES, ISLANDS, type BridgeDefinition, type IslandDefinition, type Point2 } from './world';
 
-export const WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH = 2.2;
-
 export interface BridgeGeometry {
   index: number;
   fromIsland: number;
@@ -95,7 +93,7 @@ const findStartCandidates = (
   if (island >= 0) return [{ island, prefix: [] }];
 
   const nearby = builtGeometries(builtBridges, bridges)
-    .filter((bridge) => distanceToSegment(start, bridge.start, bridge.end) <= WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH + 0.05)
+    .filter((bridge) => distanceToSegment(start, bridge.start, bridge.end) <= 2.25)
     .sort((a, b) => distanceToSegment(start, a.start, a.end) - distanceToSegment(start, b.start, b.end))[0];
   if (!nearby) return [];
   return [
@@ -206,6 +204,4 @@ export const isPointOnWalkableNetwork = (
   islands: readonly IslandDefinition[] = ISLANDS,
   bridges: readonly BridgeGeometry[] = BRIDGE_GEOMETRIES,
 ): boolean => findIslandAt(point, islands) >= 0
-  || builtGeometries(builtBridges, bridges).some(
-    (bridge) => distanceToSegment(point, bridge.start, bridge.end) <= WORLD_ONE_BRIDGE_WALKABLE_HALF_WIDTH,
-  );
+  || builtGeometries(builtBridges, bridges).some((bridge) => distanceToSegment(point, bridge.start, bridge.end) <= 2.2);
