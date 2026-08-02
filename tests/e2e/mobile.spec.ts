@@ -19,6 +19,9 @@ interface IlotaDiagnostics {
   workerTasks: string;
   bridges: number;
   bridgeVisualParts: number;
+  bridgePlanks: number;
+  bridgesBuilding: number;
+  scaledBridgePlanks: number;
   bridgeGuides: number;
   chapter: number;
   completed: boolean;
@@ -391,7 +394,7 @@ test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', as
   expect((await diagnostics(page)).worldTwoPortalUnlocked).toBe(false);
 });
 
-test('chaque liaison du World 1 utilise un seul pont complet', async ({ page }) => {
+test('les ponts du World 1 retrouvent leurs planches et leurs cordages procéduraux', async ({ page }) => {
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     bridgesBuilt: [true, true, true, true],
@@ -399,7 +402,37 @@ test('chaque liaison du World 1 utilise un seul pont complet', async ({ page }) 
   });
   await waitForGame(page);
   expect((await diagnostics(page)).bridges).toBe(4);
-  expect((await diagnostics(page)).bridgeVisualParts).toBe(4);
+  const state = await diagnostics(page);
+  expect(state.bridgePlanks).toBeGreaterThan(60);
+  expect(state.bridgeVisualParts - state.bridgePlanks).toBe(8);
+  expect(await page.evaluate(() => performance.getEntriesByType('resource')
+    .some((entry) => entry.name.includes('kaykit-bridge')))).toBe(false);
+  await page.screenshot({ path: 'test-results/ilota-procedural-wooden-bridges.png' });
+});
+
+test('un nouveau pont se construit réellement planche par planche', async ({ page }) => {
+  await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
+    ...richSave(),
+    campBuilt: true,
+    projectHallsBuilt: [true, false, false, false],
+    projectsCompleted: ['starter_tools', 'trail_markers', 'tidal_nursery'],
+    workers: [
+      { id: 'worker-1', name: 'Milo', task: 'wood', level: 1 },
+      { id: 'worker-2', name: 'Nila', task: 'stone', level: 1 },
+    ],
+    tutorialSeen: ['welcome', 'pins-logistics'],
+  });
+  await waitForGame(page);
+  const { moveTo } = createNavigator(page);
+  await moveTo(0, -11.25, 0.75);
+  await expect(page.locator('#context-prompt')).toContainText('Pont des Pins');
+  await page.locator('#action-button').tap();
+  await expect.poll(async () => (await diagnostics(page)).bridges).toBe(1);
+  await expect.poll(async () => (await diagnostics(page)).bridgesBuilding).toBe(1);
+  await expect.poll(async () => (await diagnostics(page)).scaledBridgePlanks).toBeGreaterThan(1);
+  await page.screenshot({ path: 'test-results/ilota-bridge-plank-construction.png' });
+  await expect.poll(async () => (await diagnostics(page)).bridgesBuilding, { timeout: 4_000 }).toBe(0);
+  expect((await diagnostics(page)).scaledBridgePlanks).toBe(0);
 });
 
 test('le portail anime l’aller vers le World 2 puis permet le retour au World 1', async ({ page }) => {

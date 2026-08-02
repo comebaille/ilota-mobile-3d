@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v20-2-restored-world-one-bridges';
+const CACHE = 'ilota-v20-3-procedural-wooden-bridges';
 const CORE = [
   './',
   './index.html',
@@ -70,9 +70,6 @@ const CORE = [
   './assets/third-party/quaternius-ultimate-monsters/BlueDemon.glb',
   './assets/third-party/quaternius-ultimate-monsters/Ghost_Skull.glb',
   './assets/third-party/quaternius-ultimate-monsters/Yeti.glb',
-  './assets/third-party/kaykit-bridge/building_bridge_A.gltf',
-  './assets/third-party/kaykit-bridge/building_bridge_A.bin',
-  './assets/third-party/kaykit-bridge/hexagons_medieval.png',
 ];
 
 self.addEventListener('install', (event) => {

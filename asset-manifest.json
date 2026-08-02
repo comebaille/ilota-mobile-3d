@@ -134,12 +134,10 @@
       "license": "CC0-1.0",
       "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
       "local_paths": [
-        "public/assets/third-party/kaykit-buildings",
-        "public/assets/third-party/kaykit-bridge"
+        "public/assets/third-party/kaykit-buildings"
       ],
       "used_for": [
-        "World 1 buildings",
-        "World 1 bridges"
+        "World 1 buildings"
       ],
       "modifications": "Original glTF modules are normalized, oriented toward island centers, and assembled with local construction animation"
     },

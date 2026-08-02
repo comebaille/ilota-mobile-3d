@@ -16,7 +16,6 @@ export type WorldTwoAssetKind =
   | 'silver'
   | 'gold'
   | 'coal'
-  | 'bridge'
   | WorldTwoEnemyKind;
 export type BuildingKind =
   | 'camp'
@@ -79,7 +78,6 @@ const WORLD_TWO_ASSET_PATHS: Record<WorldTwoAssetKind, string> = {
   silver: 'assets/third-party/kaykit-resources/Silver_Nuggets.gltf',
   gold: 'assets/third-party/kaykit-resources/Gold_Nuggets.gltf',
   coal: 'assets/third-party/kaykit-resources/Stone_Chunks_Large.gltf',
-  bridge: 'assets/third-party/kaykit-bridge/building_bridge_A.gltf',
   enemyDemon: 'assets/third-party/quaternius-ultimate-monsters/BlueDemon.glb',
   enemyYeti: 'assets/third-party/quaternius-ultimate-monsters/Yeti.glb',
   enemyWraith: 'assets/third-party/quaternius-ultimate-monsters/Ghost_Skull.glb',

@@ -59,11 +59,9 @@ Les notices et liens de provenance détaillés sont conservés à côté des fic
 - **Ultimate Monsters**, Quaternius — démon bleu, spectre volant et yéti avec
   locomotion, attaque, réaction et mort, CC0 :
   https://quaternius.com/packs/ultimatemonsters.html
-- **KayKit Medieval Hexagon Bridge**, Kay Lousberg — pontons du World 1, CC0 :
-  https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
-
 ## Créations originales
 
 Le monde, les plateformes fonctionnelles, la progression par dureté de crocs,
-le sentier terrestre de la transition, les effets, l’interface et l’icône
-d’Ilota ont été créés spécialement pour ce projet.
+le sentier terrestre de la transition, les ponts en bois procéduraux, leurs
+animations planche par planche, les effets, l’interface et l’icône d’Ilota ont
+été créés spécialement pour ce projet.

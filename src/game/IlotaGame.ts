@@ -329,6 +329,9 @@ interface Diagnostics {
   bridgeBuilt: boolean;
   bridges: number;
   bridgeVisualParts: number;
+  bridgePlanks: number;
+  bridgesBuilding: number;
+  scaledBridgePlanks: number;
   bridgeGuides: number;
   chapter: number;
   cacheFound: boolean;
@@ -611,6 +614,13 @@ export class IlotaGame {
       bridgeVisualParts: this.bridges
         .filter((bridge) => progress.bridgesBuilt[bridge.index])
         .reduce((total, bridge) => total + bridge.root.children.length, 0),
+      bridgePlanks: this.bridges
+        .filter((bridge) => progress.bridgesBuilt[bridge.index])
+        .reduce((total, bridge) => total + bridge.root.children.filter(
+          (child) => typeof child.userData.bridgePlank === 'number',
+        ).length, 0),
+      bridgesBuilding: 0,
+      scaledBridgePlanks: 0,
       bridgeGuides: 0,
       chapter: getChapter(progress),
       cacheFound: progress.cachesFound.includes('main-cache'),
@@ -1878,26 +1888,36 @@ export class IlotaGame {
     const end = vec(to.x, to.z).addScaledVector(direction, -(to.radius - 0.7));
     const bridgeVector = end.clone().sub(start);
     const length = bridgeVector.length();
+    const count = Math.max(6, Math.ceil(length / 0.5));
     const root = new THREE.Group();
+    const plankMaterial = new THREE.MeshStandardMaterial({ color: 0xa16a3d, roughness: 0.9, flatShading: true });
     const yaw = Math.atan2(bridgeVector.x, bridgeVector.z);
-    // KayKit fournit déjà un pont entier. Le répéter créait une succession
-    // d’arches complètes ; une seule instance est ici ajustée au passage.
-    const bridgeModel = this.assets.createWorldTwoAsset('bridge', 0.82);
-    // Ce modèle est conçu autour d’un tablier à Y=0 et de piles sous l’eau.
-    // La normalisation générique est donc annulée uniquement pour ce pont.
-    bridgeModel.position.set(0, 0, 0);
-    const bridge = new THREE.Group();
-    bridge.add(bridgeModel);
-    bridge.updateMatrixWorld(true);
-    const naturalSize = new THREE.Box3().setFromObject(bridge).getSize(new THREE.Vector3());
-    const bridgeScale = (length + 1.15) / Math.max(0.001, naturalSize.z);
-    bridge.scale.setScalar(bridgeScale);
-    bridge.position.lerpVectors(start, end, 0.5).setY(0.015);
-    bridge.rotation.y = yaw;
-    bridge.userData.bridgePlank = 0;
-    bridge.userData.bridgeBaseScale = bridge.scale.clone();
-    bridge.name = `pont-asset-complet:${definition.id}`;
-    root.add(bridge);
+    for (let plankIndex = 0; plankIndex <= count; plankIndex += 1) {
+      const ratio = plankIndex / count;
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(3.05, 0.2, 0.48), plankMaterial);
+      plank.position.lerpVectors(start, end, ratio).setY(0.03 + Math.sin(plankIndex * 0.8) * 0.035);
+      plank.rotation.y = yaw + Math.sin(plankIndex * 1.23) * 0.025;
+      plank.castShadow = true;
+      plank.receiveShadow = true;
+      plank.userData.bridgePlank = ratio;
+      plank.name = `pont-planche:${definition.id}:${plankIndex}`;
+      root.add(plank);
+    }
+
+    const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x);
+    [-1.62, 1.62].forEach((side) => {
+      const ropeStart = start.clone().addScaledVector(perpendicular, side).setY(0.36);
+      const ropeEnd = end.clone().addScaledVector(perpendicular, side).setY(0.36);
+      const ropeDirection = ropeEnd.clone().sub(ropeStart);
+      const rope = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.052, 0.052, ropeDirection.length(), 7),
+        new THREE.MeshStandardMaterial({ color: 0x5d4028, roughness: 1 }),
+      );
+      rope.position.lerpVectors(ropeStart, ropeEnd, 0.5);
+      rope.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ropeDirection.normalize());
+      rope.name = `pont-cordage:${definition.id}`;
+      root.add(rope);
+    });
     root.visible = false;
     this.scene.add(root);
 
@@ -4286,10 +4306,7 @@ export class IlotaGame {
         root.userData.growingBridge = true;
         root.userData.bridgeBuildElapsed = 0;
         root.children.forEach((child) => {
-          if (typeof child.userData.bridgePlank !== 'number') return;
-          const baseScale = child.userData.bridgeBaseScale as THREE.Vector3 | undefined;
-          if (baseScale) child.scale.copy(baseScale).multiplyScalar(0.03);
-          else child.scale.setScalar(0.03);
+          if (typeof child.userData.bridgePlank === 'number') child.scale.setScalar(0.03);
         });
         this.revealIsland(definition.toIsland);
         this.ui.toast(`${definition.name} terminé · nouvelle île · +1 Savoir`);
@@ -4925,9 +4942,7 @@ export class IlotaGame {
           if (typeof child.userData.bridgePlank !== 'number') return;
           const local = THREE.MathUtils.clamp((progress - child.userData.bridgePlank * 0.68) / 0.32, 0, 1);
           const eased = 1 - Math.pow(1 - local, 3);
-          const baseScale = child.userData.bridgeBaseScale as THREE.Vector3 | undefined;
-          if (baseScale) child.scale.copy(baseScale).multiplyScalar(Math.max(0.03, eased));
-          else child.scale.setScalar(Math.max(0.03, eased));
+          child.scale.setScalar(Math.max(0.03, eased));
         });
         if (progress >= 1) object.userData.growingBridge = false;
       }
@@ -5088,6 +5103,20 @@ export class IlotaGame {
     this.diagnostics.bridgeVisualParts = this.bridges
       .filter((bridge) => progress.bridgesBuilt[bridge.index])
       .reduce((total, bridge) => total + bridge.root.children.length, 0);
+    const builtBridges = this.bridges.filter((bridge) => progress.bridgesBuilt[bridge.index]);
+    this.diagnostics.bridgePlanks = builtBridges.reduce(
+      (total, bridge) => total + bridge.root.children.filter(
+        (child) => typeof child.userData.bridgePlank === 'number',
+      ).length,
+      0,
+    );
+    this.diagnostics.bridgesBuilding = builtBridges.filter((bridge) => bridge.root.userData.growingBridge).length;
+    this.diagnostics.scaledBridgePlanks = builtBridges.reduce(
+      (total, bridge) => total + bridge.root.children.filter((child) =>
+        typeof child.userData.bridgePlank === 'number'
+        && (child.scale.x < 0.99 || child.scale.y < 0.99 || child.scale.z < 0.99)).length,
+      0,
+    );
     this.diagnostics.bridgeGuides = this.bridges.filter((bridge) => bridge.guide.visible).length;
     this.diagnostics.chapter = getChapter(progress);
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');
