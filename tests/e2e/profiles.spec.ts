@@ -35,15 +35,64 @@ const start = async (page: Page): Promise<void> => {
   if (await tutorial.isVisible()) await page.locator('#tutorial-continue-button').click();
 };
 
+const expectProfilePickerInsideCard = async (page: Page): Promise<void> => {
+  const layout = await page.evaluate(() => {
+    const card = document.querySelector<HTMLElement>('.title-card')!.getBoundingClientRect();
+    return Array.from(document.querySelectorAll<HTMLElement>('.profile-option')).map((option) => {
+      const bounds = option.getBoundingClientRect();
+      return {
+        label: option.querySelector('strong')?.textContent ?? '',
+        left: bounds.left,
+        right: bounds.right,
+        cardLeft: card.left,
+        cardRight: card.right,
+        horizontalOverflow: option.scrollWidth - option.clientWidth,
+        verticalOverflow: option.scrollHeight - option.clientHeight,
+      };
+    });
+  });
+  layout.forEach((option) => {
+    expect(option.left, `${option.label} dépasse à gauche`).toBeGreaterThanOrEqual(option.cardLeft - 1);
+    expect(option.right, `${option.label} dépasse à droite`).toBeLessThanOrEqual(option.cardRight + 1);
+    expect(option.horizontalOverflow, `${option.label} coupe son texte horizontalement`).toBeLessThanOrEqual(1);
+    expect(option.verticalOverflow, `${option.label} coupe son texte verticalement`).toBeLessThanOrEqual(1);
+  });
+};
+
+const expectVisibleTextFits = async (page: Page, selector: string): Promise<void> => {
+  const overflows = await page.locator(selector).evaluateAll((elements) => elements
+    .filter((element) => {
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return bounds.width > 0 && bounds.height > 0 && style.visibility !== 'hidden';
+    })
+    .map((element) => ({
+      text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 80) ?? '',
+      overflow: (element as HTMLElement).scrollWidth - (element as HTMLElement).clientWidth,
+    }))
+    .filter((entry) => entry.text && entry.overflow > 2));
+  expect(overflows, `Textes coupés dans ${selector}`).toEqual([]);
+};
+
 test('le lancement présente clairement les trois formats', async ({ page }) => {
   await openWithProfile(page, 'iphone');
   await expect(page.locator('.profile-picker')).toBeVisible();
   await expect(page.locator('.profile-option')).toHaveCount(3);
   await expect(page.locator('[data-game-profile="iphone"]')).toHaveAttribute('aria-pressed', 'true');
+  await expectProfilePickerInsideCard(page);
   await page.locator('[data-game-profile="tablet"]').click();
   await expect(page.locator('html')).toHaveAttribute('data-profile', 'tablet');
   await expect(page.getByRole('button', { name: /commencer.*tablette/i })).toBeVisible();
+  await expectProfilePickerInsideCard(page);
   await page.screenshot({ path: 'test-results/profile-selector.png' });
+  await page.locator('[data-game-profile="iphone"]').click();
+  await start(page);
+  const goal = page.locator('#island-goal');
+  await page.locator('#island-goal-toggle').click();
+  await expect(goal).toHaveClass(/expanded/);
+  await expectVisibleTextFits(page, '#island-goal strong, #island-goal small, #island-goal li');
+  await expectVisibleTextFits(page, '.resource-chip span, .resource-chip small, .objective strong');
+  await page.screenshot({ path: 'test-results/profile-iphone-current.png' });
 });
 
 test('le profil tablette allège le rendu et garde les objectifs lisibles', async ({ page }) => {
@@ -62,12 +111,17 @@ test('le profil tablette allège le rendu et garde les objectifs lisibles', asyn
   expect(width).toBeGreaterThanOrEqual(280);
   const wordBreak = await goal.evaluate((element) => getComputedStyle(element).wordBreak);
   expect(wordBreak).toBe('normal');
+  await page.locator('#island-goal-toggle').click();
+  await expect(goal).toHaveClass(/expanded/);
+  await expectVisibleTextFits(page, '#island-goal strong, #island-goal small, #island-goal li');
   await page.screenshot({ path: 'test-results/profile-tablet-light.png' });
 });
 
 test('le profil PC active le HUD bureau et les commandes AZERTY', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWithProfile(page, 'pc');
+  await expectProfilePickerInsideCard(page);
   await start(page);
   const before = await state(page);
   expect(before.gameProfile).toBe('pc');
@@ -75,6 +129,12 @@ test('le profil PC active le HUD bureau et les commandes AZERTY', async ({ page 
   expect(before.shadowsEnabled).toBe(true);
   await expect(page.locator('#touch-controls')).toBeHidden();
   await expect(page.locator('.pc-controls-hint')).toBeVisible();
+  const goal = page.locator('#island-goal');
+  await page.locator('#island-goal-toggle').click();
+  await expect(goal).toHaveClass(/expanded/);
+  await expectVisibleTextFits(page, '#island-goal strong, #island-goal small, #island-goal li');
+  await expectVisibleTextFits(page, '.resource-chip strong, .resource-chip small, .objective strong');
+  await page.screenshot({ path: 'test-results/profile-pc-high.png' });
 
   await page.keyboard.down('KeyZ');
   await page.waitForTimeout(450);

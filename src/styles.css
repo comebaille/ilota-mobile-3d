@@ -3866,7 +3866,9 @@ html.world-travel::after {
 
 /* v0.22 — profils explicites iPhone, tablette légère et PC haute qualité. */
 .profile-picker {
-  width: min(700px, 88vw);
+  width: 100%;
+  max-width: 700px;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -3886,6 +3888,7 @@ html.world-travel::after {
 }
 
 .profile-option {
+  width: 100%;
   min-width: 0;
   min-height: 72px;
   display: grid;
@@ -3926,12 +3929,16 @@ html.world-travel::after {
 }
 
 .profile-option strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
   align-self: end;
   font-size: 12px;
   letter-spacing: 0.04em;
 }
 
 .profile-option small {
+  min-width: 0;
+  overflow-wrap: anywhere;
   align-self: start;
   color: rgba(255, 247, 219, 0.62);
   font-size: 7.5px;
@@ -3966,6 +3973,7 @@ html[data-profile="tablet"] .objective {
 html[data-profile="tablet"] .island-goal {
   width: clamp(280px, 31vw, 390px);
   max-height: calc(100vh - 102px);
+  pointer-events: auto;
 }
 
 html[data-profile="tablet"] .island-goal.expanded {
@@ -4131,11 +4139,116 @@ html[data-profile="pc"] .island-goal {
   pointer-events: auto;
 }
 
-html[data-profile="pc"] .island-goal ul { max-height: 350px; }
+html[data-profile="pc"] .island-goal header {
+  min-height: 0;
+  display: block;
+  padding: 0;
+}
+
+html[data-profile="pc"] .island-goal header > button {
+  width: 100%;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+html[data-profile="pc"] .island-goal-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--ink);
+  background: var(--sun);
+  font-size: 20px;
+}
+
+html[data-profile="pc"] .island-goal-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-profile="pc"] .island-goal-heading small {
+  overflow: hidden;
+  color: var(--sun-bright);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-profile="pc"] .island-goal-heading strong {
+  overflow-wrap: normal;
+  word-break: normal;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+html[data-profile="pc"] .island-goal header b {
+  min-width: 40px;
+  padding: 7px;
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--sun);
+  font-size: 10px;
+  text-align: center;
+}
+
+html[data-profile="pc"] .island-goal-chevron {
+  color: var(--sun-bright);
+  font-size: 18px;
+}
+
+html[data-profile="pc"] .island-goal-next {
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 7px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(5, 31, 28, 0.23);
+}
+
+html[data-profile="pc"] .island-goal-next small {
+  color: #9bd481;
+  font-size: 7px;
+  font-weight: 950;
+}
+
+html[data-profile="pc"] .island-goal-next strong {
+  overflow-wrap: normal;
+  word-break: normal;
+  font-size: 10px;
+}
+
+html[data-profile="pc"] .island-goal ul {
+  max-height: 350px;
+  display: none;
+}
+
+html[data-profile="pc"] .island-goal.expanded ul { display: block; }
+html[data-profile="pc"] .island-goal.expanded .island-goal-next { display: none; }
 
 html[data-profile="pc"] .context-prompt {
   bottom: 28px;
   min-width: 420px;
+}
+
+@media (max-width: 1180px) {
+  html[data-profile="pc"] .objective {
+    left: 126px;
+    width: min(330px, 30vw);
+    transform: none;
+  }
 }
 
 html[data-profile="pc"] .rotate-screen { display: none; }
@@ -4146,4 +4259,15 @@ html[data-profile="pc"] .rotate-screen { display: none; }
   .profile-icon { width: 29px; height: 34px; font-size: 18px; }
   .profile-option small { font-size: 6.5px; }
   .title-card > p:not(.kicker), .mini-guide { display: none; }
+}
+
+@media (max-width: 620px) and (orientation: landscape) {
+  .title-card { padding-inline: 18px; }
+  .profile-picker { gap: 6px; }
+  .profile-option {
+    grid-template-columns: 27px minmax(0, 1fr);
+    column-gap: 6px;
+    padding-inline: 7px;
+  }
+  .profile-icon { width: 27px; }
 }
