@@ -52,6 +52,7 @@ import {
   type SkillId,
   type WorldTwoSkillId,
 } from '../game/economy';
+import { applyGameProfile, GAME_PROFILE_CONFIGS, type GameProfile } from '../game/platform';
 import { ISLANDS, RESOURCE_SPAWN_PROFILES, WORLD_TWO_TERRACES } from '../game/world';
 
 type InstallPrompt = Event & {
@@ -128,6 +129,7 @@ export class GameUI {
   readonly actionButton = byId<HTMLButtonElement>('action-button');
   readonly actionLabel = byId<HTMLElement>('action-label');
   readonly actionIcon = byId<HTMLElement>('action-icon');
+  readonly profileButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-game-profile]'));
   private readonly startScreen = byId<HTMLElement>('start-screen');
   private readonly loadingScreen = byId<HTMLElement>('loading-screen');
   private readonly loadingBar = byId<HTMLElement>('loading-bar');
@@ -265,6 +267,7 @@ export class GameUI {
   private projectInputReadyAt = 0;
   private tutorialCloseHandler: (() => void) | null = null;
   private lastLevelUpKey = '';
+  private gameProfile: GameProfile = 'iphone';
 
   constructor() {
     const vfxBase = new URL(
@@ -274,6 +277,12 @@ export class GameUI {
     document.documentElement.style.setProperty('--vfx-lightning', `url("${vfxBase}/lightning.png")`);
     document.documentElement.style.setProperty('--vfx-tide', `url("${vfxBase}/tide.png")`);
     document.documentElement.style.setProperty('--vfx-convergence', `url("${vfxBase}/convergence.png")`);
+    this.profileButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const profile = button.dataset.gameProfile as GameProfile | undefined;
+        if (profile) this.setGameProfile(profile);
+      });
+    });
     window.addEventListener('beforeinstallprompt', (event) => {
       event.preventDefault();
       this.installPrompt = event as InstallPrompt;
@@ -443,6 +452,22 @@ export class GameUI {
         `${this.islandGoalExpanded ? 'Réduire' : 'Afficher'} toutes les étapes de cette île`,
       );
     });
+  }
+
+  get selectedGameProfile(): GameProfile {
+    return this.gameProfile;
+  }
+
+  setGameProfile(profile: GameProfile, persist = true): void {
+    this.gameProfile = profile;
+    applyGameProfile(profile, persist);
+    this.profileButtons.forEach((button) => {
+      const selected = button.dataset.gameProfile === profile;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    const verb = this.startButton.textContent?.startsWith('REPRENDRE') ? 'REPRENDRE' : 'COMMENCER';
+    this.startButton.textContent = `${verb} · ${GAME_PROFILE_CONFIGS[profile].label.toUpperCase()}`;
   }
 
   bindCrewHandlers(handlers: CrewHandlers): void {

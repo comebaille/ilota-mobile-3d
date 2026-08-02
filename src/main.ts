@@ -2,6 +2,7 @@ import './styles.css';
 import { AssetLibrary } from './game/assets';
 import { IlotaGame, restoreEconomy } from './game/IlotaGame';
 import { FeedbackController } from './game/feedback';
+import { restoreGameProfile, type GameProfile } from './game/platform';
 import { GameUI } from './ui/GameUI';
 
 interface IlotaWindow extends Window {
@@ -74,6 +75,10 @@ interface IlotaWindow extends Window {
     explorationFlow: boolean;
     rebirthAnimation: boolean;
     fps: number;
+    gameProfile: GameProfile;
+    pixelRatio: number;
+    maximumFps: number;
+    shadowsEnabled: boolean;
   };
 }
 
@@ -86,10 +91,12 @@ const launch = async (): Promise<void> => {
   const assets = new AssetLibrary();
   const feedback = new FeedbackController();
   ui.updateFeedbackSettings(feedback.soundEnabled, feedback.hapticsEnabled);
+  const initialProfile = restoreGameProfile();
+  ui.setGameProfile(initialProfile, false);
 
   try {
     await assets.load((progress, label) => ui.setLoading(progress, label));
-    const game = new IlotaGame(canvas, assets, economy, ui, feedback);
+    const game = new IlotaGame(canvas, assets, economy, ui, feedback, initialProfile);
     (window as IlotaWindow).__ILOTA__ = game.diagnostics;
 
     if (
@@ -98,12 +105,18 @@ const launch = async (): Promise<void> => {
       || economy.progress.wood > 0
       || economy.progress.stone > 0
     ) {
-      ui.startButton.textContent = 'REPRENDRE LA PARTIE';
+      ui.startButton.textContent = 'REPRENDRE';
+      ui.setGameProfile(initialProfile, false);
     }
+
+    ui.profileButtons.forEach((button) => button.addEventListener('click', () => {
+      game.setGameProfile(ui.selectedGameProfile);
+    }));
 
     ui.startButton.addEventListener('click', () => {
       void feedback.unlock();
       feedback.play('ui');
+      game.setGameProfile(ui.selectedGameProfile);
       ui.start();
       game.start();
     });

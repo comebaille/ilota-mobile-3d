@@ -259,10 +259,32 @@
             <span><b>2</b> Maintiens pour récolter</span>
             <span><b>3</b> Construis et agrandis</span>
           </div>
+          <fieldset class="profile-picker" aria-label="Choisir le format de jeu">
+            <legend>CHOISIS TON FORMAT</legend>
+            <button class="profile-option" data-game-profile="iphone" type="button" aria-pressed="false">
+              <span class="profile-icon" aria-hidden="true">▯</span>
+              <strong>iPhone</strong>
+              <small>Version actuelle · tactile · qualité équilibrée</small>
+            </button>
+            <button class="profile-option" data-game-profile="tablet" type="button" aria-pressed="false">
+              <span class="profile-icon" aria-hidden="true">▭</span>
+              <strong>Tablette</strong>
+              <small>Mode light · 30 FPS · interface élargie</small>
+            </button>
+            <button class="profile-option" data-game-profile="pc" type="button" aria-pressed="false">
+              <span class="profile-icon" aria-hidden="true">⌨</span>
+              <strong>PC</strong>
+              <small>AZERTY · haute qualité · ombres fines</small>
+            </button>
+          </fieldset>
           <button id="start-button" class="primary-button" type="button">COMMENCER</button>
           <button id="install-button" class="text-button" type="button" hidden>Installer sur ce mobile</button>
         </div>
       </section>
+
+      <aside class="pc-controls-hint" aria-label="Commandes PC">
+        <strong>ZQSD</strong><span>se déplacer</span><strong>E / ESPACE</strong><span>agir</span><strong>ÉCHAP</strong><span>menu</span>
+      </aside>
 
       <section id="loading-screen" class="overlay loading-screen">
         <div class="loading-card">

@@ -47,8 +47,10 @@ export class InputController {
       return;
     }
     if (this.joystickPointer !== null) return;
-    const x = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) - Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
-    const y = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
+    const x = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight'))
+      - Number(this.keys.has('KeyQ') || this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
+    const y = Number(this.keys.has('KeyZ') || this.keys.has('KeyW') || this.keys.has('ArrowUp'))
+      - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
     const length = Math.hypot(x, y) || 1;
     this.move.x = x / length;
     this.move.y = y / length;

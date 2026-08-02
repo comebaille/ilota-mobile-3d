@@ -94,6 +94,7 @@ import {
 } from './economy';
 import { InputController } from './input';
 import { FeedbackController } from './feedback';
+import { GAME_PROFILE_CONFIGS, type GameProfile, type GameProfileConfig } from './platform';
 import { getCargoPiecePosition } from './cargo';
 import {
   chooseUninformedResourceIndex,
@@ -437,6 +438,10 @@ interface Diagnostics {
   explorationFlow: boolean;
   rebirthAnimation: boolean;
   fps: number;
+  gameProfile: GameProfile;
+  pixelRatio: number;
+  maximumFps: number;
+  shadowsEnabled: boolean;
 }
 
 const SAVE_KEY = 'ilota-save-v1';
@@ -526,6 +531,8 @@ export class IlotaGame {
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 240);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly sun = new THREE.DirectionalLight(0xffe7b1, 3.4);
+  private gameProfile: GameProfile;
+  private profileConfig: GameProfileConfig;
   private readonly player = new THREE.Group();
   private playerModel: THREE.Object3D | null = null;
   private readonly playerMixer: THREE.AnimationMixer;
@@ -590,10 +597,13 @@ export class IlotaGame {
     private readonly economy: Economy,
     private readonly ui: GameUI,
     private readonly feedback: FeedbackController,
+    gameProfile: GameProfile,
   ) {
+    this.gameProfile = gameProfile;
+    this.profileConfig = GAME_PROFILE_CONFIGS[gameProfile];
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: gameProfile !== 'tablet',
       alpha: false,
       powerPreference: 'high-performance',
       stencil: false,
@@ -601,9 +611,9 @@ export class IlotaGame {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    this.renderer.shadowMap.enabled = this.profileConfig.shadows;
+    this.renderer.shadowMap.type = gameProfile === 'pc' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.profileConfig.pixelRatio));
 
     this.input = new InputController(ui.joystick, ui.joystickKnob, ui.actionButton);
     this.setupScene();
@@ -612,7 +622,7 @@ export class IlotaGame {
     this.restoreVisualProgress();
     this.bindManagement();
     this.resize();
-    this.prewarmWorldRendering();
+    if (this.profileConfig.prewarm) this.prewarmWorldRendering();
     window.addEventListener('resize', this.resize);
 
     const progress = economy.progress;
@@ -698,9 +708,32 @@ export class IlotaGame {
       explorationFlow: false,
       rebirthAnimation: false,
       fps: 60,
+      gameProfile,
+      pixelRatio: this.renderer.getPixelRatio(),
+      maximumFps: this.profileConfig.maximumFps,
+      shadowsEnabled: this.profileConfig.shadows,
     };
     this.ui.update(progress);
     this.animate();
+  }
+
+  setGameProfile(profile: GameProfile): void {
+    if (profile === this.gameProfile) return;
+    this.gameProfile = profile;
+    this.profileConfig = GAME_PROFILE_CONFIGS[profile];
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.profileConfig.pixelRatio));
+    this.renderer.shadowMap.enabled = this.profileConfig.shadows;
+    this.renderer.shadowMap.type = profile === 'pc' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    this.sun.castShadow = this.profileConfig.shadows;
+    this.sun.shadow.mapSize.set(this.profileConfig.shadowMapSize, this.profileConfig.shadowMapSize);
+    this.sun.shadow.map?.dispose();
+    this.sun.shadow.map = null;
+    this.lastFrameTime = performance.now();
+    this.resize();
+    this.diagnostics.gameProfile = profile;
+    this.diagnostics.pixelRatio = this.renderer.getPixelRatio();
+    this.diagnostics.maximumFps = this.profileConfig.maximumFps;
+    this.diagnostics.shadowsEnabled = this.profileConfig.shadows;
   }
 
   start(): void {
@@ -1056,8 +1089,8 @@ export class IlotaGame {
     this.scene.add(new THREE.HemisphereLight(0xd9f3f1, 0x725f42, 2.25));
 
     this.sun.position.set(-15, 23, 15);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(512, 512);
+    this.sun.castShadow = this.profileConfig.shadows;
+    this.sun.shadow.mapSize.set(this.profileConfig.shadowMapSize, this.profileConfig.shadowMapSize);
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.camera.far = 72;
     this.sun.shadow.camera.left = -24;
@@ -3148,6 +3181,8 @@ export class IlotaGame {
       this.lastFrameTime = now;
       return;
     }
+    const frameInterval = 1000 / this.profileConfig.maximumFps;
+    if (now - this.lastFrameTime < frameInterval - 1) return;
     // Jusqu'à 100 ms, le déplacement reste stable (un pas maximal de 0,5 m)
     // et ne ralentit plus artificiellement sur un téléphone à 10–20 FPS.
     const rawDelta = Math.min(0.1, Math.max(0.001, (now - this.lastFrameTime) / 1000));
@@ -5016,11 +5051,12 @@ export class IlotaGame {
   }
 
   private spawnColoredParticles(origin: THREE.Vector3, color: number, count: number): void {
-    for (let index = 0; index < count; index += 1) {
+    const adjustedCount = Math.max(1, Math.round(count * this.profileConfig.particleScale));
+    for (let index = 0; index < adjustedCount; index += 1) {
       const geometry = index % 2 ? new THREE.TetrahedronGeometry(0.09) : new THREE.BoxGeometry(0.11, 0.11, 0.11);
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color }));
       mesh.position.copy(origin);
-      const angle = (index / count) * Math.PI * 2 + Math.random() * 0.5;
+      const angle = (index / adjustedCount) * Math.PI * 2 + Math.random() * 0.5;
       const speed = 0.8 + Math.random() * 2.1;
       const velocity = new THREE.Vector3(Math.cos(angle) * speed, 1.2 + Math.random() * 2.2, Math.sin(angle) * speed);
       this.scene.add(mesh);
