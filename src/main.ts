@@ -80,7 +80,9 @@ interface IlotaWindow extends Window {
     maximumFps: number;
     shadowsEnabled: boolean;
     adminOpen: boolean;
-    portalActivationStreak: number;
+    adminIslandActive: boolean;
+    adminRouteArmed: boolean;
+    worldTwoSkills: number;
   };
 }
 

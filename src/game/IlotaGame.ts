@@ -290,6 +290,21 @@ interface WorldPortalEntity {
   destination: 1 | 2;
 }
 
+interface AdminTerminalEntity {
+  root: THREE.Group;
+  label: THREE.Sprite;
+  world: 1 | 2;
+}
+
+interface AdminTravelAnimation {
+  destination: 'admin' | 'world1';
+  elapsed: number;
+  duration: number;
+  switched: boolean;
+  source: THREE.Vector3;
+  target: THREE.Vector3;
+}
+
 interface EmergenceRipple {
   mesh: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   elapsed: number;
@@ -328,6 +343,8 @@ type Interaction =
   | { type: 'bridge'; entity: BridgeEntity }
   | { type: 'cache'; entity: CacheEntity }
   | { type: 'portal'; entity: WorldPortalEntity }
+  | { type: 'adminTerminal'; entity: AdminTerminalEntity }
+  | { type: 'adminReturn' }
   | { type: 'worldTwoDen'; entity: WorldTwoDenEntity }
   | { type: 'worldTwoShrine'; entity: WorldTwoShrineEntity }
   | { type: 'worldTwoBuilding'; entity: WorldTwoBuildingEntity }
@@ -386,6 +403,7 @@ interface Diagnostics {
   worldTwoWolfAnimations: string;
   worldTwoEnemyAnimations: string;
   worldTwoBuildings: number;
+  worldTwoSkills: number;
   worldTravelPathVisible: boolean;
   worldTravelObjects: number;
   inputEnabled: boolean;
@@ -444,7 +462,8 @@ interface Diagnostics {
   maximumFps: number;
   shadowsEnabled: boolean;
   adminOpen: boolean;
-  portalActivationStreak: number;
+  adminIslandActive: boolean;
+  adminRouteArmed: boolean;
 }
 
 const SAVE_KEY = 'ilota-save-v1';
@@ -499,6 +518,11 @@ const PALETTE = {
   crystal: 0xbab4ed,
 };
 
+const ADMIN_ISLAND_CENTER = new THREE.Vector3(76, 0, 8);
+const ADMIN_ISLAND_RADIUS = 11.5;
+const ADMIN_RETURN_POSITION = new THREE.Vector3(76, 0, 15.4);
+const WORLD_ONE_PORTAL_RETURN = new THREE.Vector3(-7.2, 0, 5.1);
+
 const RESOURCE_COLORS: Record<ResourceKind, number> = {
   wood: PALETTE.gold,
   stone: 0xd9e1dc,
@@ -530,6 +554,8 @@ export class IlotaGame {
   private readonly scene = new THREE.Scene();
   private readonly worldTwoRoot = new THREE.Group();
   private readonly worldTravelCauseway = new THREE.Group();
+  private readonly adminIslandRoot = new THREE.Group();
+  private readonly adminTerminals: AdminTerminalEntity[] = [];
   private worldTravelCurve: THREE.CatmullRomCurve3 | null = null;
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 240);
   private readonly renderer: THREE.WebGLRenderer;
@@ -592,7 +618,10 @@ export class IlotaGame {
   private industryVfxCooldown = 0;
   private explorationFlowCooldown = 4;
   private explorationFlowRemaining = 0;
-  private portalActivationStreak = 0;
+  private adminMenuPortalPrimed = false;
+  private adminRouteArmed = false;
+  private adminIslandActive = false;
+  private adminTravelAnimation: AdminTravelAnimation | null = null;
   private worldTravelAnimation: WorldTravelAnimation | null = null;
 
   constructor(
@@ -689,6 +718,7 @@ export class IlotaGame {
       worldTwoWolfAnimations: '',
       worldTwoEnemyAnimations: '',
       worldTwoBuildings: progress.worldTwoBuildings.length,
+      worldTwoSkills: progress.worldTwoSkills.length,
       worldTravelPathVisible: false,
       worldTravelObjects: this.worldTravelCauseway.children.length,
       inputEnabled: false,
@@ -717,7 +747,8 @@ export class IlotaGame {
       maximumFps: this.profileConfig.maximumFps,
       shadowsEnabled: this.profileConfig.shadows,
       adminOpen: false,
-      portalActivationStreak: 0,
+      adminIslandActive: false,
+      adminRouteArmed: false,
     };
     this.ui.update(progress);
     this.animate();
@@ -815,7 +846,23 @@ export class IlotaGame {
       onBuild: (project) => this.buildProject(project),
     });
     this.ui.bindMenuHandlers({
-      onOpenChange,
+      onOpenChange: (open) => {
+        if (open) {
+          this.adminMenuPortalPrimed = !this.adminIslandActive
+            && this.interaction?.type === 'portal'
+            && this.interaction.entity.destination === 2;
+        } else {
+          this.adminMenuPortalPrimed = false;
+        }
+        onOpenChange(open);
+      },
+      onResume: () => {
+        if (!this.adminMenuPortalPrimed) return;
+        this.adminMenuPortalPrimed = false;
+        this.adminRouteArmed = true;
+        this.feedback.play('ui');
+        this.ui.toast('Fréquence secrète mémorisée · active maintenant le portail.');
+      },
       onNewTide: () => this.beginNewTide(),
       onReset: () => this.resetProgress(),
     });
@@ -831,6 +878,7 @@ export class IlotaGame {
     this.input.enabled = this.active
       && !this.managementOpen
       && !this.worldTravelAnimation
+      && !this.adminTravelAnimation
       && !this.tideResetAnimation;
     if (this.managementOpen) {
       this.interaction = null;
@@ -860,6 +908,7 @@ export class IlotaGame {
       && !this.victoryShown
       && !blockingOverlay
       && !this.worldTravelAnimation
+      && !this.adminTravelAnimation
       && !this.tideResetAnimation;
     if (this.input.enabled === shouldEnable) return;
     if (!shouldEnable) this.input.release();
@@ -1142,6 +1191,123 @@ export class IlotaGame {
     this.createCaches();
     this.decorateArchipelago();
     this.createWorldTwo();
+    this.createAdminIsland();
+  }
+
+  private createAdminIsland(): void {
+    const root = this.adminIslandRoot;
+    root.name = 'admin-island:root';
+    root.position.copy(ADMIN_ISLAND_CENTER);
+    root.visible = false;
+    this.scene.add(root);
+
+    const island = new THREE.Mesh(
+      new THREE.CylinderGeometry(ADMIN_ISLAND_RADIUS, ADMIN_ISLAND_RADIUS * 0.92, 1.25, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0x153c32,
+        emissive: 0x09261d,
+        emissiveIntensity: 0.5,
+        roughness: 0.82,
+        flatShading: true,
+      }),
+    );
+    island.position.y = -0.62;
+    island.receiveShadow = true;
+    root.add(island);
+
+    const deck = new THREE.Mesh(
+      new THREE.CylinderGeometry(ADMIN_ISLAND_RADIUS - 0.45, ADMIN_ISLAND_RADIUS - 0.45, 0.16, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0x244f40,
+        emissive: 0x0a281f,
+        emissiveIntensity: 0.35,
+        roughness: 0.76,
+        flatShading: true,
+      }),
+    );
+    deck.position.y = 0.02;
+    deck.receiveShadow = true;
+    root.add(deck);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(ADMIN_ISLAND_RADIUS - 0.7, 0.13, 8, 64),
+      new THREE.MeshBasicMaterial({ color: 0x76ff9a }),
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.14;
+    root.add(rim);
+
+    const title = this.createWorldLabel('ÎLE ADMIN · SYSTÈMES WORLD 1 / WORLD 2', 0x76ff9a, 7.2);
+    title.position.set(0, 5.8, -3.8);
+    root.add(title);
+
+    ([1, 2] as const).forEach((world, index) => {
+      const terminal = new THREE.Group();
+      terminal.position.set(index === 0 ? -4.6 : 4.6, 0, -1.2);
+      terminal.name = `admin-terminal:world-${world}`;
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.25, 2.5, 0.34, 10),
+        new THREE.MeshStandardMaterial({ color: world === 1 ? 0x305c42 : 0x354d62, roughness: 0.9 }),
+      );
+      base.position.y = 0.17;
+      const tower = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 2.35, 1.65),
+        new THREE.MeshStandardMaterial({
+          color: world === 1 ? 0x183e2d : 0x20394d,
+          emissive: world === 1 ? 0x0b3d1d : 0x102b47,
+          emissiveIntensity: 0.7,
+          roughness: 0.52,
+        }),
+      );
+      tower.position.y = 1.42;
+      const screen = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.85, 1.02),
+        new THREE.MeshBasicMaterial({ color: world === 1 ? 0x8dffa3 : 0x79d5ff }),
+      );
+      screen.position.set(0, 1.58, 0.831);
+      const glyph = this.createWorldLabel(`ADMIN · WORLD ${world}`, world === 1 ? 0x76ff9a : 0x79d5ff, 3.9);
+      glyph.position.set(0, 3.65, 0);
+      terminal.add(base, tower, screen, glyph);
+      root.add(terminal);
+      this.adminTerminals.push({ root: terminal, label: glyph, world });
+    });
+
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (index / 8) * Math.PI * 2;
+      const beacon = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.32, 0),
+        new THREE.MeshStandardMaterial({
+          color: index % 2 ? 0x79d5ff : 0x8dffa3,
+          emissive: index % 2 ? 0x1a6682 : 0x27783c,
+          emissiveIntensity: 2.4,
+          roughness: 0.3,
+        }),
+      );
+      beacon.position.set(Math.cos(angle) * 9.6, 0.8, Math.sin(angle) * 9.6);
+      beacon.userData.adminBeacon = true;
+      root.add(beacon);
+    }
+
+    const returnRoot = new THREE.Group();
+    returnRoot.position.set(0, 0, ADMIN_RETURN_POSITION.z - ADMIN_ISLAND_CENTER.z);
+    returnRoot.name = 'admin-island:return';
+    const returnBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.05, 2.3, 0.3, 12),
+      new THREE.MeshStandardMaterial({ color: 0x2e4655, roughness: 0.9 }),
+    );
+    returnBase.position.y = 0.15;
+    const returnPortal = this.assets.createWorldTwoAsset('portal', 3.8);
+    returnPortal.position.y = 0.26;
+    const veil = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.05, 2.56),
+      this.assets.createPortalSpiralMaterial(0x8dffa3),
+    );
+    veil.position.set(0, 1.88, 0.08);
+    veil.userData.portalVeil = true;
+    const returnLabel = this.createWorldLabel('RETOUR · WORLD 1', 0x8dffa3, 4.2);
+    returnLabel.position.set(0, 4.6, 0);
+    returnRoot.add(returnBase, returnPortal, veil, returnLabel);
+    root.add(returnRoot);
   }
 
   private createWorldTwo(): void {
@@ -3231,13 +3397,19 @@ export class IlotaGame {
       this.updateWorldTravel(delta);
       return;
     }
+    if (this.adminTravelAnimation) {
+      this.updateAdminTravel(delta);
+      return;
+    }
     if (this.managementOpen) {
       this.playPlayerAction('idle');
       return;
     }
     this.economy.tick(delta);
     this.input.updateKeyboard();
-    if (this.economy.progress.currentWorld === 2) {
+    if (this.adminIslandActive) {
+      this.ui.setAdminIslandMode(true);
+    } else if (this.economy.progress.currentWorld === 2) {
       const terraceIndex = Math.max(0, findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z));
       this.ui.updateWorldTwoGoal(terraceIndex, this.economy.progress.worldTwoPeakReached);
     } else this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
@@ -3249,7 +3421,9 @@ export class IlotaGame {
     if (!this.playerDeposit) this.handleAction(delta);
     this.updateResources(delta);
     this.updatePlayerDeposit(delta);
-    if (this.economy.progress.currentWorld === 1) {
+    if (this.adminIslandActive) {
+      // L’archipel et la montagne sont suspendus pendant l’administration.
+    } else if (this.economy.progress.currentWorld === 1) {
       this.updateActivePowers(delta);
       this.updateWorkers(delta);
       this.updateAutoRegulation(delta);
@@ -3328,6 +3502,12 @@ export class IlotaGame {
   }
 
   private isWalkable(position: THREE.Vector3): boolean {
+    if (this.adminIslandActive) {
+      return Math.hypot(
+        position.x - ADMIN_ISLAND_CENTER.x,
+        position.z - ADMIN_ISLAND_CENTER.z,
+      ) <= ADMIN_ISLAND_RADIUS - 0.55;
+    }
     let onTerrain = false;
     if (this.economy.progress.currentWorld === 2) {
       const surface = getWorldTwoSurfaceAt(position.x, position.z);
@@ -4008,6 +4188,15 @@ export class IlotaGame {
   private findInteraction(): Interaction | null {
     const position = this.player.position;
     const near = (target: THREE.Vector3, distance: number): boolean => position.distanceToSquared(target) <= distance * distance;
+    if (this.adminIslandActive) {
+      for (const entity of this.adminTerminals) {
+        if (near(entity.root.getWorldPosition(new THREE.Vector3()), 3.05)) {
+          return { type: 'adminTerminal', entity };
+        }
+      }
+      if (near(ADMIN_RETURN_POSITION, 2.85)) return { type: 'adminReturn' };
+      return null;
+    }
     for (const entity of this.worldPortals) {
       if (
         (this.economy.progress.currentWorld === 1 && entity.destination !== 2)
@@ -4072,6 +4261,26 @@ export class IlotaGame {
   private updateInteractionUI(interaction: Interaction | null): void {
     if (!interaction) {
       this.ui.clearContext();
+      return;
+    }
+    if (interaction.type === 'adminTerminal') {
+      this.ui.setContext(
+        `Terminal administratif · World ${interaction.entity.world}`,
+        'OUVRIR',
+        interaction.entity.world === 1 ? '▰' : '◆',
+        true,
+        `Commandes séparées du World ${interaction.entity.world} · sauvegarde immédiate.`,
+      );
+      return;
+    }
+    if (interaction.type === 'adminReturn') {
+      this.ui.setContext(
+        'Portail de retour · Îlot des Marées',
+        'RETOURNER',
+        '◉',
+        true,
+        'Quitte l’île ADMIN et réapparaît devant le portail du World 1.',
+      );
       return;
     }
     if (interaction.type === 'resource') {
@@ -4153,6 +4362,16 @@ export class IlotaGame {
           '◉',
           true,
           'Retourne sur l’Îlot des Marées sans perdre ta cargaison.',
+        );
+        return;
+      }
+      if (this.adminRouteArmed) {
+        this.ui.setContext(
+          'Portail détourné · fréquence de l’île ADMIN',
+          'DÉTOURNER',
+          '⌘',
+          true,
+          'Cette activation ne mènera pas au World 2. La fréquence sera consommée après le passage.',
         );
         return;
       }
@@ -4329,28 +4548,31 @@ export class IlotaGame {
     }
     if (!justPressed) return;
 
+    if (this.interaction.type === 'adminTerminal') {
+      this.ui.showAdmin(this.interaction.entity.world);
+      return;
+    }
+
+    if (this.interaction.type === 'adminReturn') {
+      this.travelToAdminIsland('world1');
+      return;
+    }
+
     if (this.interaction.type === 'portal') {
       const destination = this.interaction.entity.destination;
+      if (destination === 2 && this.adminRouteArmed) {
+        this.adminRouteArmed = false;
+        this.travelToAdminIsland('admin');
+        return;
+      }
       if (destination === 2 && !isWorldTwoUnlocked(this.economy.progress)) {
-        this.portalActivationStreak += 1;
-        this.diagnostics.portalActivationStreak = this.portalActivationStreak;
-        if (this.portalActivationStreak >= 11) {
-          this.portalActivationStreak = 0;
-          this.diagnostics.portalActivationStreak = 0;
-          this.feedback.play('level');
-          this.ui.showAdmin();
-          return;
-        }
         const completion = getSkillTreeCompletion(this.economy.progress);
         this.ui.toast(`World 2 verrouillé · Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · Savoirs ${completion.completed}/${completion.total}.`);
         return;
       }
-      this.portalActivationStreak = 0;
       this.travelToWorld(destination);
       return;
     }
-
-    this.portalActivationStreak = 0;
 
     if (this.interaction.type === 'worldTwoDen') {
       const worker = this.economy.hireWorldTwoWolf();
@@ -4950,6 +5172,64 @@ export class IlotaGame {
     if (text !== 'gratuit') this.ui.toast(`Il manque ${text}`);
   }
 
+  private travelToAdminIsland(destination: 'admin' | 'world1'): void {
+    if (this.adminTravelAnimation || this.worldTravelAnimation) return;
+    this.playerDeposit = null;
+    this.input.release();
+    this.input.enabled = false;
+    this.adminTravelAnimation = {
+      destination,
+      elapsed: 0,
+      duration: 2.8,
+      switched: false,
+      source: this.player.position.clone(),
+      target: destination === 'admin'
+        ? new THREE.Vector3(ADMIN_ISLAND_CENTER.x, 0, ADMIN_ISLAND_CENTER.z + 3.2)
+        : WORLD_ONE_PORTAL_RETURN.clone(),
+    };
+    document.documentElement.classList.add('admin-travel');
+    this.playPlayerAction('walk', 0.08);
+    this.interaction = null;
+    this.ui.clearContext();
+    this.feedback.play('level');
+    this.ui.toast(destination === 'admin'
+      ? 'Canal ADMIN · la destination du portail est détournée…'
+      : 'Canal ADMIN · retour vers l’Îlot des Marées…');
+  }
+
+  private updateAdminTravel(delta: number): void {
+    const travel = this.adminTravelAnimation;
+    if (!travel) return;
+    travel.elapsed += delta;
+    const ratio = THREE.MathUtils.clamp(travel.elapsed / travel.duration, 0, 1);
+    if (!travel.switched && ratio >= 0.5) {
+      travel.switched = true;
+      this.adminIslandActive = travel.destination === 'admin';
+      this.adminIslandRoot.visible = this.adminIslandActive;
+      this.player.position.copy(travel.target);
+      this.player.rotation.y = travel.destination === 'admin' ? Math.PI : 0;
+      this.player.rotation.z = 0;
+      if (this.adminIslandActive) {
+        this.scene.background = new THREE.Color(0x071d18);
+        this.scene.fog = new THREE.Fog(0x071d18, 24, 72);
+        this.worldTwoRoot.visible = false;
+      } else {
+        this.applyWorldPalette(1);
+      }
+      this.ui.setAdminIslandMode(this.adminIslandActive);
+      this.ui.update(this.economy.progress);
+    }
+    if (ratio < 1) return;
+    this.adminTravelAnimation = null;
+    document.documentElement.classList.remove('admin-travel');
+    this.playPlayerAction('idle', 0.08);
+    this.spawnParticles(this.player.position.clone().setY(1), 'crystal', 28);
+    this.input.enabled = !this.managementOpen;
+    this.ui.toast(this.adminIslandActive
+      ? 'Île ADMIN · les terminaux World 1 et World 2 sont séparés.'
+      : 'Retour sur l’Îlot des Marées.');
+  }
+
   private travelToWorld(destination: 1 | 2): void {
     if (
       this.worldTravelAnimation
@@ -5049,6 +5329,7 @@ export class IlotaGame {
 
   private changed(): void {
     this.refreshWorldLocks();
+    this.refreshWorldTwoLocks();
     this.ui.update(this.economy.progress);
     this.save();
   }
@@ -5061,6 +5342,9 @@ export class IlotaGame {
       });
       progress.knowledge = Math.min(999_999_999, progress.knowledge + 999);
       this.ui.toast('ADMIN · stocks du World 1 et Savoir ajoutés.');
+    } else if (action === 'world-one-knowledge') {
+      progress.knowledge = Math.min(999_999_999, progress.knowledge + 10_000);
+      this.ui.toast('ADMIN · 10 000 Savoir ajoutés au World 1.');
     } else if (action === 'unlock-world-two') {
       progress.rebirths = Math.max(5, progress.rebirths);
       progress.skills = SKILL_DEFINITIONS.map((definition) => definition.id);
@@ -5069,14 +5353,30 @@ export class IlotaGame {
         progress.skillRanks[definition.id] = definition.maxRank ?? 1;
       });
       this.ui.toast('ADMIN · portail du World 2 déverrouillé.');
+    } else if (action === 'world-one-build-all') {
+      progress.warehousesBuilt = [true, true, true, true, true];
+      progress.projectHallsBuilt = [true, true, true, true];
+      progress.campBuilt = true;
+      progress.workshopBuilt = true;
+      progress.foundryBuilt = true;
+      progress.observatoryBuilt = true;
+      progress.bridgesBuilt = [true, true, true, true];
+      progress.projectsCompleted = ISLAND_PROJECTS.map((project) => project.id);
+      this.ui.toast('ADMIN · tous les chantiers du World 1 sont assemblés.');
     } else if (action === 'world-two-fortune') {
       progress.worldTwoMoney = Math.min(999_999_999, progress.worldTwoMoney + 1_000_000);
       progress.worldTwoLifetimeMoney = Math.max(progress.worldTwoLifetimeMoney, progress.worldTwoMoney);
       this.ui.toast('ADMIN · 1 000 000 d’argent ajouté au World 2.');
-    } else {
+    } else if (action === 'maximum-fangs') {
       progress.worldTwoFangLevel = 30;
       progress.worldTwoWolfFangLevel = 30;
       this.ui.toast('ADMIN · crocs du joueur et de la meute au niveau maximum.');
+    } else if (action === 'world-two-skills') {
+      progress.worldTwoSkills = WORLD_TWO_SKILLS.map((skill) => skill.id);
+      this.ui.toast('ADMIN · tous les savoirs du Zénith sont débloqués.');
+    } else {
+      progress.worldTwoBuildings = WORLD_TWO_BUILDINGS.map((building) => building.id);
+      this.ui.toast('ADMIN · tous les bâtiments du World 2 sont assemblés.');
     }
     this.feedback.play('build');
     this.changed();
@@ -5154,6 +5454,10 @@ export class IlotaGame {
       if (object.userData.portalVeil) {
         const pulse = 0.94 + Math.sin(this.worldTime * 3.2 + object.id) * 0.08;
         object.scale.setScalar(pulse);
+      }
+      if (object.userData.adminBeacon) {
+        object.position.y = 0.8 + Math.sin(this.worldTime * 2.5 + object.id) * 0.18;
+        object.rotation.y += delta * 1.2;
       }
       if (object.userData.observatoryLens) {
         const baseY = Number(object.userData.baseY) || 6.25;
@@ -5391,7 +5695,8 @@ export class IlotaGame {
     this.diagnostics.talentOpen = this.ui.isTalentOpen;
     this.diagnostics.menuOpen = this.ui.isMenuOpen;
     this.diagnostics.adminOpen = this.ui.isAdminOpen;
-    this.diagnostics.portalActivationStreak = this.portalActivationStreak;
+    this.diagnostics.adminIslandActive = this.adminIslandActive;
+    this.diagnostics.adminRouteArmed = this.adminRouteArmed;
     this.diagnostics.knowledge = progress.knowledge;
     this.diagnostics.rebirths = progress.rebirths;
     this.diagnostics.skills = progress.skills.join(',');
@@ -5441,6 +5746,7 @@ export class IlotaGame {
       .filter(Boolean)
       .join(',');
     this.diagnostics.worldTwoBuildings = progress.worldTwoBuildings.length;
+    this.diagnostics.worldTwoSkills = progress.worldTwoSkills.length;
     this.diagnostics.worldTravelPathVisible = this.worldTravelCauseway.visible;
     this.diagnostics.worldTravelObjects = this.worldTravelCauseway.children.length;
     this.diagnostics.inputEnabled = this.input.enabled;

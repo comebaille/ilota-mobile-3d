@@ -225,37 +225,45 @@
         <div class="admin-card">
           <header>
             <div>
-              <p class="kicker">CONSOLE SECRÈTE · ACCÈS RESTREINT</p>
-              <h2 id="admin-title">ADMIN</h2>
+              <p id="admin-kicker" class="kicker">ÎLE ADMIN · TERMINAL WORLD 1</p>
+              <h2 id="admin-title">ADMIN · WORLD 1</h2>
             </div>
             <button id="admin-close-button" class="icon-button" type="button" aria-label="Fermer le panneau ADMIN">×</button>
           </header>
-          <form id="admin-login" class="admin-login" autocomplete="off">
-            <label for="admin-password">MOT DE PASSE ADMINISTRATEUR</label>
-            <div>
-              <input id="admin-password" name="admin-password" type="password" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="32" required>
-              <button id="admin-login-button" type="submit">DÉVERROUILLER</button>
-            </div>
-            <small id="admin-login-error" role="alert" aria-live="polite"></small>
-          </form>
-          <div id="admin-console" class="admin-console" hidden>
-            <p id="admin-status" class="admin-status">La faille temporelle répond à tes commandes.</p>
+          <p id="admin-status" class="admin-status">Sélectionne une commande administrative.</p>
+          <div id="admin-world-one" class="admin-console">
             <div class="admin-grid">
               <button class="admin-action" data-admin-action="world-one-supplies" type="button">
                 <b>▰</b><strong>STOCKS WORLD 1</strong><small>Ajoute 9 999 de chaque ressource et 999 Savoir.</small>
               </button>
+              <button class="admin-action" data-admin-action="world-one-knowledge" type="button">
+                <b>✧</b><strong>SAVOIR +10 000</strong><small>Ajoute uniquement du Savoir, sans toucher aux stocks.</small>
+              </button>
               <button class="admin-action" data-admin-action="unlock-world-two" type="button">
                 <b>◉</b><strong>OUVRIR WORLD 2</strong><small>Valide 5 Marées et maximise l’arbre du World 1.</small>
               </button>
+              <button class="admin-action" data-admin-action="world-one-build-all" type="button">
+                <b>⌂</b><strong>TOUT CONSTRUIRE</strong><small>Assemble bâtiments, hangars, ponts et Travaux du World 1.</small>
+              </button>
+            </div>
+          </div>
+          <div id="admin-world-two" class="admin-console" hidden>
+            <div class="admin-grid">
               <button class="admin-action" data-admin-action="world-two-fortune" type="button">
                 <b>◆</b><strong>FORTUNE WORLD 2</strong><small>Ajoute 1 000 000 d’argent de montagne.</small>
               </button>
               <button class="admin-action" data-admin-action="maximum-fangs" type="button">
                 <b>⌁</b><strong>CROCS MAXIMUM</strong><small>Passe les crocs du joueur et de la meute au niveau 30.</small>
               </button>
+              <button class="admin-action" data-admin-action="world-two-skills" type="button">
+                <b>✺</b><strong>TOUS LES SAVOIRS</strong><small>Débloque l’intégralité du skill tree du Zénith.</small>
+              </button>
+              <button class="admin-action" data-admin-action="world-two-buildings" type="button">
+                <b>▲</b><strong>TOUS LES BÂTIMENTS</strong><small>Assemble tous les bâtiments professionnels de la montagne.</small>
+              </button>
             </div>
-            <small class="admin-warning">Les commandes modifient et sauvegardent immédiatement la partie.</small>
           </div>
+          <small class="admin-warning">Les commandes modifient et sauvegardent immédiatement la partie. Ferme ce terminal pour revenir sur l’île ADMIN.</small>
         </div>
       </section>
 

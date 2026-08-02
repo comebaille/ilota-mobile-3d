@@ -58,6 +58,7 @@ interface IlotaDiagnostics {
   worldTwoWolfAnimations: string;
   worldTwoEnemyAnimations: string;
   worldTwoBuildings: number;
+  worldTwoSkills: number;
   worldTravelPathVisible: boolean;
   worldTravelObjects: number;
   inputEnabled: boolean;
@@ -104,7 +105,8 @@ interface IlotaDiagnostics {
   assetsLoaded: number;
   fps: number;
   adminOpen: boolean;
-  portalActivationStreak: number;
+  adminIslandActive: boolean;
+  adminRouteArmed: boolean;
 }
 
 const diagnostics = (page: Page): Promise<IlotaDiagnostics> => page.evaluate(() => (
@@ -397,13 +399,10 @@ test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', as
   expect((await diagnostics(page)).worldTwoPortalUnlocked).toBe(false);
 });
 
-test('onze activations du portail ouvrent la console ADMIN protégée par mot de passe', async ({ page }) => {
-  const tree = maximizedSkillTree();
-  tree.skillRanks.cargo_harness = 5;
+test('portail puis menu et Reprendre détourne vers l’île ADMIN sans mot de passe', async ({ page }) => {
+  test.setTimeout(150_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
-    ...tree,
-    rebirths: 5,
     tutorialSeen: ['welcome'],
   });
   await waitForGame(page);
@@ -411,51 +410,67 @@ test('onze activations du portail ouvrent la console ADMIN protégée par mot de
   await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('faille temporelle scellée');
 
-  for (let attempt = 1; attempt <= 10; attempt += 1) {
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(45);
-  }
-  await expect(page.locator('#admin-panel')).toBeHidden();
-  expect((await diagnostics(page)).portalActivationStreak).toBe(10);
+  // Il faut être devant le portail sans l'activer, ouvrir ILOTA, puis choisir
+  // Reprendre. Fermer le menu autrement ne doit pas mémoriser le détournement.
+  await page.locator('#menu-button').click();
+  await page.locator('#menu-close-button').click();
+  await expect.poll(async () => (await diagnostics(page)).adminRouteArmed).toBe(false);
+  await page.locator('#menu-button').click();
+  await expect(page.locator('#menu-panel')).toBeVisible();
+  await page.locator('#menu-resume-button').click();
+  await expect.poll(async () => (await diagnostics(page)).adminRouteArmed).toBe(true);
+  await expect(page.locator('#context-prompt')).toContainText('Portail détourné');
 
+  await page.keyboard.press('KeyE');
+  await expect.poll(async () => (await diagnostics(page)).adminIslandActive, { timeout: 8_000 }).toBe(true);
+  await expect(page.locator('#admin-panel')).toBeHidden();
+  await expect(page.locator('#objective-title')).toContainText('terminal World 1 ou World 2');
+  await page.screenshot({ path: 'test-results/ilota-admin-island.png' });
+
+  await moveTo(71.4, 6.8, 0.7);
+  await expect.poll(async () => (await diagnostics(page)).interaction).toBe('adminTerminal');
+  await expect(page.locator('#context-prompt')).toContainText(/world 1/i);
   await page.keyboard.press('KeyE');
   await expect(page.locator('#admin-panel')).toBeVisible();
   expect((await diagnostics(page)).adminOpen).toBe(true);
-  await expect(page.locator('#admin-console')).toBeHidden();
-  await expect(page.locator('#admin-password')).toBeFocused();
-  await page.screenshot({ path: 'test-results/ilota-admin-password.png' });
-
-  await page.locator('#admin-password').fill('ADMIN10');
-  await page.locator('#admin-login-button').click();
-  await expect(page.locator('#admin-login-error')).toHaveText('Mot de passe incorrect.');
-  await expect(page.locator('#admin-console')).toBeHidden();
-
-  await page.locator('#admin-password').fill('ADMIN11');
-  await page.locator('#admin-login-button').click();
-  await expect(page.locator('#admin-console')).toBeVisible();
-  await page.locator('#admin-close-button').click();
-  await expect(page.locator('#admin-panel')).toBeHidden();
-  await page.waitForTimeout(100);
-  for (let attempt = 1; attempt <= 11; attempt += 1) {
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(45);
-  }
-  await expect(page.locator('#admin-panel')).toBeVisible();
-  await expect(page.locator('#admin-console')).toBeHidden();
-  await page.locator('#admin-password').fill('ADMIN11');
-  await page.locator('#admin-login-button').click();
-  await expect(page.locator('#admin-console')).toBeVisible();
+  await expect(page.locator('#admin-world-one')).toBeVisible();
+  await expect(page.locator('#admin-world-two')).toBeHidden();
+  await expect(page.locator('#admin-password')).toHaveCount(0);
   await page.locator('[data-admin-action="world-one-supplies"]').click();
   await expect.poll(async () => (await diagnostics(page)).wood).toBe(19_998);
   await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(999);
   await page.locator('[data-admin-action="unlock-world-two"]').click();
   await expect.poll(async () => (await diagnostics(page)).worldTwoPortalUnlocked).toBe(true);
+  await page.locator('[data-admin-action="world-one-build-all"]').click();
+  await expect.poll(async () => (await diagnostics(page)).bridges).toBe(4);
+  await expect.poll(async () => (await diagnostics(page)).warehouses).toBe(5);
+  await page.screenshot({ path: 'test-results/ilota-admin-world-1.png' });
+  await page.locator('#admin-close-button').click();
+
+  await moveTo(80.6, 6.8, 0.7);
+  await expect(page.locator('#context-prompt')).toContainText(/world 2/i);
+  await page.keyboard.press('KeyE');
+  await expect(page.locator('#admin-world-one')).toBeHidden();
+  await expect(page.locator('#admin-world-two')).toBeVisible();
   await page.locator('[data-admin-action="world-two-fortune"]').click();
   await expect.poll(async () => (await diagnostics(page)).worldTwoMoney).toBe(1_000_000);
   await page.locator('[data-admin-action="maximum-fangs"]').click();
   await expect.poll(async () => (await diagnostics(page)).worldTwoFangLevel).toBe(30);
   await expect.poll(async () => (await diagnostics(page)).worldTwoWolfFangLevel).toBe(30);
-  await page.screenshot({ path: 'test-results/ilota-admin-console.png' });
+  await page.locator('[data-admin-action="world-two-skills"]').click();
+  await expect.poll(async () => (await diagnostics(page)).worldTwoSkills).toBeGreaterThan(0);
+  await page.locator('[data-admin-action="world-two-buildings"]').click();
+  await expect.poll(async () => (await diagnostics(page)).worldTwoBuildings).toBe(WORLD_TWO_BUILDINGS.length);
+  await page.screenshot({ path: 'test-results/ilota-admin-world-2.png' });
+  await page.locator('#admin-close-button').click();
+
+  await moveTo(76, 15.4, 0.7);
+  await expect.poll(async () => (await diagnostics(page)).interaction).toBe('adminReturn');
+  await page.keyboard.press('KeyE');
+  await expect.poll(async () => (await diagnostics(page)).adminIslandActive, { timeout: 8_000 }).toBe(false);
+  await expect.poll(async () => (await diagnostics(page)).adminRouteArmed).toBe(false);
+  const returned = (await diagnostics(page)).player;
+  expect(Math.hypot(returned.x - -7.2, returned.z - 5.1)).toBeLessThan(0.35);
 });
 
 test('les ponts du World 1 retrouvent leurs planches et leurs cordages procéduraux', async ({ page }) => {

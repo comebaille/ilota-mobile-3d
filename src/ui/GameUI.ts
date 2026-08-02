@@ -86,11 +86,20 @@ interface ProjectHandlers {
 
 interface MenuHandlers {
   onOpenChange: (open: boolean) => void;
+  onResume: () => void;
   onNewTide: () => void;
   onReset: () => void;
 }
 
-export type AdminAction = 'world-one-supplies' | 'unlock-world-two' | 'world-two-fortune' | 'maximum-fangs';
+export type AdminAction =
+  | 'world-one-supplies'
+  | 'world-one-knowledge'
+  | 'unlock-world-two'
+  | 'world-one-build-all'
+  | 'world-two-fortune'
+  | 'maximum-fangs'
+  | 'world-two-skills'
+  | 'world-two-buildings';
 
 interface AdminHandlers {
   onOpenChange: (open: boolean) => void;
@@ -101,7 +110,6 @@ export type CrewMode = 'nursery' | 'workshop' | 'foundry' | 'remote';
 
 const SKILL_MAP_WIDTH = 1160;
 const SKILL_MAP_HEIGHT = 1500;
-const ADMIN_PASSWORD = 'ADMIN11';
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -230,10 +238,10 @@ export class GameUI {
   private readonly menuStatus = byId<HTMLElement>('menu-status');
   private readonly adminPanel = byId<HTMLElement>('admin-panel');
   private readonly adminCloseButton = byId<HTMLButtonElement>('admin-close-button');
-  private readonly adminLogin = byId<HTMLFormElement>('admin-login');
-  private readonly adminPassword = byId<HTMLInputElement>('admin-password');
-  private readonly adminLoginError = byId<HTMLElement>('admin-login-error');
-  private readonly adminConsole = byId<HTMLElement>('admin-console');
+  private readonly adminKicker = byId<HTMLElement>('admin-kicker');
+  private readonly adminTitle = byId<HTMLElement>('admin-title');
+  private readonly adminWorldOne = byId<HTMLElement>('admin-world-one');
+  private readonly adminWorldTwo = byId<HTMLElement>('admin-world-two');
   private readonly adminStatus = byId<HTMLElement>('admin-status');
   private readonly adminActionButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-action]'));
   private readonly tutorialPanel = byId<HTMLElement>('tutorial-panel');
@@ -285,7 +293,7 @@ export class GameUI {
   private tutorialCloseHandler: (() => void) | null = null;
   private lastLevelUpKey = '';
   private gameProfile: GameProfile = 'iphone';
-  private adminAuthenticated = false;
+  private adminWorld: 1 | 2 = 1;
 
   constructor() {
     const vfxBase = new URL(
@@ -455,7 +463,10 @@ export class GameUI {
 
     this.menuButton.addEventListener('click', () => this.showMenu());
     this.menuCloseButton.addEventListener('click', () => this.hideMenu());
-    this.menuResumeButton.addEventListener('click', () => this.hideMenu());
+    this.menuResumeButton.addEventListener('click', () => {
+      this.menuHandlers?.onResume();
+      this.hideMenu();
+    });
     this.menuPanel.addEventListener('pointerdown', (event) => {
       if (event.target === this.menuPanel) this.hideMenu();
     });
@@ -465,25 +476,7 @@ export class GameUI {
     this.adminPanel.addEventListener('pointerdown', (event) => {
       if (event.target === this.adminPanel) this.hideAdmin();
     });
-    this.adminLogin.addEventListener('submit', (event) => {
-      event.preventDefault();
-      if (this.adminPassword.value.trim() !== ADMIN_PASSWORD) {
-        this.adminPassword.value = '';
-        this.adminLoginError.textContent = 'Mot de passe incorrect.';
-        this.adminPassword.setAttribute('aria-invalid', 'true');
-        this.adminPassword.focus();
-        return;
-      }
-      this.adminAuthenticated = true;
-      this.adminLoginError.textContent = '';
-      this.adminPassword.removeAttribute('aria-invalid');
-      this.adminLogin.hidden = true;
-      this.adminConsole.hidden = false;
-      if (this.latestProgress) this.renderAdmin(this.latestProgress);
-      this.adminActionButtons[0]?.focus();
-    });
     this.adminActionButtons.forEach((button) => button.addEventListener('click', () => {
-      if (!this.adminAuthenticated) return;
       const action = button.dataset.adminAction as AdminAction | undefined;
       if (action) this.adminHandlers?.onAction(action);
     }));
@@ -513,6 +506,14 @@ export class GameUI {
     });
     const verb = this.startButton.textContent?.startsWith('REPRENDRE') ? 'REPRENDRE' : 'COMMENCER';
     this.startButton.textContent = `${verb} · ${GAME_PROFILE_CONFIGS[profile].label.toUpperCase()}`;
+  }
+
+  setAdminIslandMode(active: boolean): void {
+    document.documentElement.classList.toggle('admin-island', active);
+    if (!active) return;
+    this.objectiveEyebrow.textContent = 'ZONE HORS CARTE · ADMIN';
+    this.objectiveTitle.textContent = 'Choisis un terminal World 1 ou World 2';
+    this.objectiveDetail.textContent = 'Le portail vert au nord ramène vers l’Îlot des Marées.';
   }
 
   bindCrewHandlers(handlers: CrewHandlers): void {
@@ -774,37 +775,37 @@ export class GameUI {
     window.setTimeout(() => this.menuResumeButton.focus(), 0);
   }
 
-  showAdmin(): void {
+  showAdmin(world: 1 | 2): void {
     if (!this.latestProgress || !this.startScreen.hidden || !this.loadingScreen.hidden) return;
     this.hideCrew();
     this.hideProjects();
     this.hideTalents();
     this.hideWorldTwoSkills();
     this.hideMenu();
-    this.adminAuthenticated = false;
-    this.adminPassword.value = '';
-    this.adminPassword.removeAttribute('aria-invalid');
-    this.adminLoginError.textContent = '';
-    this.adminLogin.hidden = false;
-    this.adminConsole.hidden = true;
+    this.adminWorld = world;
+    this.adminKicker.textContent = `ÎLE ADMIN · TERMINAL WORLD ${world}`;
+    this.adminTitle.textContent = `ADMIN · WORLD ${world}`;
+    this.adminWorldOne.hidden = world !== 1;
+    this.adminWorldTwo.hidden = world !== 2;
+    this.renderAdmin(this.latestProgress);
     this.adminPanel.hidden = false;
     this.adminHandlers?.onOpenChange(true);
-    window.setTimeout(() => this.adminPassword.focus(), 0);
+    const firstAction = (world === 1 ? this.adminWorldOne : this.adminWorldTwo)
+      .querySelector<HTMLButtonElement>('.admin-action');
+    window.setTimeout(() => firstAction?.focus(), 0);
   }
 
   hideAdmin(): void {
     if (this.adminPanel.hidden) return;
     this.adminPanel.hidden = true;
-    this.adminAuthenticated = false;
-    this.adminPassword.value = '';
-    this.adminConsole.hidden = true;
-    this.adminLogin.hidden = false;
     this.adminHandlers?.onOpenChange(false);
     this.actionButton.focus({ preventScroll: true });
   }
 
   private renderAdmin(progress: IslandProgress): void {
-    this.adminStatus.textContent = `M1 · ${progress.wood}/${progress.stone}/${progress.copper}/${progress.crystal} · ${progress.knowledge} Savoir · M2 · ${formatWorldTwoMoney(progress.worldTwoMoney)}.`;
+    this.adminStatus.textContent = this.adminWorld === 1
+      ? `WORLD 1 · ${progress.wood} bois · ${progress.stone} pierre · ${progress.copper} cuivre · ${progress.crystal} cristal · ${progress.knowledge} Savoir.`
+      : `WORLD 2 · ${formatWorldTwoMoney(progress.worldTwoMoney)} · crocs ${progress.worldTwoFangLevel}/30 · meute ${progress.worldTwoWolfFangLevel}/30 · ${progress.worldTwoSkills.length}/${WORLD_TWO_SKILLS.length} savoirs.`;
   }
 
   hideMenu(): void {
@@ -935,7 +936,7 @@ export class GameUI {
 
   update(progress: IslandProgress): void {
     this.latestProgress = progress;
-    if (!this.adminPanel.hidden && this.adminAuthenticated) this.renderAdmin(progress);
+    if (!this.adminPanel.hidden) this.renderAdmin(progress);
     if (progress.currentWorld === 2) {
       // Les pouvoirs, panneaux et renards du premier monde restent suspendus
       // avec l’archipel : aucun état visuel ne doit survivre au portail.
