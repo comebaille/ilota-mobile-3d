@@ -3652,6 +3652,32 @@ button:focus-visible {
   gap: 12px;
 }
 
+.world-two-skill-branch {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-left: 4px solid #83d8e8;
+  border-radius: 10px;
+  background: rgba(7, 14, 18, 0.38);
+  letter-spacing: 0.08em;
+}
+
+.world-two-skill-branch small {
+  color: rgba(229, 242, 245, 0.62);
+  letter-spacing: normal;
+}
+
+.world-two-skill-branch.branch-pack { border-color: #b8d58b; }
+.world-two-skill-branch.branch-fortune { border-color: #f0c86b; }
+.world-two-skill-branch.branch-convergence { border-color: #c0a4ff; }
+.world-two-skill-card.branch-pack { box-shadow: inset 3px 0 rgba(184, 213, 139, 0.42); }
+.world-two-skill-card.branch-fortune { box-shadow: inset 3px 0 rgba(240, 200, 107, 0.42); }
+.world-two-skill-card.branch-convergence { box-shadow: inset 3px 0 rgba(192, 164, 255, 0.46); }
+
 .world-two-skill-card {
   position: relative;
   min-height: 168px;
@@ -3738,6 +3764,16 @@ html.world-travel::after {
 
   .world-two-skill-card {
     min-height: 146px;
+  }
+
+  .world-two-skill-branch {
+    margin-top: 3px;
+    padding: 6px 9px;
+    font-size: 10px;
+  }
+
+  .world-two-skill-branch small {
+    font-size: 8px;
   }
 }
 

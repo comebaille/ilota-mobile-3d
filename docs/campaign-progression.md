@@ -74,7 +74,32 @@ Le portail affiche séparément la progression `Marées 0/5` et `Savoirs 0/32`. 
 | Crête Astrale | 13,8 | prismes astraux |
 | Sommet du Zénith | 15,5 | phare sommital et Cœur du Zénith |
 
-Le Refuge des Échos sert de dépôt local au pied de la montagne. Le portail bleu voisin permet de revenir au World 1 à tout moment sans perdre la cargaison. L’interface remplace les objectifs d’île par quatre jalons d’ascension, affiche la terrasse actuelle sur onze et mémorise définitivement l’éveil du sommet. Une Nouvelle Marée renvoie volontairement au World 1, mais ne supprime pas cette maîtrise.
+Le Refuge des Échos sert de dépôt local au pied de la montagne. Le portail bleu voisin permet de revenir au World 1 à tout moment sans perdre la cargaison. L’exploration des onze terrasses est libre : la progression vient de la dureté des crocs, de l’économie monétaire, des chantiers et de la meute. Atteindre physiquement le sommet ne termine plus la campagne ; seul le Cœur du Zénith construit après la maîtrise des systèmes consacre la victoire.
+
+### Économie et chantiers du Zénith
+
+Les trente minerais sont convertis directement en argent au Refuge. Aucun bois, pierre, cuivre ou cristal du World 1 n’entre dans cette économie. Les crocs du voyageur et ceux de la meute suivent chacun trente niveaux. Les cinq bâtiments forment la colonne vertébrale de la campagne :
+
+| Terrasse | Bâtiment | Prix | Prérequis principaux | Effet |
+|---:|---|---:|---|---|
+| 3 | Forge des Crocs | 2 400 $ | Crocs voyageur 6 | Renforcements de crocs encore 15 % moins chers |
+| 5 | Pavillon de la Meute | 9 000 $ | Forge, crocs meute 10, deux loups | +1 loup et récupération après les ventes |
+| 7 | Comptoir des Nuages | 32 000 $ | Pavillon, crocs 16, six talents | Ventes +20 % |
+| 9 | Vigie des Tempêtes | 115 000 $ | Comptoir, crocs meute 22, huit victoires | Primes doublées et ennemis ralentis |
+| 11 | Cœur du Zénith | 600 000 $ | Deux crocs 30, quatre loups, quinze victoires, 18 talents | Victoire définitive du World 2 |
+
+Le prix du Cœur représente au plus une cargaison complète de Célestium avec la spécialisation finale. Le joueur n’est donc jamais forcé de répéter artificiellement des dizaines de trajets après avoir déjà maîtrisé le système.
+
+### Savoirs du Zénith
+
+L’arbre indépendant contient 18 talents et n’utilise pas le Savoir du World 1 :
+
+- **Extraction** améliore les frappes manuelles, la capacité du voyageur et la repousse des filons ;
+- **Meute** augmente la vitesse, le rendement, la capacité, la santé et la défense des loups ;
+- **Fortune** augmente les ventes, réduit le prix des crocs et transforme les victoires en primes ;
+- **Convergence** exige les trois voies, accélère toute l’expédition et ouvre une meute finale de six loups.
+
+Le voyageur porte 8 unités au départ puis jusqu’à 20. Chaque loup porte 8 unités au départ puis jusqu’à 16. Les cargaisons pleines gagnent un bonus dédié, ce qui récompense l’optimisation sans empêcher les petites ventes de démarrage.
 
 ## Grands Travaux et longévité des quatre ressources
 
@@ -180,8 +205,9 @@ Les placements initiaux restent garantis pour éviter un départ bloqué ; ces t
 - Un test navigateur vérifie que le HUD paysage reste compact et que la liste complète des objectifs ne s’affiche qu’après une demande du joueur.
 - Un contrôle vérifie que les pièces d’un chantier sont en cours d’assemblage après l’achat puis toutes stabilisées à la fin de l’animation.
 - Le parcours complet attend et vérifie l’émergence de chacune des quatre îles avant de la traverser.
-- La sauvegarde courante est en v9 ; les sauvegardes v1 à v8 migrent sans perdre leur progression. La v9 conserve le monde courant et l’éveil du Sommet du Zénith. Les notifications automatiques de pouvoirs sont coupées par défaut après migration.
-- Un test navigateur verrouille le portail à `31/32`, puis un second traverse les onze terrasses sur les vraies commandes mobiles, éveille le sommet et contrôle le portail de retour.
+- La sauvegarde courante est en v12 ; les sauvegardes v1 à v11 migrent sans perdre leur progression. La v12 conserve l’argent cumulé, les ventes, les cinq bâtiments, les talents, la meute et l’éveil du Sommet. Les anciennes victoires v11 restent reconnues.
+- Un test navigateur verrouille le portail à `31/32`, puis un second traverse les onze terrasses sur les vraies commandes mobiles et contrôle le portail de retour.
+- Des tests économiques achètent les 18 talents dans l’ordre, construisent les cinq bâtiments, vérifient leurs prérequis et simulent la valeur d’une cargaison de fin de campagne.
 - Un test navigateur confirme que le héros garde sa récolte sur le dos, que le stock reste à zéro, puis que les unités sont créditées une à une à leur arrivée dans le dépôt.
 - Un test navigateur échantillonne une cargaison ouvrière de deux unités et vérifie `2 → 1 → 0` sur le dos comme dans le stock.
 - Un test navigateur active les phases Technique et Exploration et contrôle leurs effets de bord d’écran.

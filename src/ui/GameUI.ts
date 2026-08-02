@@ -3,6 +3,7 @@ import {
   RESOURCE_KINDS,
   RESOURCE_LABELS,
   WORLD_TWO_SKILLS,
+  WORLD_TWO_BUILDINGS,
   WORLD_TWO_MINERALS,
   ISLAND_PROJECTS,
   SKILL_BRANCH_LABELS,
@@ -32,9 +33,11 @@ import {
   getWorldTwoCargoCapacity,
   getWorldTwoCargoTotal,
   getWorldTwoFangUpgradeCost,
+  getWorldTwoPackCapacity,
   hasProject,
   hasSkill,
   hasWorldTwoSkill,
+  hasWorldTwoBuilding,
   isProjectVisible,
   isProjectHallBuilt,
   isSkillVisible,
@@ -609,7 +612,9 @@ export class GameUI {
     playerFangs.textContent = `🦷 Crocs ${progress.worldTwoFangLevel}/30`;
     const wolfFangs = element('span');
     wolfFangs.textContent = `🐺 Meute ${progress.worldTwoWolfFangLevel}/30`;
-    this.worldTwoSkillResources.append(money, playerFangs, wolfFangs);
+    const buildings = element('span');
+    buildings.textContent = `⌂ Chantiers ${progress.worldTwoBuildings.length}/${WORLD_TWO_BUILDINGS.length}`;
+    this.worldTwoSkillResources.append(money, playerFangs, wolfFangs, buildings);
 
     this.worldTwoSkillGrid.replaceChildren();
     ([
@@ -637,11 +642,25 @@ export class GameUI {
       this.worldTwoSkillGrid.append(card);
     });
 
-    WORLD_TWO_SKILLS.forEach((skill) => {
+    const branches = [
+      { id: 'extraction', name: 'EXTRACTION', detail: 'Frappes, cargaison et filons' },
+      { id: 'pack', name: 'MEUTE', detail: 'Loups, défense et transport' },
+      { id: 'fortune', name: 'FORTUNE', detail: 'Ventes, coûts et primes' },
+      { id: 'convergence', name: 'CONVERGENCE', detail: 'Maîtrise des trois voies' },
+    ] as const;
+    branches.forEach((branch) => {
+      const heading = element('div', `world-two-skill-branch branch-${branch.id}`);
+      const title = element('strong');
+      title.textContent = branch.name;
+      const summary = element('small');
+      summary.textContent = branch.detail;
+      heading.append(title, summary);
+      this.worldTwoSkillGrid.append(heading);
+      WORLD_TWO_SKILLS.filter((skill) => skill.branch === branch.id).forEach((skill) => {
       const owned = hasWorldTwoSkill(progress, skill.id);
       const prerequisites = worldTwoSkillPrerequisitesMet(progress, skill);
       const affordable = progress.worldTwoMoney >= skill.cost;
-      const card = element('button', `world-two-skill-card${owned ? ' owned' : prerequisites ? '' : ' locked'}`);
+      const card = element('button', `world-two-skill-card branch-${skill.branch}${owned ? ' owned' : prerequisites ? '' : ' locked'}`);
       card.type = 'button';
       card.dataset.worldTwoSkill = skill.id;
       card.disabled = owned || !prerequisites || !affordable;
@@ -659,6 +678,7 @@ export class GameUI {
           : `REQUIS · ${(skill.requires ?? []).map((id) => WORLD_TWO_SKILLS.find((entry) => entry.id === id)?.name).filter(Boolean).join(' + ')}`;
       card.append(icon, name, detail, price);
       this.worldTwoSkillGrid.append(card);
+      });
     });
   }
 
@@ -845,13 +865,16 @@ export class GameUI {
     );
 
     if (progress.currentWorld === 2) {
+      const nextBuilding = WORLD_TWO_BUILDINGS.find((building) => !hasWorldTwoBuilding(progress, building.id));
       this.objectiveEyebrow.textContent = 'WORLD 2 · MONTAGNE DU ZÉNITH';
       this.objectiveTitle.textContent = progress.worldTwoPeakReached
         ? 'Le sommet se souvient de toi'
-        : `Durcis tes crocs · niveau ${progress.worldTwoFangLevel}/30`;
+        : nextBuilding
+          ? `Prochain chantier · ${nextBuilding.name}`
+          : `Durcis tes crocs · niveau ${progress.worldTwoFangLevel}/30`;
       this.objectiveDetail.textContent = progress.worldTwoPeakReached
         ? 'Le Cœur du Zénith est éveillé. Explore librement ou emprunte le portail du Refuge des Échos.'
-        : `${formatWorldTwoMoney(progress.worldTwoMoney)} · minerais noirs = crocs insuffisants · ${progress.worldTwoWolves.length} loup${progress.worldTwoWolves.length > 1 ? 's' : ''}.`;
+        : `${formatWorldTwoMoney(progress.worldTwoMoney)} · chantiers ${progress.worldTwoBuildings.length}/${WORLD_TWO_BUILDINGS.length} · meute ${progress.worldTwoWolves.length}/${getWorldTwoPackCapacity(progress)}.`;
     } else {
       const objective = getObjective(progress);
       this.objectiveEyebrow.textContent = objective.eyebrow;
@@ -1633,24 +1656,24 @@ export class GameUI {
         done: true,
       },
       {
-        label: 'Explorer la montagne · toutes les rampes sont ouvertes',
+        label: 'Explorer librement les onze terrasses',
         done: true,
       },
       {
-        label: `Durcir tes crocs · ${progress.worldTwoFangLevel}/30`,
-        done: progress.worldTwoFangLevel >= 30,
+        label: `Ériger les chantiers de montagne · ${progress.worldTwoBuildings.length}/${WORLD_TWO_BUILDINGS.length}`,
+        done: progress.worldTwoBuildings.length >= WORLD_TWO_BUILDINGS.length,
       },
       {
-        label: `Durcir les crocs de la meute · ${progress.worldTwoWolfFangLevel}/30`,
-        done: progress.worldTwoWolfFangLevel >= 30,
+        label: `Maîtriser les deux lignées de crocs · ${Math.min(30, progress.worldTwoFangLevel) + Math.min(30, progress.worldTwoWolfFangLevel)}/60`,
+        done: progress.worldTwoFangLevel >= 30 && progress.worldTwoWolfFangLevel >= 30,
       },
       {
-        label: `Former une meute · ${progress.worldTwoWolves.length}/2 loups`,
-        done: progress.worldTwoWolves.length >= 2,
+        label: `Former la meute finale · ${progress.worldTwoWolves.length}/4 loups`,
+        done: progress.worldTwoWolves.length >= 4,
       },
       {
-        label: `Repousser les créatures · ${progress.worldTwoEnemyDefeats}/3`,
-        done: progress.worldTwoEnemyDefeats >= 3,
+        label: `Repousser les créatures · ${progress.worldTwoEnemyDefeats}/15`,
+        done: progress.worldTwoEnemyDefeats >= 15,
       },
       {
         label: `Maîtriser les Savoirs du Zénith · ${progress.worldTwoSkills.length}/${WORLD_TWO_SKILLS.length}`,
@@ -1671,6 +1694,7 @@ export class GameUI {
       progress.worldTwoWolves.length,
       progress.worldTwoEnemyDefeats,
       progress.worldTwoSkills.length,
+      progress.worldTwoBuildings.length,
       ...milestones.map((item) => item.done),
     ]);
     this.islandGoal.hidden = false;
@@ -1691,7 +1715,7 @@ export class GameUI {
       ? 'Le sommet est éveillé · les minerais du World 2 restent accessibles.'
       : next
         ? `Prochaine terrasse · ${next.name} · les filons noirs attendent de meilleurs crocs`
-        : 'Approche du Cœur du Zénith pour achever l’ascension.';
+        : 'Construis le Cœur du Zénith pour achever réellement la campagne.';
     this.islandGoalList.replaceChildren();
     milestones.forEach((item) => {
       const row = element('li', item.done ? 'done' : '');

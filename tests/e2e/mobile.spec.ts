@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { SKILL_DEFINITIONS } from '../../src/game/economy';
+import { SKILL_DEFINITIONS, WORLD_TWO_BUILDINGS } from '../../src/game/economy';
 import { WORLD_TWO_TERRACES } from '../../src/game/world';
 
 // L'encodage vidéo et la capture DOM continue divisent le framerate de cette
@@ -57,6 +57,7 @@ interface IlotaDiagnostics {
   worldTwoMineableDark: number;
   worldTwoWolfAnimations: string;
   worldTwoEnemyAnimations: string;
+  worldTwoBuildings: number;
   worldTravelPathVisible: boolean;
   worldTravelObjects: number;
   inputEnabled: boolean;
@@ -491,13 +492,16 @@ test('le portail anime l’aller vers le World 2 puis permet le retour au World 
 
 test.describe('traversée physique du World 2', () => {
   test('les onze terrasses et leurs rampes restent praticables jusqu’au Zénith', async ({ page }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
       ...richSave(),
+      version: 12,
       ...maximizedSkillTree(),
       rebirths: 5,
       currentWorld: 2,
       worldTwoTerracesUnlocked: 11,
+      worldTwoPeakReached: true,
+      worldTwoBuildings: WORLD_TWO_BUILDINGS.map((building) => building.id),
       tutorialSeen: ['welcome', 'world-2'],
     });
     await waitForGame(page);

@@ -16,6 +16,7 @@ import {
   WORLD_TWO_RESOURCE_LABELS,
   WORLD_TWO_MINERALS,
   WORLD_TWO_SKILLS,
+  WORLD_TWO_BUILDINGS,
   canMineWorldTwoMineral,
   formatBridgeRequirement,
   formatCost,
@@ -60,8 +61,16 @@ import {
   getWorldTwoCargoValue,
   getWorldTwoFangUpgradeCost,
   getWorldTwoMineral,
+  getWorldTwoBuildingRequirements,
+  getWorldTwoPackCapacity,
+  getWorldTwoPlayerYield,
+  getWorldTwoPlayerSpeed,
   getWorldTwoRecruitCost,
+  getWorldTwoRespawnMultiplier,
   getWorldTwoWolfCapacity,
+  getWorldTwoWolfMaximumHealth,
+  getWorldTwoWolfYield,
+  hasWorldTwoBuilding,
   hasProject,
   hasSkill,
   hasWorldTwoSkill,
@@ -80,6 +89,7 @@ import {
   type WorldTwoResourceKind,
   type WorldTwoMineralId,
   type WorldTwoSkillId,
+  type WorldTwoBuildingDefinition,
   type WorldTwoWorkerState,
 } from './economy';
 import { InputController } from './input';
@@ -140,6 +150,13 @@ interface WorldTwoDenEntity {
 
 interface WorldTwoShrineEntity {
   root: THREE.Group;
+  label: THREE.Sprite;
+}
+
+interface WorldTwoBuildingEntity {
+  definition: WorldTwoBuildingDefinition;
+  pad: THREE.Group;
+  building: THREE.Group;
   label: THREE.Sprite;
 }
 
@@ -311,6 +328,7 @@ type Interaction =
   | { type: 'portal'; entity: WorldPortalEntity }
   | { type: 'worldTwoDen'; entity: WorldTwoDenEntity }
   | { type: 'worldTwoShrine'; entity: WorldTwoShrineEntity }
+  | { type: 'worldTwoBuilding'; entity: WorldTwoBuildingEntity }
   | { type: 'heart' };
 
 interface Diagnostics {
@@ -365,6 +383,7 @@ interface Diagnostics {
   worldTwoMineableDark: number;
   worldTwoWolfAnimations: string;
   worldTwoEnemyAnimations: string;
+  worldTwoBuildings: number;
   worldTravelPathVisible: boolean;
   worldTravelObjects: number;
   inputEnabled: boolean;
@@ -524,6 +543,7 @@ export class IlotaGame {
   private readonly worldPortals: WorldPortalEntity[] = [];
   private readonly worldTwoWolves: WorldTwoWolfEntity[] = [];
   private readonly worldTwoEnemies: WorldTwoEnemyEntity[] = [];
+  private readonly worldTwoBuildings: WorldTwoBuildingEntity[] = [];
   private worldTwoDen: WorldTwoDenEntity | null = null;
   private worldTwoShrine: WorldTwoShrineEntity | null = null;
   private readonly caches: CacheEntity[] = [];
@@ -554,7 +574,7 @@ export class IlotaGame {
   private readonly cargoGeometries = new Map<ResourceKind, THREE.BufferGeometry>();
   private readonly cargoMaterials = new Map<ResourceKind, THREE.MeshStandardMaterial>();
   private readonly worldTwoCargoTemplates = new Map<WorldTwoMineralId, THREE.Group>();
-  private playerDeposit: { warehouse: WarehouseEntity; timer: number } | null = null;
+  private playerDeposit: { warehouse: WarehouseEntity; timer: number; worldTwoFullCargo: boolean } | null = null;
   private tideResetAnimation: TideResetAnimation | null = null;
   private industrySurgeCooldown = 2.5;
   private industrySurgeRemaining = 0;
@@ -654,6 +674,7 @@ export class IlotaGame {
       worldTwoMineableDark: 0,
       worldTwoWolfAnimations: '',
       worldTwoEnemyAnimations: '',
+      worldTwoBuildings: progress.worldTwoBuildings.length,
       worldTravelPathVisible: false,
       worldTravelObjects: this.worldTravelCauseway.children.length,
       inputEnabled: false,
@@ -1221,6 +1242,7 @@ export class IlotaGame {
     this.createWorldTwoDepot();
     this.createWorldTwoDen();
     this.createWorldTwoShrine();
+    this.createWorldTwoBuildings();
     this.createWorldTwoResources();
     this.decorateWorldTwo();
     this.createWorldTwoEnemies();
@@ -1493,6 +1515,90 @@ export class IlotaGame {
     label.userData.worldTwoTerrace = terraceIndex;
     this.worldTwoRoot.add(label);
     this.worldTwoShrine = { root, label };
+  }
+
+  private createWorldTwoBuildings(): void {
+    // Secteurs libres entre les filons et les sorties de rampe de chaque acte.
+    const angles = [250, 45, 260, 50, 175];
+    WORLD_TWO_BUILDINGS.forEach((definition, index) => {
+      const terrace = WORLD_TWO_TERRACES[definition.terraceIndex];
+      if (!terrace) return;
+      const angle = THREE.MathUtils.degToRad(angles[index] ?? 45);
+      const radius = Math.max(2.5, terrace.radius - 3.15);
+      const position = new THREE.Vector3(
+        terrace.x + Math.sin(angle) * radius,
+        terrace.elevation,
+        terrace.z + Math.cos(angle) * radius,
+      );
+
+      const pad = new THREE.Group();
+      pad.position.copy(position);
+      pad.userData.worldTwoTerrace = definition.terraceIndex;
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.72, 1.9, 0.28, 12),
+        new THREE.MeshStandardMaterial({
+          color: 0x3a4247,
+          emissive: 0x172d35,
+          emissiveIntensity: 0.7,
+          roughness: 0.9,
+        }),
+      );
+      base.position.y = 0.14;
+      const rune = new THREE.Mesh(
+        new THREE.TorusGeometry(1.12, 0.09, 6, 28),
+        new THREE.MeshBasicMaterial({ color: index >= 3 ? 0xf0c86b : 0x8bd9e8 }),
+      );
+      rune.rotation.x = Math.PI / 2;
+      rune.position.y = 0.31;
+      rune.userData.temporalRing = 0.2 + index * 0.03;
+      pad.add(base, rune);
+      this.worldTwoRoot.add(pad);
+
+      const building = new THREE.Group();
+      building.position.copy(position);
+      building.rotation.y = Math.atan2(terrace.x - position.x, terrace.z - position.z);
+      building.userData.worldTwoTerrace = definition.terraceIndex;
+      const plinth = base.clone();
+      plinth.position.y = 0.14;
+      building.add(plinth);
+      const assetKind = definition.id === 'zenith_core'
+        ? 'portal'
+        : definition.id === 'pack_lodge'
+        ? 'den'
+        : definition.id === 'fang_forge' || definition.id === 'storm_watch'
+          ? 'gateRock'
+          : 'corridor';
+      const model = this.assets.createWorldTwoAsset(assetKind, definition.id === 'zenith_core' ? 4.7 : 3.45);
+      // Les modules Cave Kit sont des salles complètes : à l'échelle brute,
+      // ils masqueraient le chemin et les filons. Ils restent des monuments
+      // lisibles sans devenir des murs au milieu de la terrasse.
+      model.scale.multiplyScalar(definition.id === 'zenith_core' ? 0.82 : 0.46);
+      model.position.y = 0.28;
+      model.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => {
+          if (!(material instanceof THREE.MeshStandardMaterial)) return;
+          material.emissive.setHex(index >= 3 ? 0x4d3511 : 0x173c49);
+          material.emissiveIntensity = 0.3 + index * 0.08;
+        });
+      });
+      building.add(model);
+      const light = new THREE.PointLight(index >= 3 ? 0xf3c56e : 0x75d9e8, 5 + index, 7, 2);
+      light.position.set(0, 1.7, 0.4);
+      building.add(light);
+      this.worldTwoRoot.add(building);
+
+      const label = this.createWorldLabel(
+        `${definition.icon} ${definition.name.toUpperCase()}`,
+        index >= 3 ? 0xf0d184 : 0xa9e4ed,
+        4.2,
+      );
+      label.position.copy(position).add(new THREE.Vector3(0, 3.9, 0));
+      label.userData.worldTwoTerrace = definition.terraceIndex;
+      this.worldTwoRoot.add(label);
+      this.worldTwoBuildings.push({ definition, pad, building, label });
+    });
   }
 
   private createWorldTwoResources(): void {
@@ -2613,6 +2719,19 @@ export class IlotaGame {
       this.worldTwoShrine.root.visible = true;
       this.worldTwoShrine.label.visible = true;
     }
+    this.worldTwoBuildings.forEach((entity) => {
+      const built = hasWorldTwoBuilding(this.economy.progress, entity.definition.id);
+      entity.pad.visible = !built;
+      entity.building.visible = built;
+      entity.label.visible = true;
+      this.setWorldLabel(
+        entity.label,
+        built
+          ? `✓ ${entity.definition.name.toUpperCase()}`
+          : `${entity.definition.icon} CHANTIER · ${entity.definition.name.toUpperCase()}`,
+        built ? 0xf0d184 : 0xa9e4ed,
+      );
+    });
   }
 
   private applyWorldTwoMineralAppearance(node: ResourceNode): void {
@@ -3151,7 +3270,9 @@ export class IlotaGame {
     );
     const candidate = this.player.position.clone().addScaledVector(
       direction,
-      getPlayerSpeed(this.economy.progress) * flowMultiplier * magnitude * delta,
+      (this.economy.progress.currentWorld === 2
+        ? getWorldTwoPlayerSpeed(this.economy.progress)
+        : getPlayerSpeed(this.economy.progress) * flowMultiplier) * magnitude * delta,
     );
     if (this.isWalkable(candidate)) this.player.position.copy(candidate);
     const desiredRotation = Math.atan2(direction.x, direction.z);
@@ -3200,19 +3321,8 @@ export class IlotaGame {
     if (surface !== null) {
       this.player.position.y = THREE.MathUtils.damp(this.player.position.y, surface, 12, delta);
     }
-    const terraceIndex = findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z);
-    const summitIndex = WORLD_TWO_TERRACES.length - 1;
-    if (
-      terraceIndex !== summitIndex
-      || this.economy.progress.worldTwoPeakReached
-    ) return;
-    this.economy.progress.worldTwoPeakReached = true;
-    const summit = WORLD_TWO_TERRACES[summitIndex]!;
-    this.spawnParticles(new THREE.Vector3(summit.x, summit.elevation + 1.1, summit.z), 'crystal', 42);
-    this.feedback.play('victory');
-    this.ui.toast('Sommet du Zénith atteint · World 2 maîtrisé !');
-    this.ui.update(this.economy.progress);
-    this.save();
+    // Explorer le sommet reste libre. La campagne n'est achevée qu'en
+    // construisant le Cœur du Zénith après avoir maîtrisé tous les systèmes.
   }
 
   private distanceToSegmentSquared(point: THREE.Vector3, start: THREE.Vector3, end: THREE.Vector3): number {
@@ -3552,8 +3662,11 @@ export class IlotaGame {
               enemy.deathTimer = 1.35;
               enemy.respawnTimer = 0;
               this.playWorldTwoEnemyAction(enemy, 'death', 0.04);
-              this.economy.recordWorldTwoEnemyDefeat();
-              this.ui.toast(`${state.name} protège la meute · créature vaincue !`);
+              const bounty = this.economy.recordWorldTwoEnemyDefeat(enemy.terraceIndex);
+              if (hasWorldTwoSkill(progress, 'pack_endurance')) {
+                state.health = getWorldTwoWolfMaximumHealth(progress);
+              }
+              this.ui.toast(`${state.name} protège la meute · créature vaincue${bounty > 0 ? ` · prime ${formatWorldTwoMoney(bounty)}` : ''} !`);
               entity.enemy = null;
               entity.phase = 'seeking';
               this.ui.update(progress);
@@ -3614,7 +3727,9 @@ export class IlotaGame {
 
       if (entity.phase === 'moving') {
         this.playWorldTwoWolfAction(entity, 'run');
-        const speed = 2.2 * (hasWorldTwoSkill(progress, 'pack_instinct') ? 1.2 : 1);
+        const speed = 2.2
+          * (hasWorldTwoSkill(progress, 'pack_instinct') ? 1.2 : 1)
+          * (hasWorldTwoSkill(progress, 'zenith_convergence') ? 1.2 : 1);
         if (this.advanceWorldTwoWolf(entity, speed, delta)) {
           entity.phase = 'gathering';
           entity.timer = 0.72;
@@ -3637,7 +3752,7 @@ export class IlotaGame {
         if (entity.timer > 0) continue;
         const capacity = getWorldTwoWolfCapacity(progress);
         const free = capacity - entity.cargo;
-        const strike = state.level + (hasWorldTwoSkill(progress, 'mountain_tools') ? 1 : 0);
+        const strike = state.level - 1 + getWorldTwoWolfYield(progress);
         const gathered = this.consumeResourceNode(target, Math.min(free, strike), entity.id);
         entity.cargo += gathered;
         entity.cargoKind = target.worldTwoKind ?? state.task;
@@ -3659,7 +3774,9 @@ export class IlotaGame {
 
       if (entity.phase === 'returning') {
         this.playWorldTwoWolfAction(entity, 'run');
-        const speed = 2.35 * (hasWorldTwoSkill(progress, 'pack_instinct') ? 1.2 : 1);
+        const speed = 2.35
+          * (hasWorldTwoSkill(progress, 'pack_instinct') ? 1.2 : 1)
+          * (hasWorldTwoSkill(progress, 'zenith_convergence') ? 1.2 : 1);
         if (this.advanceWorldTwoWolf(entity, speed, delta)) {
           entity.phase = 'depositing';
           entity.timer = 0.3;
@@ -3671,7 +3788,10 @@ export class IlotaGame {
       if (entity.timer > 0) continue;
       if (entity.cargo > 0) {
         const delivered = entity.cargo + (hasWorldTwoSkill(progress, 'zenith_pack') ? 1 : 0);
-        this.economy.addWorldTwo(entity.cargoKind, delivered);
+        this.economy.addWorldTwo(entity.cargoKind, delivered, entity.cargo >= getWorldTwoWolfCapacity(progress));
+        if (hasWorldTwoBuilding(progress, 'pack_lodge')) {
+          state.health = Math.min(getWorldTwoWolfMaximumHealth(progress), state.health + 1);
+        }
         entity.cargo = 0;
         this.syncWorldTwoWolfCargo(entity);
         this.spawnWorldTwoParticles(
@@ -3743,7 +3863,8 @@ export class IlotaGame {
       }
       this.playWorldTwoEnemyAction(enemy, 'act', 0.05);
       if (enemy.attackTimer > 0) return;
-      enemy.attackTimer = hasWorldTwoSkill(progress, 'guard_circle') ? 2.2 : 1.15;
+      enemy.attackTimer = (hasWorldTwoSkill(progress, 'guard_circle') ? 2.2 : 1.15)
+        * (hasWorldTwoBuilding(progress, 'storm_watch') ? 1.2 : 1);
       const defeated = this.economy.damageWorldTwoWolf(target.id, 1);
       if (!defeated) this.playWorldTwoWolfAction(target, 'hit', 0.03);
       this.spawnParticles(target.root.position.clone().setY(target.root.position.y + 0.75), 'stone', 6);
@@ -3856,6 +3977,12 @@ export class IlotaGame {
       if (this.worldTwoShrine?.root.visible && near(this.worldTwoShrine.root.position, 2.45)) {
         return { type: 'worldTwoShrine', entity: this.worldTwoShrine };
       }
+      for (const entity of this.worldTwoBuildings) {
+        const target = hasWorldTwoBuilding(this.economy.progress, entity.definition.id)
+          ? entity.building
+          : entity.pad;
+        if (target.visible && near(target.position, 2.55)) return { type: 'worldTwoBuilding', entity };
+      }
     }
     for (const entity of this.warehouses) {
       if (entity.world !== this.economy.progress.currentWorld) continue;
@@ -3936,7 +4063,7 @@ export class IlotaGame {
     if (interaction.type === 'worldTwoDen') {
       const cost = getWorldTwoRecruitCost(this.economy.progress);
       const count = this.economy.progress.worldTwoWolves.length;
-      const capacity = getWorldTwoWolfCapacity(this.economy.progress);
+      const capacity = getWorldTwoPackCapacity(this.economy.progress);
       this.ui.setContext(
         `Tanière de la meute · ${count}/${capacity} loups`,
         count >= capacity ? 'MEUTE PLEINE' : 'RECRUTER',
@@ -3953,6 +4080,23 @@ export class IlotaGame {
         '✺',
         true,
         'Ouvre l’arbre professionnel propre au World 2.',
+      );
+      return;
+    }
+    if (interaction.type === 'worldTwoBuilding') {
+      const { definition } = interaction.entity;
+      const built = hasWorldTwoBuilding(this.economy.progress, definition.id);
+      const requirements = getWorldTwoBuildingRequirements(this.economy.progress, definition);
+      this.ui.setContext(
+        built ? `${definition.name} · opérationnel` : `${definition.name} · chantier du Zénith`,
+        built ? 'MAÎTRISÉ' : 'CONSTRUIRE',
+        definition.icon,
+        !built && requirements.length === 0 && this.economy.canAffordWorldTwo(definition.cost),
+        built
+          ? definition.effect
+          : requirements.length > 0
+            ? `Requis · ${requirements.join(' · ')}`
+            : `${formatWorldTwoCost(definition.cost)} · ${definition.effect}`,
       );
       return;
     }
@@ -4158,7 +4302,7 @@ export class IlotaGame {
         this.feedback.play('build');
         this.ui.toast(`${worker.name} rejoint la meute et part chercher du ${WORLD_TWO_RESOURCE_LABELS[worker.task]}.`);
         this.changed();
-      } else if (this.economy.progress.worldTwoWolves.length >= getWorldTwoWolfCapacity(this.economy.progress)) {
+      } else if (this.economy.progress.worldTwoWolves.length >= getWorldTwoPackCapacity(this.economy.progress)) {
         this.ui.toast('Meute pleine · le dernier savoir du Zénith ajoute deux places.');
       } else {
         this.ui.toast(`Il manque ${formatWorldTwoCost(this.economy.missingWorldTwo(getWorldTwoRecruitCost(this.economy.progress)))}.`);
@@ -4168,6 +4312,35 @@ export class IlotaGame {
 
     if (this.interaction.type === 'worldTwoShrine') {
       this.ui.showWorldTwoSkills();
+      return;
+    }
+
+    if (this.interaction.type === 'worldTwoBuilding') {
+      const { definition, building, pad } = this.interaction.entity;
+      if (hasWorldTwoBuilding(this.economy.progress, definition.id)) {
+        this.ui.toast(`${definition.name} · ${definition.effect}`);
+        return;
+      }
+      const missing = getWorldTwoBuildingRequirements(this.economy.progress, definition);
+      if (missing.length > 0) {
+        this.ui.toast(`Chantier verrouillé · ${missing.join(' · ')}.`);
+        return;
+      }
+      if (!this.economy.buildWorldTwoBuilding(definition.id)) {
+        this.ui.toast(`Il manque ${formatWorldTwoMoney(this.economy.missingWorldTwo(definition.cost))}.`);
+        return;
+      }
+      pad.visible = false;
+      building.visible = true;
+      this.startBuildingAssembly(building);
+      this.spawnWorldTwoParticles(
+        building.position.clone().setY(building.position.y + 1.2),
+        definition.id === 'zenith_core' ? 'celestium' : definition.terraceIndex >= 8 ? 'solarite' : 'copper',
+        definition.id === 'zenith_core' ? 48 : 26,
+      );
+      this.feedback.play(definition.id === 'zenith_core' ? 'victory' : 'build');
+      this.ui.toast(`${definition.name} construit · ${definition.effect}`);
+      this.changed();
       return;
     }
 
@@ -4182,7 +4355,12 @@ export class IlotaGame {
           this.ui.toast('Ton dos est vide · rapporte une cargaison récoltée.');
           return;
         }
-        this.playerDeposit = { warehouse: entity, timer: 0.04 };
+        this.playerDeposit = {
+          warehouse: entity,
+          timer: 0.04,
+          worldTwoFullCargo: entity.world === 2
+            && getWorldTwoCargoTotal(this.economy.progress) >= getWorldTwoCargoCapacity(this.economy.progress),
+        };
         this.feedback.play('deposit');
         this.input.release();
         this.ui.toast(entity.world === 2
@@ -4376,7 +4554,7 @@ export class IlotaGame {
     const requested = Math.min(
       Math.ceil(free / cargoMultiplier),
       isWorldTwoResource
-        ? 1 + (hasWorldTwoSkill(this.economy.progress, 'mountain_tools') ? 1 : 0)
+        ? getWorldTwoPlayerYield(this.economy.progress)
         : getManualYield(this.economy.progress, node.kind),
     );
     const gathered = this.consumeResourceNode(node, requested);
@@ -4395,7 +4573,7 @@ export class IlotaGame {
     if (node.amount <= 0) {
       node.respawn = node.respawnSeconds * (
         node.worldTwoKind
-          ? hasWorldTwoSkill(this.economy.progress, 'deep_veins') ? 0.7 : 1
+          ? getWorldTwoRespawnMultiplier(this.economy.progress)
           : getRespawnMultiplier(this.economy.progress)
       );
       this.ui.toast(node.worldTwoKind
@@ -4417,7 +4595,7 @@ export class IlotaGame {
     if (node.amount <= 0) {
       node.respawn = node.respawnSeconds * (
         node.worldTwoKind
-          ? hasWorldTwoSkill(this.economy.progress, 'deep_veins') ? 0.7 : 1
+          ? getWorldTwoRespawnMultiplier(this.economy.progress)
           : getRespawnMultiplier(this.economy.progress)
       );
     }
@@ -4676,7 +4854,7 @@ export class IlotaGame {
       const target = vec(deposit.warehouse.definition.x, deposit.warehouse.definition.z + 1.05).setY(0.42);
       if (this.economy.unloadWorldTwoCargo(worldTwoKind, 1) > 0) {
         this.spawnWorldTwoCargoDrop(origin, target, worldTwoKind, () => {
-          this.economy.addWorldTwo(worldTwoKind, 1);
+          this.economy.addWorldTwo(worldTwoKind, 1, deposit.worldTwoFullCargo);
           this.ui.update(this.economy.progress);
           this.save();
         });
@@ -5173,6 +5351,7 @@ export class IlotaGame {
       .map((enemy) => enemy.currentAction)
       .filter(Boolean)
       .join(',');
+    this.diagnostics.worldTwoBuildings = progress.worldTwoBuildings.length;
     this.diagnostics.worldTravelPathVisible = this.worldTravelCauseway.visible;
     this.diagnostics.worldTravelObjects = this.worldTravelCauseway.children.length;
     this.diagnostics.inputEnabled = this.input.enabled;

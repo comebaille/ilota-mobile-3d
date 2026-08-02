@@ -26,8 +26,10 @@ Jeu 3D mobile de collecte, construction et gestion. Le renard bâtisseur récolt
 - vrai portail temporel 3D **World 2** sur l’île de base, ouvert après 5 rebirths et les 32 savoirs maximisés, avec traversée aller-retour au sol sur un sentier de terre instancié, allégé et encaissé dans la montagne ;
 - **Montagne du Zénith** : onze terrasses et dix rampes accessibles immédiatement, enceinte montagneuse et trente filons — de la pierre au diamant puis au Célestium — dont seuls les minerais trop durs restent noirs ; tous les minerais exploitables sont colorés et cerclés de lumière ;
 - économie du World 2 entièrement fondée sur l’argent : les minerais portés sont vendus au Refuge des Échos, les crocs du héros et de la meute possèdent trente niveaux, et aucun stock local ne pollue le HUD ;
-- tanière payée en argent, nouveaux loups Quaternius plus détaillés avec douze animations, démon, spectre et yéti animés, défense de meute et six Savoirs du Zénith dédiés ;
-- économie, cargaison, travailleurs et progression du World 2 totalement indépendants du World 1 ; objectifs, crocs, fortune, meute et sommet restent persistants dans la sauvegarde v11 ;
+- cinq chantiers spécialisés répartis sur la montagne — Forge des Crocs, Pavillon de la Meute, Comptoir des Nuages, Vigie des Tempêtes et Cœur du Zénith — avec prérequis, assemblage 3D et effets économiques réels ;
+- arbre du Zénith à 18 talents en quatre ensembles : Extraction, Meute, Fortune et Convergence, avec bonus de frappes, cargaisons, ventes, primes, santé et régénération ;
+- tanière payée en argent, loups Quaternius avec douze animations, démon, spectre et yéti animés, meute extensible jusqu’à six membres et combats rémunérés ;
+- économie, cargaison, travailleurs et progression du World 2 totalement indépendants du World 1 ; objectifs, crocs, fortune, bâtiments, meute et victoire restent persistants dans la sauvegarde v12 ;
 - sélection d’un savoir sans achat automatique : une grande fiche explique l’effet, le prix et les prérequis avant confirmation ;
 - menu de Marée avec reprise, remise à zéro confirmée et Nouvelle Marée grisée tant que l’acte actuel n’est pas terminé ;
 - compteur de Savoir toujours visible, même avant la construction de l’Autel ;
