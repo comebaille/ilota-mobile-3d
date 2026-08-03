@@ -2969,7 +2969,7 @@ export class IlotaGame {
       this.setWorldLabel(
         entryPortal.label,
         profileBlocked
-          ? 'WORLD 2 · BLOQUÉ POUR LE JOUEUR 2'
+          ? 'WORLD 2 · ERR_TEMPORAL_REFERENCE'
           : unlocked
           ? 'WORLD 2 · PORTAIL OUVERT'
           : `WORLD 2 · MARÉES ${Math.min(5, progress.rebirths)}/5 · SAVOIRS ${completion.completed}/${completion.total}`,
@@ -4525,13 +4525,13 @@ export class IlotaGame {
       const unlocked = isWorldTwoUnlocked(this.economy.progress) && !profileBlocked;
       this.ui.setContext(
         profileBlocked
-          ? 'World 2 · accès désactivé pour le Joueur 2'
+          ? 'Uncaught TypeError · TemporalGate.resolve()'
           : unlocked ? 'World 2 · Ascension du Zénith' : 'World 2 · faille temporelle scellée',
-        unlocked ? 'TRAVERSER' : 'VERROUILLÉ',
+        profileBlocked ? 'E_GATE_0xC0000409' : unlocked ? 'TRAVERSER' : 'VERROUILLÉ',
         '◉',
         unlocked,
         profileBlocked
-          ? 'Ce profil sert à tester le nouvel arbre des savoirs. Le World 2 est volontairement bloqué.'
+          ? "Cannot read properties of undefined (reading 'phaseAnchor') · at WorldRouter.commit (index-DiniLrOi.js:1:49208)"
           : `Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · arbre maximisé ${completion.completed}/${completion.total}.`,
       );
       return;
@@ -4716,7 +4716,7 @@ export class IlotaGame {
         return;
       }
       if (destination === 2 && isWorldTwoBlockedForActiveProfile()) {
-        this.ui.toast('ERREUR · le World 2 est désactivé pour le Joueur 2 afin de tester le nouvel arbre des savoirs.');
+        this.ui.toast("Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'phaseAnchor') at TemporalGate.resolve (index-DiniLrOi.js:1:48731)");
         this.feedback.play('ui');
         return;
       }
@@ -5395,7 +5395,7 @@ export class IlotaGame {
 
   private travelToWorld(destination: 1 | 2): void {
     if (destination === 2 && isWorldTwoBlockedForActiveProfile()) {
-      this.ui.toast('ERREUR · le World 2 reste fermé pour le Joueur 2.');
+      this.ui.toast("Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'phaseAnchor') at TemporalGate.resolve (index-DiniLrOi.js:1:48731)");
       return;
     }
     if (
@@ -5520,7 +5520,7 @@ export class IlotaGame {
         progress.skillRanks[definition.id] = definition.maxRank ?? 1;
       });
       this.ui.toast(isWorldTwoBlockedForActiveProfile()
-        ? 'ADMIN · progression complétée, mais le portail reste bloqué pour le Joueur 2.'
+        ? 'DOMException: Failed to execute transferTo() on TemporalGate: target realm rejected opaque origin (0xC0000409).'
         : 'ADMIN · portail du World 2 déverrouillé.');
     } else if (action === 'world-one-build-all') {
       progress.warehousesBuilt = [true, true, true, true, true];

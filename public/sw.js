@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v28-3-player-two-world-lock';
+const CACHE = 'ilota-v28-4-opaque-gate-error';
 const CORE = [
   './',
   './index.html',

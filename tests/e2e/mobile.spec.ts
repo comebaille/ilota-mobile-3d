@@ -437,10 +437,13 @@ test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqu
 
   const { moveTo } = createNavigator(page);
   await moveTo(-7.2, 7.2, 0.7);
-  await expect(page.locator('#context-prompt')).toContainText('accès désactivé pour le Joueur 2');
-  await expect(page.locator('#action-button')).toContainText('VERROUILLÉ');
+  await expect(page.locator('#context-prompt')).toContainText('Uncaught TypeError · TemporalGate.resolve()');
+  await expect(page.locator('#context-prompt')).toContainText("Cannot read properties of undefined (reading 'phaseAnchor')");
+  await expect(page.locator('#context-prompt')).not.toContainText(/Joueur 2|test|bloqué|désactivé/i);
+  await expect(page.locator('#action-button')).toContainText('E_GATE_0xC0000409');
   await page.locator('#action-button').tap();
-  await expect(page.locator('#toast')).toContainText('World 2 est désactivé pour le Joueur 2');
+  await expect(page.locator('#toast')).toContainText('Uncaught (in promise) TypeError');
+  await expect(page.locator('#toast')).not.toContainText(/Joueur 2|test|bloqué|désactivé/i);
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
 });
 
