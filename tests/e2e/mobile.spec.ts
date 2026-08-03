@@ -382,9 +382,10 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await expect.poll(async () => (await diagnostics(page)).wood).toBe(1);
 });
 
-test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', async ({ page }) => {
+test('le portail du World 2 exige cinq Marées et les 42 hexagones', async ({ page }) => {
   const tree = maximizedSkillTree();
-  tree.skillRanks.cargo_harness = 5;
+  tree.skills = tree.skills.filter((skill) => skill !== 'cargo_harness_6');
+  delete tree.skillRanks.cargo_harness_6;
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     ...tree,
@@ -395,11 +396,36 @@ test('le portail du World 2 exige cinq Marées et les 32 talents maximisés', as
   const { moveTo } = createNavigator(page);
   await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('faille temporelle scellée');
-  await expect(page.locator('#context-prompt')).toContainText('31/32');
+  await expect(page.locator('#context-prompt')).toContainText('41/42');
   await expect(page.locator('#action-button')).toContainText('VERROUILLÉ');
   await page.locator('#action-button').tap();
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
   expect((await diagnostics(page)).worldTwoPortalUnlocked).toBe(false);
+});
+
+test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqué', async ({ page }) => {
+  await page.addInitScript((save) => {
+    localStorage.setItem('ilota-save-profile-active-v1', '2');
+    localStorage.setItem('ilota-save-profile-2-v1', JSON.stringify(save));
+  }, {
+    ...richSave(),
+    ...maximizedSkillTree(),
+    knowledge: 77,
+    rebirths: 8,
+    currentWorld: 2,
+    tutorialSeen: ['welcome'],
+  });
+  await waitForGame(page);
+  const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem('ilota-save-profile-2-v1') ?? '{}'));
+  expect(migrated).toMatchObject({ skills: [], skillRanks: {}, knowledge: 77, currentWorld: 1 });
+
+  const { moveTo } = createNavigator(page);
+  await moveTo(-7.2, 7.2, 0.7);
+  await expect(page.locator('#context-prompt')).toContainText('accès désactivé pour le Joueur 2');
+  await expect(page.locator('#action-button')).toContainText('VERROUILLÉ');
+  await page.locator('#action-button').tap();
+  await expect(page.locator('#toast')).toContainText('World 2 est désactivé pour le Joueur 2');
+  await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
 });
 
 test('portail puis menu et Reprendre détourne vers l’île ADMIN sans mot de passe', async ({ page }) => {
@@ -1271,27 +1297,26 @@ test('la Frappe de maîtrise affiche neuf et augmente réellement chaque coup', 
   await expect(page.locator('#worker-detail')).toContainText('+9');
 });
 
-test('achète les deux rangs de Frappe de maîtrise pour 12 puis 20 Savoir', async ({ page }) => {
+test('achète les deux hexagones distincts de Frappe pour 7 puis 12 Savoir', async ({ page }) => {
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     observatoryBuilt: true,
-    knowledge: 32,
-    skills: ['master_builders', 'cargo_harness'],
-    skillRanks: { master_builders: 1, cargo_harness: 1 },
+    knowledge: 19,
+    skills: ['full_loads', 'far_horizons', 'tidal_inheritance'],
   });
   await waitForGame(page);
   await openTalents(page);
 
-  await page.getByRole('button', { name: /voir Frappe de maîtrise rang 1, prix 12/i }).click();
+  await page.getByRole('button', { name: /voir Frappe double, prix 7/i }).click();
   await expect(page.locator('#skill-inspector-detail')).toContainText('2/4/6');
   await page.locator('#skill-buy-button').click();
-  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(20);
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(12);
 
-  await page.getByRole('button', { name: /voir Frappe de maîtrise rang 2, prix 20/i }).click();
+  await page.getByRole('button', { name: /voir Frappe triple, prix 12/i }).click();
   await expect(page.locator('#skill-inspector-detail')).toContainText('3/6/9');
   await page.locator('#skill-buy-button').click();
   await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(0);
-  await expect(page.getByRole('button', { name: /Frappe de maîtrise, rang 2 sur 2, acquis/i }))
+  await expect(page.getByRole('button', { name: /voir Frappe triple, acquis/i }))
     .toBeVisible();
 });
 
@@ -1313,27 +1338,26 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   await expect.poll(async () => (await diagnostics(page)).powerNotifications).toBe(false);
   await page.locator('#power-vfx-button').click();
   await expect.poll(async () => (await diagnostics(page)).powerVfx).toBe(false);
-  await expect(page.locator('.skill-hex')).toHaveCount(1);
+  await expect(page.locator('.skill-hex')).toHaveCount(3);
   await expect(page.getByRole('button', { name: /routes calculées/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /voir démarrer/i }).click();
-  await expect(page.locator('#skill-inspector-detail')).toContainText('révèle les trois premières voies');
-  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(30);
-  await expect(page.locator('.skill-hex')).toHaveCount(1);
-  await page.locator('#skill-buy-button').click();
-  await expect(page.locator('.skill-hex')).toHaveCount(4);
   await expect(page.getByRole('button', { name: /voir étincelle logique/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /voir premier mécanisme/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /voir appel du large/i })).toBeVisible();
   await buySkill(page, /voir étincelle logique/i);
-  await expect(page.getByRole('button', { name: /routes calculées/i })).toHaveCount(0);
+  await expect(page.locator('.skill-hex')).toHaveCount(5);
+  await buySkill(page, /voir premier mécanisme/i);
+  await expect(page.locator('.skill-hex')).toHaveCount(6);
+  const sharpTools = page.getByRole('button', { name: /voir Outils affûtés/i });
+  await expect(sharpTools).toHaveClass(/locked/);
+  await sharpTools.click();
+  await expect(page.locator('#skill-buy-button')).toBeDisabled();
   await buySkill(page, /voir sens des pistes/i);
   await expect(page.getByRole('button', { name: /voir routes calculées/i })).toBeVisible();
   await buySkill(page, /voir routes calculées/i);
-  await expect(page.getByRole('button', { name: /réseau logistique/i })).toHaveCount(0);
-  await buySkill(page, /voir prévisions/i);
+  await buySkill(page, /voir réseau logistique/i);
   await buySkill(page, /voir relèves coordonnées/i);
   await buySkill(page, /voir auto-régulation/i);
-  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(8);
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(14);
   await expect.poll(async () => (await diagnostics(page)).skills).toContain('auto_regulation');
   await page.waitForTimeout(2_200);
   await page.getByRole('button', { name: /activer l’auto-régulation/i }).click();
@@ -1387,19 +1411,19 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
 });
 
-test('les trois sommets seuls révèlent la Conscience absolue', async ({ page }) => {
+test('la dernière paire de parents révèle la Conscience absolue', async ({ page }) => {
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
-    knowledge: 30,
+    knowledge: 13,
     observatoryBuilt: true,
-    skills: ['collective_intelligence', 'endless_engine', 'ocean_legacy'],
+    skills: ['tidal_inheritance_2'],
   });
   await waitForGame(page);
   await openTalents(page);
   const finalSkill = page.getByRole('button', { name: /voir Conscience absolue/i });
   await expect(finalSkill).toBeVisible();
-  await expect(finalSkill).toContainText('30 SAVOIR');
+  await expect(finalSkill).toContainText('13 SAVOIR');
   await finalSkill.click();
   await expect(page.locator('#skill-inspector-name')).toHaveText('Conscience absolue');
   await expect.poll(async () => (await diagnostics(page)).skills).not.toContain('archipelago_consciousness');
@@ -1407,7 +1431,6 @@ test('les trois sommets seuls révèlent la Conscience absolue', async ({ page }
   await page.locator('#skill-buy-button').click();
   await expect.poll(async () => (await diagnostics(page)).skills).toContain('archipelago_consciousness');
   await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
-  await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('les sommets Technique et Exploration déclenchent chacun leur pouvoir lisible', async ({ page }) => {
@@ -1477,25 +1500,21 @@ test('la Conscience absolue réserve les filons et évite les départs inutiles 
   }).toBe(3);
 });
 
-test('achète plusieurs rangs de postes dont le prix augmente', async ({ page }) => {
+test('achète deux extensions de nurserie sur deux hexagones distincts', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 568, height: 320 });
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     campBuilt: true,
     observatoryBuilt: true,
-    knowledge: 100,
+    knowledge: 12,
+    skills: ['auto_regulation', 'living_quarries', 'collective_intelligence', 'adaptive_assignments'],
   });
   await waitForGame(page);
   await openTalents(page);
-  await buySkill(page, /voir démarrer/i);
-  await buySkill(page, /voir premier mécanisme/i);
-  await buySkill(page, /voir outils affûtés/i);
-  await buySkill(page, /voir charrettes renforcées/i);
-  await buySkill(page, /voir gisements vivants/i);
-  await buySkill(page, /voir cercle des bâtisseurs.*rang 1/i);
-  await buySkill(page, /voir cercle des bâtisseurs.*rang 2/i);
-  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(82);
+  await buySkill(page, /voir Terrier agrandi/i);
+  await buySkill(page, /voir Dortoir de mousse/i);
+  await expect.poll(async () => (await diagnostics(page)).knowledge).toBe(0);
   await page.getByRole('button', { name: /fermer l’arbre des savoirs/i }).click();
   await openCrew(page);
   await expect(page.locator('#crew-capacity')).toContainText('0 / 11 renards');

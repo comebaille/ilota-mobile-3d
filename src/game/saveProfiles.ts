@@ -25,6 +25,7 @@ const PROFILE_NAMES_KEY = 'ilota-save-profile-names-v1';
 const PROFILE_PASSWORDS_KEY = 'ilota-save-profile-passwords-v1';
 const LEGACY_SAVE_KEY = 'ilota-save-v1';
 const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
+const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v1';
 
 const isProfileId = (value: string | null): value is SaveProfileId => (
   SAVE_PROFILE_IDS.includes(value as SaveProfileId)
@@ -121,6 +122,28 @@ const readNames = (): Partial<Record<SaveProfileId, string>> => {
   }
 };
 
+const resetPlayerTwoSkillTreeOnce = (): void => {
+  if (localStorage.getItem(PLAYER_TWO_SKILL_RESET_KEY) === 'done') return;
+  const raw = validJson(localStorage.getItem(saveKey('2')))
+    ?? validJson(localStorage.getItem(backupKey('2')));
+  if (!raw) return;
+  try {
+    const progress = JSON.parse(raw) as Record<string, unknown>;
+    progress.skills = [];
+    progress.skillRanks = {};
+    progress.autoRegulation = false;
+    progress.industrySurge = false;
+    progress.explorationFlow = false;
+    progress.currentWorld = 1;
+    const migrated = JSON.stringify(progress);
+    localStorage.setItem(saveKey('2'), migrated);
+    localStorage.setItem(backupKey('2'), migrated);
+    localStorage.setItem(PLAYER_TWO_SKILL_RESET_KEY, 'done');
+  } catch {
+    // Une sauvegarde illisible sera laissée intacte pour éviter toute perte supplémentaire.
+  }
+};
+
 export const ensureLegacySaveMigrated = (): void => {
   try {
     if (!localStorage.getItem(saveKey('1'))) {
@@ -133,10 +156,13 @@ export const ensureLegacySaveMigrated = (): void => {
     }
     localStorage.removeItem(LEGACY_SAVE_KEY);
     localStorage.removeItem(LEGACY_BACKUP_KEY);
+    resetPlayerTwoSkillTreeOnce();
   } catch {
     // Le jeu reste utilisable si le stockage privé est indisponible.
   }
 };
+
+export const isWorldTwoBlockedForActiveProfile = (): boolean => getActiveSaveProfileId() === '2';
 
 export const getActiveSaveProfileId = (): SaveProfileId => {
   try {

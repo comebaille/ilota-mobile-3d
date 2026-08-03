@@ -88,7 +88,6 @@ export type ProjectId =
   | 'prismatic_reservoir'
   | 'unity_lighthouse';
 export type SkillId =
-  | 'awakening'
   | 'insight_gateway'
   | 'craft_gateway'
   | 'exploration_gateway'
@@ -102,7 +101,16 @@ export type SkillId =
   | 'reinforced_carts'
   | 'living_quarries'
   | 'expanded_roster'
+  | 'expanded_roster_2'
+  | 'expanded_roster_3'
+  | 'expanded_roster_4'
+  | 'expanded_roster_5'
   | 'cargo_harness'
+  | 'cargo_harness_2'
+  | 'cargo_harness_3'
+  | 'cargo_harness_4'
+  | 'cargo_harness_5'
+  | 'cargo_harness_6'
   | 'full_loads'
   | 'master_builders'
   | 'endless_engine'
@@ -113,12 +121,14 @@ export type SkillId =
   | 'far_horizons'
   | 'ocean_legacy'
   | 'tidal_inheritance'
+  | 'tidal_inheritance_2'
   | 'logistics_network'
   | 'adaptive_harvest'
   | 'scouting_parties'
   | 'remote_management'
   | 'adaptive_assignments'
   | 'masterful_strikes'
+  | 'masterful_strikes_2'
   | 'archipelago_consciousness';
 
 export interface Cost {
@@ -649,48 +659,84 @@ export const SKILL_BRANCH_LABELS: Record<SkillBranch, { name: string; icon: stri
   exploration: { name: 'Exploration', icon: '➶', summary: 'Mobilité, caches et départs accélérés.' },
 };
 
+const SKILL_HEX_STEP_X = 81;
+const SKILL_HEX_STEP_Y = 70.5;
+const SKILL_TREE_CENTER_X = 460;
+const skillPosition = (tier: number, column: number): Pick<SkillDefinition, 'tier' | 'x' | 'y'> => {
+  const count = tier + 3;
+  return {
+    tier,
+    x: SKILL_TREE_CENTER_X - ((count - 1) * SKILL_HEX_STEP_X) / 2 + column * SKILL_HEX_STEP_X,
+    y: 72 + tier * SKILL_HEX_STEP_Y,
+  };
+};
+
 export const SKILL_DEFINITIONS: readonly SkillDefinition[] = [
-  { id: 'awakening', branch: 'core', tier: 0, cost: 0, name: 'Démarrer', detail: 'Zéro Savoir : révèle les trois premières voies.', icon: '✦', x: 580, y: 68 },
-  { id: 'insight_gateway', branch: 'intelligence', tier: 1, cost: 1, name: 'Étincelle logique', detail: 'Ouvre la voie Intelligence.', icon: '⌘', x: 175, y: 190, requires: ['awakening'] },
-  { id: 'craft_gateway', branch: 'industry', tier: 1, cost: 1, name: 'Premier mécanisme', detail: 'Ouvre la voie Technique.', icon: '⚒', x: 580, y: 190, requires: ['awakening'] },
-  { id: 'exploration_gateway', branch: 'exploration', tier: 1, cost: 1, name: 'Appel du large', detail: 'Ouvre la voie Exploration.', icon: '➶', x: 985, y: 190, requires: ['awakening'] },
+  { id: 'insight_gateway', branch: 'intelligence', cost: 1, name: 'Étincelle logique', detail: 'Première voie : prépare les décisions et déplacements autonomes.', icon: '⌘', ...skillPosition(0, 0) },
+  { id: 'craft_gateway', branch: 'industry', cost: 1, name: 'Premier mécanisme', detail: 'Première voie : prépare les outils, harnais et équipes.', icon: '⚒', ...skillPosition(0, 1) },
+  { id: 'exploration_gateway', branch: 'exploration', cost: 1, name: 'Appel du large', detail: 'Première voie : prépare la mobilité et les héritages de Marée.', icon: '➶', ...skillPosition(0, 2) },
 
-  { id: 'trail_sense', branch: 'intelligence', tier: 2, cost: 2, name: 'Sens des pistes', detail: '+18 % de vitesse pour tous les travailleurs.', icon: '⌁', x: 145, y: 325, requires: ['insight_gateway'] },
-  { id: 'sharp_tools', branch: 'industry', tier: 2, cost: 2, name: 'Outils affûtés', detail: 'Chaque coup manuel rapporte 2 unités au lieu de 1.', icon: '⛏', x: 535, y: 325, requires: ['craft_gateway'] },
-  { id: 'tide_stride', branch: 'exploration', tier: 2, cost: 2, name: 'Pas de marée', detail: '+20 % de vitesse pour ton renard.', icon: '➤', x: 955, y: 325, requires: ['exploration_gateway'] },
+  { id: 'trail_sense', branch: 'intelligence', cost: 2, name: 'Sens des pistes', detail: '+18 % de vitesse pour tous les travailleurs.', icon: '⌁', requires: ['insight_gateway'], ...skillPosition(1, 0) },
+  { id: 'logistics_network', branch: 'hybrid', cost: 2, name: 'Réseau logistique', detail: 'Trajets et livraisons gagnent encore en rendement.', icon: '⤨', requires: ['insight_gateway', 'craft_gateway'], ...skillPosition(1, 1) },
+  { id: 'sharp_tools', branch: 'industry', cost: 2, name: 'Outils affûtés', detail: 'Chaque coup manuel rapporte 2 unités au lieu de 1.', icon: '⛏', requires: ['craft_gateway', 'exploration_gateway'], ...skillPosition(1, 2) },
+  { id: 'tide_stride', branch: 'exploration', cost: 2, name: 'Pas de marée', detail: '+20 % de vitesse pour ton renard.', icon: '➤', requires: ['exploration_gateway'], ...skillPosition(1, 3) },
 
-  { id: 'optimal_routes', branch: 'intelligence', tier: 3, cost: 3, name: 'Routes calculées', detail: 'Chaque renard choisit le trajet réellement le plus court.', icon: '⌘', x: 130, y: 465, requires: ['trail_sense'] },
-  { id: 'reinforced_carts', branch: 'industry', tier: 3, cost: 3, name: 'Charrettes renforcées', detail: '+30 % de ressources à chaque livraison.', icon: '▣', x: 555, y: 465, requires: ['sharp_tools'] },
-  { id: 'cache_instinct', branch: 'exploration', tier: 3, cost: 3, name: 'Instinct des caches', detail: 'Les caches contiennent 50 % de ressources en plus.', icon: '◇', x: 975, y: 465, requires: ['tide_stride'] },
-  { id: 'logistics_network', branch: 'hybrid', tier: 4, cost: 6, name: 'Réseau logistique', detail: 'Intelligence + Technique : trajets et livraisons gagnent encore en rendement.', icon: '⤨', x: 345, y: 515, requires: ['optimal_routes', 'reinforced_carts'] },
+  { id: 'optimal_routes', branch: 'intelligence', cost: 3, name: 'Routes calculées', detail: 'Chaque renard choisit le trajet réellement le plus court.', icon: '⌘', requires: ['trail_sense'], ...skillPosition(2, 0) },
+  { id: 'coordinated_shifts', branch: 'intelligence', cost: 3, name: 'Relèves coordonnées', detail: 'L’auto-gestion pourra réagir plus souvent.', icon: '⇄', requires: ['trail_sense', 'logistics_network'], ...skillPosition(2, 1) },
+  { id: 'reinforced_carts', branch: 'industry', cost: 3, name: 'Charrettes renforcées', detail: '+30 % de ressources à chaque livraison.', icon: '▣', requires: ['logistics_network', 'sharp_tools'], ...skillPosition(2, 2) },
+  { id: 'cache_instinct', branch: 'exploration', cost: 3, name: 'Instinct des caches', detail: 'Les caches contiennent 50 % de ressources en plus.', icon: '◇', requires: ['sharp_tools', 'tide_stride'], ...skillPosition(2, 3) },
+  { id: 'frugal_plans', branch: 'exploration', cost: 3, name: 'Plans économes', detail: 'Tous les investissements coûtent 12 % de moins.', icon: '⌂', requires: ['tide_stride'], ...skillPosition(2, 4) },
 
-  { id: 'forecasting', branch: 'intelligence', tier: 4, cost: 4, name: 'Prévisions', detail: 'Affiche la pénurie prioritaire du prochain objectif.', icon: '◉', x: 145, y: 610, requires: ['optimal_routes'] },
-  { id: 'living_quarries', branch: 'industry', tier: 4, cost: 4, name: 'Gisements vivants', detail: 'Arbres et minerais réapparaissent 35 % plus vite.', icon: '♻', x: 570, y: 610, requires: ['reinforced_carts'] },
-  { id: 'frugal_plans', branch: 'exploration', tier: 4, cost: 4, name: 'Plans économes', detail: 'Tous les investissements coûtent 12 % de moins.', icon: '⌂', x: 960, y: 610, requires: ['cache_instinct'] },
-  { id: 'adaptive_harvest', branch: 'hybrid', tier: 5, cost: 6, name: 'Récolte adaptative', detail: 'Technique + Exploration : un coup bonus sur la ressource prioritaire.', icon: '⟲', x: 775, y: 675, requires: ['living_quarries', 'cache_instinct'] },
+  { id: 'forecasting', branch: 'intelligence', cost: 4, name: 'Prévisions', detail: 'Affiche la pénurie prioritaire du prochain objectif.', icon: '◉', requires: ['optimal_routes'], ...skillPosition(3, 0) },
+  { id: 'auto_regulation', branch: 'intelligence', cost: 4, name: 'Auto-régulation', detail: 'Les renards changent eux-mêmes de métier selon les vrais besoins.', icon: '◎', requires: ['optimal_routes', 'coordinated_shifts'], ...skillPosition(3, 1) },
+  { id: 'living_quarries', branch: 'industry', cost: 4, name: 'Gisements vivants', detail: 'Arbres et minerais réapparaissent 35 % plus vite.', icon: '♻', requires: ['coordinated_shifts', 'reinforced_carts'], ...skillPosition(3, 2) },
+  { id: 'adaptive_harvest', branch: 'hybrid', cost: 4, name: 'Récolte adaptative', detail: 'Un coup bonus sur la ressource prioritaire.', icon: '⟲', requires: ['reinforced_carts', 'cache_instinct'], ...skillPosition(3, 3) },
+  { id: 'scouting_parties', branch: 'hybrid', cost: 4, name: 'Éclaireurs autonomes', detail: 'Les caches sont récupérées à l’émergence d’une île.', icon: '⚑', requires: ['cache_instinct', 'frugal_plans'], ...skillPosition(3, 4) },
+  { id: 'tidal_memory', branch: 'exploration', cost: 4, name: 'Mémoire des marées', detail: 'Chaque Nouvelle Marée commence avec une réserve croissante.', icon: '≈', requires: ['frugal_plans'], ...skillPosition(3, 5) },
 
-  { id: 'coordinated_shifts', branch: 'intelligence', tier: 5, cost: 5, name: 'Relèves coordonnées', detail: 'L’auto-gestion pourra réagir plus souvent.', icon: '⇄', x: 165, y: 755, requires: ['forecasting'] },
-  { id: 'expanded_roster', branch: 'industry', tier: 5, cost: 3, rankCosts: [3, 5, 8, 12, 17], maxRank: 5, name: 'Cercle des bâtisseurs', detail: '+1 poste par rang. Le prix augmente à chaque renard supplémentaire.', icon: '+1', x: 585, y: 755, requires: ['living_quarries'] },
-  { id: 'cargo_harness', branch: 'industry', tier: 5, cost: 2, rankCosts: [2, 4, 6, 9, 13, 18], maxRank: 6, name: 'Harnais modulaires', detail: '+4 places par rang. Joueur : 8 → 32. Ouvriers : bases 4/8/12, puis jusqu’à 28/32/32.', icon: '+4', x: 735, y: 790, requires: ['living_quarries'] },
-  { id: 'tidal_memory', branch: 'exploration', tier: 5, cost: 5, name: 'Mémoire des marées', detail: 'Chaque Nouvelle Marée commence avec une réserve croissante.', icon: '≈', x: 925, y: 755, requires: ['frugal_plans'] },
-  { id: 'scouting_parties', branch: 'hybrid', tier: 6, cost: 7, name: 'Éclaireurs autonomes', detail: 'Intelligence + Exploration : les caches sont récupérées à l’émergence d’une île.', icon: '⚑', x: 365, y: 815, requires: ['forecasting', 'frugal_plans'] },
+  { id: 'collective_intelligence', branch: 'intelligence', cost: 5, name: 'Esprit collectif', detail: 'Deux réaffectations automatiques possibles toutes les 3 secondes.', icon: '♜', requires: ['forecasting'], ...skillPosition(4, 0) },
+  { id: 'adaptive_assignments', branch: 'intelligence', cost: 5, name: 'Instinct de relève', detail: 'Un renard sans filon rejoint automatiquement la ressource accessible la plus manquante.', icon: '↻', requires: ['forecasting', 'auto_regulation'], ...skillPosition(4, 1) },
+  { id: 'expanded_roster', branch: 'industry', cost: 5, name: 'Terrier agrandi', detail: '+1 place permanente dans la nurserie.', icon: '+1', requires: ['auto_regulation', 'living_quarries'], ...skillPosition(4, 2) },
+  { id: 'cargo_harness', branch: 'industry', cost: 5, name: 'Harnais modulaire', detail: '+4 places sur le dos du joueur et des travailleurs.', icon: '+4', requires: ['living_quarries', 'adaptive_harvest'], ...skillPosition(4, 3) },
+  { id: 'full_loads', branch: 'hybrid', cost: 5, name: 'Tournées complètes', detail: 'Les travailleurs remplissent leur harnais avant de rentrer.', icon: '⇥', requires: ['adaptive_harvest', 'scouting_parties'], ...skillPosition(4, 4) },
+  { id: 'far_horizons', branch: 'exploration', cost: 5, name: 'Horizon lointain', detail: 'Le renard accélère encore et les caches sont plus riches.', icon: '◒', requires: ['scouting_parties', 'tidal_memory'], ...skillPosition(4, 5) },
+  { id: 'ocean_legacy', branch: 'exploration', cost: 5, name: 'Courant de Marée', detail: 'Pendant 10 s, double la vitesse des renards chargés et conserve 5 % des stocks.', icon: '≋', requires: ['tidal_memory'], ...skillPosition(4, 6) },
 
-  { id: 'auto_regulation', branch: 'intelligence', tier: 6, cost: 7, name: 'Auto-régulation', detail: 'Les renards changent eux-mêmes de métier selon les vrais besoins.', icon: '◎', x: 205, y: 900, requires: ['coordinated_shifts'] },
-  { id: 'full_loads', branch: 'hybrid', tier: 6, cost: 8, name: 'Tournées complètes', detail: 'Intelligence + Technique : les travailleurs enchaînent les gisements jusqu’à remplir leur harnais avant de rentrer.', icon: '⇥', x: 420, y: 925, requires: ['optimal_routes', 'reinforced_carts'] },
-  { id: 'master_builders', branch: 'industry', tier: 6, cost: 7, name: 'Maîtres bâtisseurs', detail: 'Les livraisons gagnent encore +35 %.', icon: '⚙', x: 575, y: 900, requires: ['expanded_roster'] },
-  { id: 'far_horizons', branch: 'exploration', tier: 6, cost: 7, name: 'Horizon lointain', detail: 'Le renard accélère encore et les caches sont plus riches.', icon: '◒', x: 855, y: 900, requires: ['tidal_memory'] },
+  { id: 'remote_management', branch: 'hybrid', cost: 6, name: 'Conseil itinérant', detail: 'Ouvre l’onglet ÉQUIPE partout : recrutement, métiers et formations à distance.', icon: '♟', requires: ['collective_intelligence'], ...skillPosition(5, 0) },
+  { id: 'expanded_roster_2', branch: 'industry', cost: 7, name: 'Dortoir de mousse', detail: '+1 place permanente dans la nurserie.', icon: '+1', requires: ['collective_intelligence', 'adaptive_assignments'], ...skillPosition(5, 1) },
+  { id: 'expanded_roster_3', branch: 'industry', cost: 7, name: 'Galerie commune', detail: '+1 place permanente dans la nurserie.', icon: '+1', requires: ['adaptive_assignments', 'expanded_roster'], ...skillPosition(5, 2) },
+  { id: 'cargo_harness_2', branch: 'industry', cost: 7, name: 'Armature renforcée', detail: '+4 places sur le dos du joueur et des travailleurs.', icon: '+4', requires: ['expanded_roster', 'cargo_harness'], ...skillPosition(5, 3) },
+  { id: 'master_builders', branch: 'industry', cost: 7, name: 'Maîtres bâtisseurs', detail: 'Les livraisons gagnent encore +35 %.', icon: '⚙', requires: ['cargo_harness', 'full_loads'], ...skillPosition(5, 4) },
+  { id: 'masterful_strikes', branch: 'industry', cost: 7, name: 'Frappe double', detail: 'Les coups ouvriers passent de 1/2/3 à 2/4/6.', icon: '×2', requires: ['full_loads', 'far_horizons'], ...skillPosition(5, 5) },
+  { id: 'tidal_inheritance', branch: 'exploration', cost: 7, name: 'Mémoire des courants', detail: '+5 % de stocks conservés à la prochaine Nouvelle Marée.', icon: '+5', requires: ['far_horizons', 'ocean_legacy'], ...skillPosition(5, 6) },
+  { id: 'tidal_inheritance_2', branch: 'exploration', cost: 7, name: 'Réserves abyssales', detail: '+5 % de stocks conservés, cumulable jusqu’à 15 %.', icon: '+5', requires: ['ocean_legacy'], ...skillPosition(5, 7) },
 
-  { id: 'collective_intelligence', branch: 'intelligence', tier: 7, cost: 10, name: 'Esprit collectif', detail: 'Sommet Intelligence : deux réaffectations possibles toutes les 3 secondes.', icon: '♜', x: 300, y: 1040, requires: ['auto_regulation', 'logistics_network'] },
-  { id: 'endless_engine', branch: 'industry', tier: 7, cost: 10, name: 'Surcharge tellurique', detail: 'Sommet Technique : pendant 10 s, chaque unité récoltée de la ressource prioritaire compte double dans la cargaison.', icon: 'ϟ', x: 505, y: 1040, requires: ['master_builders', 'adaptive_harvest'] },
-  { id: 'ocean_legacy', branch: 'exploration', tier: 7, cost: 10, name: 'Courant de Marée', detail: 'Sommet Exploration : double pendant 10 s la vitesse des renards qui portent une cargaison et conserve 5 % des stocks à la prochaine Marée.', icon: '≋', x: 760, y: 1040, requires: ['far_horizons', 'scouting_parties'] },
-  { id: 'remote_management', branch: 'hybrid', tier: 8, cost: 24, name: 'Conseil itinérant', detail: 'Liaison des trois voies : ouvre l’onglet ÉQUIPE partout et autorise recrutement, métiers et formations sans revenir aux bâtiments.', icon: '♟', x: 265, y: 1210, requires: ['coordinated_shifts', 'expanded_roster', 'tidal_memory'] },
-  { id: 'adaptive_assignments', branch: 'intelligence', tier: 8, cost: 12, name: 'Instinct de relève', detail: 'Un renard sans filon disponible abandonne son poste statique et rejoint automatiquement la ressource accessible dont le stock manque le plus.', icon: '↻', x: 95, y: 1210, requires: ['auto_regulation'] },
-  { id: 'masterful_strikes', branch: 'industry', tier: 8, cost: 12, rankCosts: [12, 20], maxRank: 2, name: 'Frappe de maîtrise', detail: 'Rang 1 : coups ouvriers ×2 (2/4/6). Rang 2 : coups ×3 (3/6/9).', icon: '×2', x: 580, y: 1210, requires: ['master_builders', 'cargo_harness'] },
-  { id: 'tidal_inheritance', branch: 'exploration', tier: 8, cost: 10, rankCosts: [10, 16, 24], maxRank: 3, name: 'Héritage des courants', detail: '+5 % de stocks conservés par rang à la prochaine Marée (5 % → 20 %).', icon: '+5', x: 940, y: 1210, requires: ['ocean_legacy'] },
-  { id: 'archipelago_consciousness', branch: 'hybrid', tier: 9, cost: 30, name: 'Conscience absolue', detail: 'Fusion des trois voies : réserve intelligemment chaque filon, évite les trajets excédentaires et ajoute 4 postes sans superposer les pouvoirs visuels.', icon: '✺', x: 580, y: 1400, requires: ['collective_intelligence', 'endless_engine', 'ocean_legacy'] },
+  { id: 'expanded_roster_4', branch: 'industry', cost: 8, name: 'Cercle des bâtisseurs', detail: '+1 place permanente dans la nurserie.', icon: '+1', requires: ['remote_management'], ...skillPosition(6, 0) },
+  { id: 'expanded_roster_5', branch: 'industry', cost: 9, name: 'Grande nurserie', detail: '+1 place permanente dans la nurserie, cinquième extension.', icon: '+1', requires: ['remote_management', 'expanded_roster_2'], ...skillPosition(6, 1) },
+  { id: 'cargo_harness_4', branch: 'industry', cost: 9, name: 'Sangles jumelées', detail: '+4 places sur le dos du joueur et des travailleurs.', icon: '+4', requires: ['expanded_roster_2', 'expanded_roster_3'], ...skillPosition(6, 2) },
+  { id: 'cargo_harness_5', branch: 'industry', cost: 9, name: 'Poches latérales', detail: '+4 places sur le dos du joueur et des travailleurs.', icon: '+4', requires: ['expanded_roster_3', 'cargo_harness_2'], ...skillPosition(6, 3) },
+  { id: 'endless_engine', branch: 'industry', cost: 11, name: 'Surcharge tellurique', detail: 'Pendant 10 s, la ressource prioritaire récoltée compte double dans la cargaison.', icon: 'ϟ', requires: ['cargo_harness_2', 'master_builders'], ...skillPosition(6, 4) },
+  { id: 'cargo_harness_3', branch: 'industry', cost: 9, name: 'Cadre de portage', detail: '+4 places sur le dos du joueur et des travailleurs.', icon: '+4', requires: ['master_builders', 'masterful_strikes'], ...skillPosition(6, 5) },
+  { id: 'masterful_strikes_2', branch: 'industry', cost: 12, name: 'Frappe triple', detail: 'Les coups ouvriers passent de 2/4/6 à 3/6/9.', icon: '×3', requires: ['masterful_strikes', 'tidal_inheritance'], ...skillPosition(6, 6) },
+  { id: 'cargo_harness_6', branch: 'industry', cost: 9, name: 'Harnais magistral', detail: '+4 places : capacité maximale du joueur portée à 32.', icon: '+4', requires: ['tidal_inheritance', 'tidal_inheritance_2'], ...skillPosition(6, 7) },
+  { id: 'archipelago_consciousness', branch: 'hybrid', cost: 13, name: 'Conscience absolue', detail: 'Fusion finale : filons réservés intelligemment, trajets excédentaires évités et +4 postes.', icon: '✺', requires: ['tidal_inheritance_2'], ...skillPosition(6, 8) },
 ];
 
 const SKILL_IDS = new Set<SkillId>(SKILL_DEFINITIONS.map((skill) => skill.id));
+const EXPANDED_ROSTER_SKILLS: readonly SkillId[] = [
+  'expanded_roster', 'expanded_roster_2', 'expanded_roster_3', 'expanded_roster_4', 'expanded_roster_5',
+];
+const CARGO_HARNESS_SKILLS: readonly SkillId[] = [
+  'cargo_harness', 'cargo_harness_2', 'cargo_harness_3', 'cargo_harness_4', 'cargo_harness_5', 'cargo_harness_6',
+];
+const MASTERFUL_STRIKE_SKILLS: readonly SkillId[] = ['masterful_strikes', 'masterful_strikes_2'];
+const TIDAL_INHERITANCE_SKILLS: readonly SkillId[] = ['tidal_inheritance', 'tidal_inheritance_2'];
+const LEGACY_RANK_SERIES: readonly { base: SkillId; upgrades: readonly SkillId[] }[] = [
+  { base: 'expanded_roster', upgrades: EXPANDED_ROSTER_SKILLS.slice(1) },
+  { base: 'cargo_harness', upgrades: CARGO_HARNESS_SKILLS.slice(1) },
+  { base: 'masterful_strikes', upgrades: MASTERFUL_STRIKE_SKILLS.slice(1) },
+  { base: 'tidal_inheritance', upgrades: TIDAL_INHERITANCE_SKILLS.slice(1) },
+];
 const STARTER_PROJECTS = ['starter_tools', 'trail_markers', 'tidal_nursery'] as const;
 const TIER_ONE_PROJECTS = ['timber_reserve', 'towing_paths', 'shared_warehouse'] as const;
 const TIER_TWO_PROJECTS = ['communal_sawmill', 'shore_walls', 'orders_office'] as const;
@@ -998,6 +1044,18 @@ const sanitizeSkills = (value: unknown): SkillId[] => {
   return SKILL_DEFINITIONS.filter((definition) => requested.has(definition.id)).map((definition) => definition.id);
 };
 
+const expandLegacyRankedSkills = (
+  skills: readonly SkillId[],
+  ranks: Partial<Record<SkillId, unknown>> | undefined,
+): SkillId[] => {
+  const expanded = [...skills];
+  LEGACY_RANK_SERIES.forEach(({ base, upgrades }) => {
+    const legacyRank = nonNegativeInteger(ranks?.[base] ?? (skills.includes(base) ? 1 : 0));
+    upgrades.slice(0, Math.max(0, legacyRank - 1)).forEach((id) => expanded.push(id));
+  });
+  return expanded;
+};
+
 const sanitizeSkillRanks = (value: unknown, skills: readonly SkillId[]): Partial<Record<SkillId, number>> => {
   const source = value && typeof value === 'object' ? value as Partial<Record<SkillId, unknown>> : {};
   const ranks: Partial<Record<SkillId, number>> = {};
@@ -1029,6 +1087,21 @@ export const getSkillDefinition = (id: SkillId): SkillDefinition | undefined =>
 
 export const getSkillRank = (progress: IslandProgress, id: SkillId): number =>
   Math.max(0, nonNegativeInteger(progress.skillRanks[id] ?? (progress.skills.includes(id) ? 1 : 0)));
+
+const getSkillSeriesRank = (progress: IslandProgress, ids: readonly SkillId[]): number =>
+  ids.reduce((total, id) => total + (hasSkill(progress, id) ? 1 : 0), 0);
+
+export const getExpandedRosterRank = (progress: IslandProgress): number =>
+  getSkillSeriesRank(progress, EXPANDED_ROSTER_SKILLS);
+
+export const getCargoHarnessRank = (progress: IslandProgress): number =>
+  getSkillSeriesRank(progress, CARGO_HARNESS_SKILLS);
+
+export const getMasterfulStrikesRank = (progress: IslandProgress): number =>
+  getSkillSeriesRank(progress, MASTERFUL_STRIKE_SKILLS);
+
+export const getTidalInheritanceRank = (progress: IslandProgress): number =>
+  getSkillSeriesRank(progress, TIDAL_INHERITANCE_SKILLS);
 
 export const hasSkill = (progress: IslandProgress, id: SkillId): boolean => getSkillRank(progress, id) > 0;
 
@@ -1175,9 +1248,9 @@ export const skillPrerequisitesMet = (progress: IslandProgress, definition: Skil
   (definition.requires ?? []).every((required) => hasSkill(progress, required));
 
 export const isSkillVisible = (progress: IslandProgress, definition: SkillDefinition): boolean =>
-  definition.id === 'awakening'
+  !definition.requires?.length
   || hasSkill(progress, definition.id)
-  || Boolean(definition.requires?.length && definition.requires.every((required) => hasSkill(progress, required)));
+  || definition.requires.some((required) => hasSkill(progress, required));
 
 export const getProjectDefinition = (id: ProjectId): IslandProjectDefinition | undefined =>
   ISLAND_PROJECTS.find((definition) => definition.id === id);
@@ -1253,7 +1326,7 @@ export const getPlayerCargoTotal = (progress: IslandProgress): number =>
 export const getCargoCapacity = (progress: IslandProgress): number =>
   Math.min(
     MAX_CARGO_CAPACITY,
-    BASE_CARGO_CAPACITY + getSkillRank(progress, 'cargo_harness') * CARGO_CAPACITY_PER_RANK,
+    BASE_CARGO_CAPACITY + getCargoHarnessRank(progress) * CARGO_CAPACITY_PER_RANK,
   );
 export const getBridgeCost = (progress: IslandProgress, index: number): Cost | null => {
   const value = BRIDGE_COSTS[index];
@@ -1272,7 +1345,7 @@ export const getWorkerCapacity = (progress: IslandProgress): number => {
       : progress.workshopBuilt ? 5
         : 3;
   return buildingCapacity
-    + getSkillRank(progress, 'expanded_roster')
+    + getExpandedRosterRank(progress)
     + (hasProject(progress, 'tidal_nursery') ? 1 : 0)
     + (hasProject(progress, 'timber_reserve') ? 1 : 0)
     + (hasSkill(progress, 'archipelago_consciousness') ? 4 : 0);
@@ -1311,9 +1384,9 @@ export const getUpgradeCost = (worker: WorkerState, progress?: IslandProgress): 
 };
 
 export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): number => {
-  const perHit = level * (progress ? 1 + getSkillRank(progress, 'masterful_strikes') : 1);
+  const perHit = level * (progress ? 1 + getMasterfulStrikesRank(progress) : 1);
   if (!progress) return perHit;
-  return Math.min(getCargoCapacity(progress), perHit);
+  return Math.min(getWorkerCargoCapacity(level, progress), perHit);
 };
 
 /**
@@ -1324,7 +1397,7 @@ export const getWorkerYield = (level: WorkerLevel, progress?: IslandProgress): n
 export const getWorkerCargoCapacity = (level: WorkerLevel, progress: IslandProgress): number =>
   Math.min(
     MAX_CARGO_CAPACITY,
-    level * 4 + getSkillRank(progress, 'cargo_harness') * CARGO_CAPACITY_PER_RANK,
+    level * 4 + getCargoHarnessRank(progress) * CARGO_CAPACITY_PER_RANK,
   );
 
 export const getWorkerDepositValue = (progress: IslandProgress): number => {
@@ -1361,7 +1434,7 @@ export const getPlayerFlowMultiplier = (progress: IslandProgress, flowActive: bo
   flowActive && getPlayerCargoTotal(progress) > 0 ? 2 : 1;
 export const getTidalRetentionRate = (progress: IslandProgress): number =>
   hasSkill(progress, 'ocean_legacy')
-    ? 0.05 + getSkillRank(progress, 'tidal_inheritance') * 0.05
+    ? 0.05 + getTidalInheritanceRank(progress) * 0.05
     : 0;
 export const getManualYield = (progress: IslandProgress, kind?: ResourceKind): number =>
   (hasSkill(progress, 'sharp_tools') ? 2 : 1)
@@ -1721,7 +1794,8 @@ export class Economy {
     const sourceWarehouses = sanitizeWarehouses(initial?.warehousesBuilt);
     const sourceProjectHalls = sanitizeProjectHalls(initial?.projectHallsBuilt);
     const rankIds = initial?.skillRanks && typeof initial.skillRanks === 'object' ? Object.keys(initial.skillRanks) : [];
-    const skills = sanitizeSkills([...(initial?.skills ?? []), ...rankIds]);
+    const knownSkills = [...(initial?.skills ?? []), ...rankIds].filter(isSkillId);
+    const skills = sanitizeSkills(expandLegacyRankedSkills(knownSkills, initial?.skillRanks));
     const skillRanks = sanitizeSkillRanks(initial?.skillRanks, skills);
     this.progress = {
       ...fresh,

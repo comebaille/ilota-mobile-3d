@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v27-1-tide-watchdog';
+const CACHE = 'ilota-v28-skill-pyramid';
 const CORE = [
   './',
   './index.html',

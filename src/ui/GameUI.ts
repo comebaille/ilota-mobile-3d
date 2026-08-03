@@ -48,7 +48,6 @@ import {
   type IslandGoal,
   type ProjectId,
   type ResourceKind,
-  type SkillBranch,
   type SkillId,
   type WorldTwoSkillId,
 } from '../game/economy';
@@ -120,8 +119,8 @@ interface AdminHandlers {
 
 export type CrewMode = 'nursery' | 'workshop' | 'foundry' | 'remote';
 
-const SKILL_MAP_WIDTH = 1160;
-const SKILL_MAP_HEIGHT = 1500;
+const SKILL_MAP_WIDTH = 920;
+const SKILL_MAP_HEIGHT = 590;
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -1685,14 +1684,6 @@ export class GameUI {
     });
     canvas.append(svg);
 
-    if (hasSkill(progress, 'awakening')) (Object.keys(SKILL_BRANCH_LABELS) as SkillBranch[]).forEach((branch, index) => {
-      const copy = SKILL_BRANCH_LABELS[branch];
-      const badge = element('div', `skill-map-badge branch-${branch}`);
-      badge.style.left = `${[175, 580, 985][index]}px`;
-      badge.innerHTML = `<span aria-hidden="true">${copy.icon}</span><strong>${copy.name}</strong>`;
-      canvas.append(badge);
-    });
-
     visibleSkills.forEach((skill) => {
       const rank = getSkillRank(progress, skill.id);
       const maximum = skill.maxRank ?? 1;
@@ -1703,7 +1694,7 @@ export class GameUI {
       const available = prerequisiteMet && progress.knowledge >= priceValue && !maxed;
       const locked = !available;
       const selected = skill.id === this.selectedSkill;
-      const button = element('button', `skill-hex branch-${skill.branch}${unlocked ? ' unlocked' : ''}${available ? ' available' : ''}${locked ? ' locked' : ''}${selected ? ' selected' : ''}${skill.maxRank ? ' repeatable' : ''}${skill.id === 'archipelago_consciousness' ? ' final-skill' : ''}`);
+      const button = element('button', `skill-hex branch-${skill.branch}${unlocked ? ' unlocked' : ''}${available ? ' available' : ''}${locked ? ' locked' : ''}${selected ? ' selected' : ''}`);
       button.type = 'button';
       button.dataset.skill = skill.id;
       button.dataset.rank = String(rank);
@@ -1745,7 +1736,7 @@ export class GameUI {
       if (this.talentPanel.hidden || !stage.isConnected) return;
       this.skillBranches.scrollLeft = previouslyRendered
         ? previousScrollLeft
-        : Math.max(0, 580 * this.skillZoom - this.skillBranches.clientWidth / 2);
+        : Math.max(0, 460 * this.skillZoom - this.skillBranches.clientWidth / 2);
       this.skillBranches.scrollTop = previouslyRendered ? previousScrollTop : 0;
     });
 

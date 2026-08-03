@@ -31,6 +31,8 @@ import {
   getChapter,
   getCompletedProjectCount,
   getFinalCost,
+  getCargoHarnessRank,
+  getExpandedRosterRank,
   getIslandGoal,
   getManualYield,
   getPlayerSpeed,
@@ -43,7 +45,6 @@ import {
   getRecruitCost,
   getRespawnMultiplier,
   getRebirthReward,
-  getSkillRank,
   getSkillTreeCompletion,
   getStructureCost,
   getTotalWorkerLevels,
@@ -98,6 +99,7 @@ import { FeedbackController } from './feedback';
 import { GAME_PROFILE_CONFIGS, type GameProfile, type GameProfileConfig } from './platform';
 import {
   clearActiveSaveProfile,
+  isWorldTwoBlockedForActiveProfile,
   readActiveSave,
   setActiveSaveProfileId,
   writeActiveSave,
@@ -717,7 +719,7 @@ export class IlotaGame {
       currentIsland: 0,
       currentWorld: progress.currentWorld,
       worldTwoTerrace: progress.currentWorld === 2 ? 0 : -1,
-      worldTwoPortalUnlocked: isWorldTwoUnlocked(progress),
+      worldTwoPortalUnlocked: isWorldTwoUnlocked(progress) && !isWorldTwoBlockedForActiveProfile(),
       worldTwoPeakReached: progress.worldTwoPeakReached,
       worldTwoMoney: progress.worldTwoMoney,
       worldTwoFangLevel: progress.worldTwoFangLevel,
@@ -965,18 +967,16 @@ export class IlotaGame {
       ? 'CONSCIENCE ABSOLUE · les trois voies ne font plus qu’une.'
       : skill === 'auto_regulation'
       ? 'Auto-régulation débloquée · tu peux maintenant l’activer.'
-        : skill === 'expanded_roster'
-          ? `Cercle des bâtisseurs rang ${getSkillRank(this.economy.progress, skill)} · +1 poste permanent.`
-          : skill === 'cargo_harness'
-            ? `Harnais modulaires rang ${getSkillRank(this.economy.progress, skill)} · capacité ${getCargoCapacity(this.economy.progress)}.`
+        : skill.startsWith('expanded_roster')
+          ? `Nurserie agrandie ${getExpandedRosterRank(this.economy.progress)}/5 · +1 poste permanent.`
+          : skill.startsWith('cargo_harness')
+            ? `Harnais modulaire ${getCargoHarnessRank(this.economy.progress)}/6 · capacité ${getCargoCapacity(this.economy.progress)}.`
             : skill === 'full_loads'
               ? 'Tournées complètes · les renards attendent désormais d’avoir le dos plein.'
               : skill === 'remote_management'
                 ? 'Conseil itinérant · l’onglet ÉQUIPE est maintenant accessible partout.'
-                : skill === 'tidal_inheritance'
-                  ? `Héritage des courants rang ${getSkillRank(this.economy.progress, skill)} · ${Math.round(getTidalRetentionRate(this.economy.progress) * 100)} % conservés.`
-        : skill === 'awakening'
-          ? 'Le Savoir s’éveille · trois voies viennent d’apparaître.'
+                : skill.startsWith('tidal_inheritance')
+                  ? `Héritage des courants · ${Math.round(getTidalRetentionRate(this.economy.progress) * 100)} % conservés.`
           : 'Nouveau savoir acquis · la constellation s’étend.';
     this.ui.toast(message);
     this.feedback.play('skill');
@@ -2964,10 +2964,13 @@ export class IlotaGame {
     const completion = getSkillTreeCompletion(progress);
     const entryPortal = this.worldPortals.find((portal) => portal.destination === 2);
     if (entryPortal) {
-      const unlocked = isWorldTwoUnlocked(progress);
+      const profileBlocked = isWorldTwoBlockedForActiveProfile();
+      const unlocked = isWorldTwoUnlocked(progress) && !profileBlocked;
       this.setWorldLabel(
         entryPortal.label,
-        unlocked
+        profileBlocked
+          ? 'WORLD 2 · BLOQUÉ POUR LE JOUEUR 2'
+          : unlocked
           ? 'WORLD 2 · PORTAIL OUVERT'
           : `WORLD 2 · MARÉES ${Math.min(5, progress.rebirths)}/5 · SAVOIRS ${completion.completed}/${completion.total}`,
         unlocked ? 0x79d5cf : 0x80918b,
@@ -4518,13 +4521,18 @@ export class IlotaGame {
         return;
       }
       const completion = getSkillTreeCompletion(this.economy.progress);
-      const unlocked = isWorldTwoUnlocked(this.economy.progress);
+      const profileBlocked = isWorldTwoBlockedForActiveProfile();
+      const unlocked = isWorldTwoUnlocked(this.economy.progress) && !profileBlocked;
       this.ui.setContext(
-        unlocked ? 'World 2 · Ascension du Zénith' : 'World 2 · faille temporelle scellée',
+        profileBlocked
+          ? 'World 2 · accès désactivé pour le Joueur 2'
+          : unlocked ? 'World 2 · Ascension du Zénith' : 'World 2 · faille temporelle scellée',
         unlocked ? 'TRAVERSER' : 'VERROUILLÉ',
         '◉',
         unlocked,
-        `Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · arbre maximisé ${completion.completed}/${completion.total}.`,
+        profileBlocked
+          ? 'Ce profil sert à tester le nouvel arbre des savoirs. Le World 2 est volontairement bloqué.'
+          : `Marées ${Math.min(5, this.economy.progress.rebirths)}/5 · arbre maximisé ${completion.completed}/${completion.total}.`,
       );
       return;
     }
@@ -4705,6 +4713,11 @@ export class IlotaGame {
       if (destination === 2 && this.adminRouteArmed) {
         this.adminRouteArmed = false;
         this.travelToAdminIsland('admin');
+        return;
+      }
+      if (destination === 2 && isWorldTwoBlockedForActiveProfile()) {
+        this.ui.toast('ERREUR · le World 2 est désactivé pour le Joueur 2 afin de tester le nouvel arbre des savoirs.');
+        this.feedback.play('ui');
         return;
       }
       if (destination === 2 && !isWorldTwoUnlocked(this.economy.progress)) {
@@ -5900,7 +5913,7 @@ export class IlotaGame {
     this.diagnostics.worldTwoTerrace = progress.currentWorld === 2
       ? findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z)
       : -1;
-    this.diagnostics.worldTwoPortalUnlocked = isWorldTwoUnlocked(progress);
+    this.diagnostics.worldTwoPortalUnlocked = isWorldTwoUnlocked(progress) && !isWorldTwoBlockedForActiveProfile();
     this.diagnostics.worldTwoPeakReached = progress.worldTwoPeakReached;
     this.diagnostics.worldTwoMoney = progress.worldTwoMoney;
     this.diagnostics.worldTwoFangLevel = progress.worldTwoFangLevel;

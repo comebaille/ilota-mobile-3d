@@ -162,20 +162,19 @@ describe('Economy v12', () => {
 
   it('fait évoluer les coups ouvriers de 1/2/3 à 2/4/6 puis 3/6/9', () => {
     const economy = new Economy({
-      knowledge: 32,
-      skills: ['master_builders', 'cargo_harness'],
-      skillRanks: { master_builders: 1, cargo_harness: 1 },
+      knowledge: 19,
+      skills: ['full_loads', 'far_horizons', 'tidal_inheritance'],
     });
     expect(economy.unlockSkill('masterful_strikes')).toBe(true);
-    expect(economy.progress.knowledge).toBe(20);
+    expect(economy.progress.knowledge).toBe(12);
     expect([1, 2, 3].map((level) => getWorkerYield(level as 1 | 2 | 3, economy.progress)))
       .toEqual([2, 4, 6]);
 
-    expect(economy.unlockSkill('masterful_strikes')).toBe(true);
+    expect(economy.unlockSkill('masterful_strikes_2')).toBe(true);
     expect(economy.progress.knowledge).toBe(0);
     expect([1, 2, 3].map((level) => getWorkerYield(level as 1 | 2 | 3, economy.progress)))
       .toEqual([3, 6, 9]);
-    expect(economy.unlockSkill('masterful_strikes')).toBe(false);
+    expect(economy.unlockSkill('masterful_strikes_2')).toBe(false);
   });
 
   it('construit chaque Maison des Travaux seulement après le bâtiment principal', () => {
@@ -311,7 +310,7 @@ describe('Economy v12', () => {
       workshopBuilt: true,
       projectsCompleted: ['starter_tools', 'trail_markers', 'tidal_nursery'],
     });
-    expect(restored.progress.skills).toEqual(expect.arrayContaining(['awakening', 'insight_gateway', 'trail_sense']));
+    expect(restored.progress.skills).toEqual(expect.arrayContaining(['insight_gateway', 'trail_sense']));
   });
 
   it('migre la v6 en coupant le spam sans supprimer les effets visuels', () => {
@@ -361,15 +360,16 @@ describe('Economy v12', () => {
 
   it('ouvre le World 2 seulement après cinq Marées et chaque talent au rang maximal', () => {
     const almost = new Economy({ rebirths: 5, ...maximizedSkillTree() });
-    almost.progress.skillRanks.cargo_harness = 5;
-    expect(getSkillTreeCompletion(almost.progress)).toMatchObject({ completed: 31, total: 32, complete: false });
+    almost.progress.skills = almost.progress.skills.filter((skill) => skill !== 'cargo_harness_6');
+    delete almost.progress.skillRanks.cargo_harness_6;
+    expect(getSkillTreeCompletion(almost.progress)).toMatchObject({ completed: 41, total: 42, complete: false });
     expect(isWorldTwoUnlocked(almost.progress)).toBe(false);
 
     const fourTides = new Economy({ rebirths: 4, ...maximizedSkillTree() });
     expect(isWorldTwoUnlocked(fourTides.progress)).toBe(false);
 
     const unlocked = new Economy({ rebirths: 5, currentWorld: 2, ...maximizedSkillTree() });
-    expect(getSkillTreeCompletion(unlocked.progress)).toMatchObject({ completed: 32, total: 32, complete: true });
+    expect(getSkillTreeCompletion(unlocked.progress)).toMatchObject({ completed: 42, total: 42, complete: true });
     expect(isWorldTwoUnlocked(unlocked.progress)).toBe(true);
     expect(unlocked.progress.currentWorld).toBe(2);
   });
@@ -394,18 +394,18 @@ describe('Economy v12', () => {
   it('fait respecter les prérequis de l’arbre Intelligence', () => {
     const economy = new Economy({ knowledge: 30 });
     expect(economy.unlockSkill('auto_regulation')).toBe(false);
-    expect(economy.unlockSkill('awakening')).toBe(true);
     expect(economy.unlockSkill('insight_gateway')).toBe(true);
+    expect(economy.unlockSkill('craft_gateway')).toBe(true);
     expect(economy.unlockSkill('trail_sense')).toBe(true);
+    expect(economy.unlockSkill('logistics_network')).toBe(true);
     expect(economy.unlockSkill('optimal_routes')).toBe(true);
-    expect(economy.unlockSkill('forecasting')).toBe(true);
     expect(economy.unlockSkill('coordinated_shifts')).toBe(true);
     expect(economy.unlockSkill('auto_regulation')).toBe(true);
-    expect(economy.progress.knowledge).toBe(8);
+    expect(economy.progress.knowledge).toBe(14);
     expect(economy.setAutoRegulation(true)).toBe(true);
   });
 
-  it('garde chaque futur hexagone invisible jusqu’à tous ses prérequis', () => {
+  it('révèle les descendants d’un parent mais exige les deux parents pour acheter au centre', () => {
     const economy = new Economy({ knowledge: 100 });
     const visible = (id: string): boolean => {
       const definition = SKILL_DEFINITIONS.find((candidate) => candidate.id === id);
@@ -413,56 +413,68 @@ describe('Economy v12', () => {
     };
 
     expect(SKILL_DEFINITIONS.filter((definition) => isSkillVisible(economy.progress, definition)).map((definition) => definition.id))
-      .toEqual(['awakening']);
-    expect(visible('trail_sense')).toBe(false);
-    economy.unlockSkill('awakening');
-    expect(['insight_gateway', 'craft_gateway', 'exploration_gateway'].every(visible)).toBe(true);
+      .toEqual(['insight_gateway', 'craft_gateway', 'exploration_gateway']);
     expect(visible('trail_sense')).toBe(false);
     economy.unlockSkill('insight_gateway');
     expect(visible('trail_sense')).toBe(true);
+    expect(visible('logistics_network')).toBe(true);
+    expect(economy.unlockSkill('logistics_network')).toBe(false);
+    expect(visible('sharp_tools')).toBe(false);
+    economy.unlockSkill('craft_gateway');
+    expect(['trail_sense', 'logistics_network', 'sharp_tools'].every(visible)).toBe(true);
+    expect(visible('tide_stride')).toBe(false);
+    expect(economy.unlockSkill('logistics_network')).toBe(true);
     expect(visible('optimal_routes')).toBe(false);
     economy.unlockSkill('trail_sense');
     expect(visible('optimal_routes')).toBe(true);
-    economy.unlockSkill('optimal_routes');
-    expect(visible('logistics_network')).toBe(false);
-    economy.unlockSkill('craft_gateway');
-    economy.unlockSkill('sharp_tools');
-    economy.unlockSkill('reinforced_carts');
-    expect(visible('logistics_network')).toBe(true);
   });
 
-  it('augmente le nombre de postes sur cinq rangs au coût croissant', () => {
-    const economy = new Economy({ knowledge: 100, campBuilt: true });
-    ['awakening', 'craft_gateway', 'sharp_tools', 'reinforced_carts', 'living_quarries', 'expanded_roster', 'expanded_roster']
-      .forEach((skill) => expect(economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0])).toBe(true));
-    expect(getSkillRank(economy.progress, 'expanded_roster')).toBe(2);
-    expect(getWorkerCapacity(economy.progress)).toBe(5);
-    expect(economy.progress.knowledge).toBe(82);
+  it('forme une pyramide jointive de 3 à 9 hexagones avec les parents adjacents', () => {
+    const rows = Array.from({ length: 7 }, (_, tier) => (
+      SKILL_DEFINITIONS.filter((definition) => definition.tier === tier)
+        .sort((left, right) => left.x - right.x)
+    ));
+    expect(rows.map((row) => row.length)).toEqual([3, 4, 5, 6, 7, 8, 9]);
+
+    rows.forEach((row, tier) => {
+      row.slice(1).forEach((skill, index) => expect(skill.x - row[index]!.x).toBeCloseTo(81));
+      if (tier === 0) return;
+      const parents = rows[tier - 1]!;
+      row.forEach((skill, column) => {
+        const expectedParents = [parents[column - 1]?.id, parents[column]?.id].filter(Boolean);
+        expect(skill.requires).toEqual(expectedParents);
+        expect(skill.y - parents[0]!.y).toBeCloseTo(70.5);
+      });
+    });
   });
 
-  it('fait progresser les harnais de 8 à 32 et exige deux voies pour les tournées complètes', () => {
-    const economy = new Economy({ knowledge: 200 });
-    expect(getCargoCapacity(economy.progress)).toBe(8);
-    ['awakening', 'craft_gateway', 'sharp_tools', 'reinforced_carts', 'living_quarries']
-      .forEach((skill) => expect(economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0])).toBe(true));
-    expect(economy.unlockSkill('full_loads')).toBe(false);
-    ['insight_gateway', 'trail_sense', 'optimal_routes']
-      .forEach((skill) => expect(economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0])).toBe(true));
-    expect(economy.unlockSkill('full_loads')).toBe(true);
-    for (let rank = 1; rank <= 6; rank += 1) {
-      expect(economy.unlockSkill('cargo_harness')).toBe(true);
-      expect(getCargoCapacity(economy.progress)).toBe(8 + rank * 4);
+  it('décompose les cinq places de nurserie en cinq hexagones distincts', () => {
+    const economy = new Economy({
+      knowledge: 100,
+      campBuilt: true,
+      skills: ['remote_management', 'adaptive_assignments', 'expanded_roster'],
+    });
+    for (const skill of ['expanded_roster_2', 'expanded_roster_3', 'expanded_roster_4', 'expanded_roster_5'] as const) {
+      expect(economy.unlockSkill(skill)).toBe(true);
     }
-    expect(economy.unlockSkill('cargo_harness')).toBe(false);
+    expect(getWorkerCapacity(economy.progress)).toBe(8);
+    expect(['expanded_roster', 'expanded_roster_2', 'expanded_roster_3', 'expanded_roster_4', 'expanded_roster_5']
+      .every((skill) => economy.progress.skills.includes(skill as Parameters<Economy['unlockSkill']>[0]))).toBe(true);
+  });
+
+  it('fait progresser les six hexagones de harnais de 8 à 32', () => {
+    const ids = ['cargo_harness', 'cargo_harness_2', 'cargo_harness_3', 'cargo_harness_4', 'cargo_harness_5', 'cargo_harness_6'] as const;
+    ids.forEach((_, index) => {
+      const economy = new Economy({ skills: ids.slice(0, index + 1) });
+      expect(getCargoCapacity(economy.progress)).toBe(8 + (index + 1) * 4);
+    });
   });
 
   it('connecte vraiment les voies pour les savoirs hybrides', () => {
     const economy = new Economy({ knowledge: 100 });
-    ['awakening', 'insight_gateway', 'trail_sense', 'optimal_routes']
-      .forEach((skill) => economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0]));
+    economy.unlockSkill('insight_gateway');
     expect(economy.unlockSkill('logistics_network')).toBe(false);
-    ['craft_gateway', 'sharp_tools', 'reinforced_carts']
-      .forEach((skill) => economy.unlockSkill(skill as Parameters<Economy['unlockSkill']>[0]));
+    economy.unlockSkill('craft_gateway');
     expect(economy.unlockSkill('logistics_network')).toBe(true);
   });
 
@@ -541,7 +553,6 @@ describe('Economy v12', () => {
     }));
     expect(restored.progress.version).toBe(12);
     expect(restored.progress.skills).toEqual(expect.arrayContaining([
-      'awakening',
       'insight_gateway',
       'trail_sense',
       'optimal_routes',
@@ -575,15 +586,15 @@ describe('Economy v12', () => {
     expect(legacy.setExplorationFlow(true)).toBe(true);
   });
 
-  it('fusionne les trois sommets dans un pouvoir final cher et radical', () => {
+  it('termine la pyramide par la Conscience absolue', () => {
     const finalSkill = SKILL_DEFINITIONS.find((definition) => definition.id === 'archipelago_consciousness')!;
-    const twoSummits = new Economy({ skills: ['collective_intelligence', 'endless_engine'] });
-    expect(isSkillVisible(twoSummits.progress, finalSkill)).toBe(false);
+    const beforeParent = new Economy({ skills: ['tidal_inheritance'] });
+    expect(isSkillVisible(beforeParent.progress, finalSkill)).toBe(false);
 
     const economy = new Economy({
       campBuilt: true,
-      knowledge: 30,
-      skills: ['collective_intelligence', 'endless_engine', 'ocean_legacy'],
+      knowledge: 13,
+      skills: ['tidal_inheritance_2'],
       wood: 100,
       stone: 80,
       copper: 60,
@@ -609,7 +620,7 @@ describe('Economy v12', () => {
 
     economy.progress.completed = true;
     economy.rebirth();
-    expect(economy.progress).toMatchObject({ wood: 16, stone: 11, copper: 3, crystal: 2 });
+    expect(economy.progress).toMatchObject({ wood: 16, stone: 11, copper: 6, crystal: 4 });
   });
 
   it('ne double la vitesse du joueur sous Courant de Marée que lorsqu’il porte une cargaison', () => {
@@ -620,35 +631,35 @@ describe('Economy v12', () => {
     expect(getPlayerFlowMultiplier(economy.progress, true)).toBe(2);
   });
 
-  it('fait progresser l’héritage de Marée de 5 à 20 % sans dépasser le plafond', () => {
-    const economy = new Economy({ knowledge: 100, skills: ['ocean_legacy'] });
+  it('fait progresser les deux hexagones d’héritage de Marée de 5 à 15 %', () => {
+    const economy = new Economy({ knowledge: 14, skills: ['far_horizons', 'ocean_legacy'] });
     expect(getTidalRetentionRate(economy.progress)).toBeCloseTo(0.05);
-    for (const expected of [0.1, 0.15, 0.2]) {
-      expect(economy.unlockSkill('tidal_inheritance')).toBe(true);
-      expect(getTidalRetentionRate(economy.progress)).toBeCloseTo(expected);
-    }
-    expect(economy.unlockSkill('tidal_inheritance')).toBe(false);
+    expect(economy.unlockSkill('tidal_inheritance')).toBe(true);
+    expect(getTidalRetentionRate(economy.progress)).toBeCloseTo(0.1);
+    expect(economy.unlockSkill('tidal_inheritance_2')).toBe(true);
+    expect(getTidalRetentionRate(economy.progress)).toBeCloseTo(0.15);
+    expect(economy.unlockSkill('tidal_inheritance_2')).toBe(false);
     economy.progress.completed = true;
     Object.assign(economy.progress, { wood: 100, stone: 80, copper: 60, crystal: 40 });
     economy.rebirth();
-    expect(economy.progress).toMatchObject({ wood: 20, stone: 16, copper: 12, crystal: 8 });
+    expect(economy.progress).toMatchObject({ wood: 16, stone: 12, copper: 9, crystal: 6 });
   });
 
-  it('garde le Conseil itinérant séparé des sommets et exige un palier dans les trois voies', () => {
+  it('garde le Conseil itinérant dans sa chaîne de parents adjacents', () => {
     const definition = SKILL_DEFINITIONS.find((skill) => skill.id === 'remote_management')!;
     const incomplete = new Economy({
       knowledge: 100,
-      skills: ['coordinated_shifts', 'expanded_roster'],
+      skills: ['forecasting'],
     });
     expect(isSkillVisible(incomplete.progress, definition)).toBe(false);
     const ready = new Economy({
-      knowledge: 24,
-      skills: ['coordinated_shifts', 'expanded_roster', 'tidal_memory'],
+      knowledge: 6,
+      skills: ['collective_intelligence'],
     });
     expect(isSkillVisible(ready.progress, definition)).toBe(true);
     expect(ready.unlockSkill('remote_management')).toBe(true);
     expect(ready.progress.knowledge).toBe(0);
-    expect(hasSkill(ready.progress, 'collective_intelligence')).toBe(false);
+    expect(hasSkill(ready.progress, 'collective_intelligence')).toBe(true);
     expect(hasSkill(ready.progress, 'endless_engine')).toBe(false);
     expect(hasSkill(ready.progress, 'ocean_legacy')).toBe(false);
   });
