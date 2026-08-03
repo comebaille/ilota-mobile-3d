@@ -407,6 +407,7 @@ test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqu
   await page.addInitScript((save) => {
     localStorage.setItem('ilota-save-profile-active-v1', '2');
     localStorage.setItem('ilota-save-profile-2-v1', JSON.stringify(save));
+    localStorage.setItem('ilota-player-2-skill-tree-reset-v1', 'done');
   }, {
     ...richSave(),
     ...maximizedSkillTree(),

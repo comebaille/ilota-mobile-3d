@@ -25,7 +25,9 @@ const PROFILE_NAMES_KEY = 'ilota-save-profile-names-v1';
 const PROFILE_PASSWORDS_KEY = 'ilota-save-profile-passwords-v1';
 const LEGACY_SAVE_KEY = 'ilota-save-v1';
 const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
-const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v1';
+// v2 force une nouvelle remise à zéro ponctuelle, même pour les appareils qui
+// avaient déjà exécuté la première migration demandée pour le Joueur 2.
+const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v2';
 
 const isProfileId = (value: string | null): value is SaveProfileId => (
   SAVE_PROFILE_IDS.includes(value as SaveProfileId)

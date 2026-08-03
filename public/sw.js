@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v28-1-pointed-hexes';
+const CACHE = 'ilota-v28-2-player-two-reset';
 const CORE = [
   './',
   './index.html',
