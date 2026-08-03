@@ -420,6 +420,21 @@ test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqu
   const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem('ilota-save-profile-2-v1') ?? '{}'));
   expect(migrated).toMatchObject({ skills: [], skillRanks: {}, knowledge: 77, currentWorld: 1 });
 
+  // Une fois la remise à zéro v2 consommée, le verrou mondial reste permanent
+  // sans effacer à nouveau les talents que le testeur vient de racheter.
+  await page.evaluate(() => {
+    const key = 'ilota-save-profile-2-v1';
+    const save = JSON.parse(localStorage.getItem(key) ?? '{}');
+    save.currentWorld = 2;
+    save.skills = ['insight_gateway'];
+    save.skillRanks = { insight_gateway: 1 };
+    localStorage.setItem(key, JSON.stringify(save));
+    localStorage.setItem('ilota-player-2-skill-tree-reset-v2', 'done');
+  });
+  await waitForGame(page);
+  expect(await diagnostics(page)).toMatchObject({ currentWorld: 1 });
+  expect((await diagnostics(page)).skills).toContain('insight_gateway');
+
   const { moveTo } = createNavigator(page);
   await moveTo(-7.2, 7.2, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('accès désactivé pour le Joueur 2');

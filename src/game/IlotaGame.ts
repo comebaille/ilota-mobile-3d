@@ -5394,6 +5394,10 @@ export class IlotaGame {
   }
 
   private travelToWorld(destination: 1 | 2): void {
+    if (destination === 2 && isWorldTwoBlockedForActiveProfile()) {
+      this.ui.toast('ERREUR · le World 2 reste fermé pour le Joueur 2.');
+      return;
+    }
     if (
       this.worldTravelAnimation
       || this.economy.progress.currentWorld === destination
@@ -5515,7 +5519,9 @@ export class IlotaGame {
       SKILL_DEFINITIONS.forEach((definition) => {
         progress.skillRanks[definition.id] = definition.maxRank ?? 1;
       });
-      this.ui.toast('ADMIN · portail du World 2 déverrouillé.');
+      this.ui.toast(isWorldTwoBlockedForActiveProfile()
+        ? 'ADMIN · progression complétée, mais le portail reste bloqué pour le Joueur 2.'
+        : 'ADMIN · portail du World 2 déverrouillé.');
     } else if (action === 'world-one-build-all') {
       progress.warehousesBuilt = [true, true, true, true, true];
       progress.projectHallsBuilt = [true, true, true, true];

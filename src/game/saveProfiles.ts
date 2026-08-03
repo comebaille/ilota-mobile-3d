@@ -112,6 +112,17 @@ const validJson = (raw: string | null): string | null => {
   }
 };
 
+const enforceProfileWorldLock = (id: SaveProfileId, serialized: string | null): string | null => {
+  if (id !== '2' || !serialized) return serialized;
+  try {
+    const progress = JSON.parse(serialized) as Record<string, unknown>;
+    progress.currentWorld = 1;
+    return JSON.stringify(progress);
+  } catch {
+    return serialized;
+  }
+};
+
 const readNames = (): Partial<Record<SaveProfileId, string>> => {
   try {
     const parsed = JSON.parse(localStorage.getItem(PROFILE_NAMES_KEY) ?? '{}') as Record<string, unknown>;
@@ -200,8 +211,9 @@ export const readActiveSave = (): string | null => {
   ensureLegacySaveMigrated();
   const id = getActiveSaveProfileId();
   try {
-    return validJson(localStorage.getItem(saveKey(id)))
+    const serialized = validJson(localStorage.getItem(saveKey(id)))
       ?? validJson(localStorage.getItem(backupKey(id)));
+    return enforceProfileWorldLock(id, serialized);
   } catch {
     return null;
   }
@@ -211,10 +223,11 @@ export const writeActiveSave = (serialized: string): void => {
   ensureLegacySaveMigrated();
   const id = getActiveSaveProfileId();
   try {
+    const safeSerialized = enforceProfileWorldLock(id, serialized) ?? serialized;
     const key = saveKey(id);
     const previous = validJson(localStorage.getItem(key));
-    if (previous && previous !== serialized) localStorage.setItem(backupKey(id), previous);
-    localStorage.setItem(key, serialized);
+    if (previous && previous !== safeSerialized) localStorage.setItem(backupKey(id), previous);
+    localStorage.setItem(key, safeSerialized);
   } catch {
     // La partie continue même si le navigateur refuse l’écriture.
   }

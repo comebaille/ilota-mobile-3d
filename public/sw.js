@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v28-2-player-two-reset';
+const CACHE = 'ilota-v28-3-player-two-world-lock';
 const CORE = [
   './',
   './index.html',
