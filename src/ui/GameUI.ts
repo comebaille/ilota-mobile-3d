@@ -53,6 +53,11 @@ import {
   type WorldTwoSkillId,
 } from '../game/economy';
 import { applyGameProfile, GAME_PROFILE_CONFIGS, type GameProfile } from '../game/platform';
+import {
+  getSaveProfileSummaries,
+  renameSaveProfile,
+  type SaveProfileId,
+} from '../game/saveProfiles';
 import { ISLANDS, RESOURCE_SPAWN_PROFILES, WORLD_TWO_TERRACES } from '../game/world';
 
 type InstallPrompt = Event & {
@@ -89,6 +94,11 @@ interface MenuHandlers {
   onResume: () => void;
   onNewTide: () => void;
   onReset: () => void;
+}
+
+interface SaveProfileHandlers {
+  onOpen: () => void;
+  onSwitch: (profile: SaveProfileId) => void;
 }
 
 export type AdminAction =
@@ -236,6 +246,13 @@ export class GameUI {
   private readonly menuTideHelp = byId<HTMLElement>('menu-tide-help');
   private readonly menuResetButton = byId<HTMLButtonElement>('menu-reset-button');
   private readonly menuStatus = byId<HTMLElement>('menu-status');
+  private readonly menuSaveProfilesButton = byId<HTMLButtonElement>('menu-save-profiles-button');
+  private readonly menuSaveProfileLabel = byId<HTMLElement>('menu-save-profile-label');
+  private readonly startSaveProfilesButton = byId<HTMLButtonElement>('start-save-profiles-button');
+  private readonly startSaveProfileLabel = byId<HTMLElement>('start-save-profile-label');
+  private readonly saveProfilePanel = byId<HTMLElement>('save-profile-panel');
+  private readonly saveProfileClose = byId<HTMLButtonElement>('save-profile-close');
+  private readonly saveProfileList = byId<HTMLElement>('save-profile-list');
   private readonly adminPanel = byId<HTMLElement>('admin-panel');
   private readonly adminCloseButton = byId<HTMLButtonElement>('admin-close-button');
   private readonly adminKicker = byId<HTMLElement>('admin-kicker');
@@ -262,6 +279,7 @@ export class GameUI {
   private talentHandlers: TalentHandlers | null = null;
   private projectHandlers: ProjectHandlers | null = null;
   private menuHandlers: MenuHandlers | null = null;
+  private saveProfileHandlers: SaveProfileHandlers | null = null;
   private adminHandlers: AdminHandlers | null = null;
   private latestProgress: IslandProgress | null = null;
   private selectedSkill: SkillId | null = null;
@@ -309,6 +327,27 @@ export class GameUI {
         if (profile) this.setGameProfile(profile);
       });
     });
+    this.startSaveProfilesButton.addEventListener('click', () => this.showSaveProfiles());
+    this.menuSaveProfilesButton.addEventListener('click', () => this.showSaveProfiles());
+    this.saveProfileClose.addEventListener('click', () => this.hideSaveProfiles());
+    this.saveProfilePanel.addEventListener('pointerdown', (event) => {
+      if (event.target === this.saveProfilePanel) this.hideSaveProfiles();
+    });
+    this.saveProfileList.addEventListener('click', (event) => {
+      const button = event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>('button[data-save-profile-switch]')
+        : null;
+      const id = button?.dataset.saveProfileSwitch as SaveProfileId | undefined;
+      if (id && !button?.disabled) this.saveProfileHandlers?.onSwitch(id);
+    });
+    this.saveProfileList.addEventListener('change', (event) => {
+      const input = event.target instanceof HTMLInputElement ? event.target : null;
+      const id = input?.dataset.saveProfileName as SaveProfileId | undefined;
+      if (!input || !id) return;
+      input.value = renameSaveProfile(id, input.value);
+      this.renderSaveProfiles();
+    });
+    this.renderSaveProfiles();
     window.addEventListener('beforeinstallprompt', (event) => {
       event.preventDefault();
       this.installPrompt = event as InstallPrompt;
@@ -458,6 +497,7 @@ export class GameUI {
       else if (!this.talentPanel.hidden) this.hideTalents();
       else if (!this.worldTwoSkillPanel.hidden) this.hideWorldTwoSkills();
       else if (!this.adminPanel.hidden) this.hideAdmin();
+      else if (!this.saveProfilePanel.hidden) this.hideSaveProfiles();
       else if (!this.menuPanel.hidden) this.hideMenu();
     });
 
@@ -532,6 +572,10 @@ export class GameUI {
     this.menuHandlers = handlers;
   }
 
+  bindSaveProfileHandlers(handlers: SaveProfileHandlers): void {
+    this.saveProfileHandlers = handlers;
+  }
+
   bindAdminHandlers(handlers: AdminHandlers): void {
     this.adminHandlers = handlers;
   }
@@ -600,6 +644,7 @@ export class GameUI {
       || !this.talentPanel.hidden
       || !this.worldTwoSkillPanel.hidden
       || !this.adminPanel.hidden
+      || !this.saveProfilePanel.hidden
       || !this.menuPanel.hidden
       || !this.tutorialPanel.hidden;
   }
@@ -773,6 +818,56 @@ export class GameUI {
     this.menuPanel.hidden = false;
     this.menuHandlers?.onOpenChange(true);
     window.setTimeout(() => this.menuResumeButton.focus(), 0);
+  }
+
+  private showSaveProfiles(): void {
+    this.saveProfileHandlers?.onOpen();
+    this.renderSaveProfiles();
+    this.saveProfilePanel.hidden = false;
+    window.setTimeout(() => this.saveProfileClose.focus(), 0);
+  }
+
+  private hideSaveProfiles(): void {
+    if (this.saveProfilePanel.hidden) return;
+    this.saveProfilePanel.hidden = true;
+    if (!this.menuPanel.hidden) this.menuSaveProfilesButton.focus({ preventScroll: true });
+    else this.startSaveProfilesButton.focus({ preventScroll: true });
+  }
+
+  private renderSaveProfiles(): void {
+    const profiles = getSaveProfileSummaries();
+    const active = profiles.find((profile) => profile.active) ?? profiles[0]!;
+    const activeState = active.hasSave
+      ? `World ${active.currentWorld} · Marée ${active.tide} · ${active.workers} renard${active.workers > 1 ? 's' : ''}`
+      : 'nouvelle aventure';
+    this.startSaveProfileLabel.textContent = `${active.name} · ${activeState}`;
+    this.menuSaveProfileLabel.textContent = `${active.name} · progression locale séparée`;
+    this.saveProfileList.replaceChildren();
+    profiles.forEach((profile) => {
+      const card = element('article', `save-profile-slot${profile.active ? ' active' : ''}`);
+      const identity = element('div', 'save-profile-identity');
+      const badge = element('span', 'save-profile-avatar');
+      badge.textContent = profile.id;
+      const copy = element('div');
+      const input = element('input');
+      input.value = profile.name;
+      input.maxLength = 18;
+      input.dataset.saveProfileName = profile.id;
+      input.setAttribute('aria-label', `Nom du joueur ${profile.id}`);
+      const status = element('small');
+      status.textContent = profile.hasSave
+        ? `WORLD ${profile.currentWorld} · MARÉE ${profile.tide} · ${profile.workers} RENARD${profile.workers > 1 ? 'S' : ''}${profile.completed ? ' · ACTE TERMINÉ' : ''}`
+        : 'AUCUNE SAUVEGARDE · NOUVELLE AVENTURE';
+      copy.append(input, status);
+      identity.append(badge, copy);
+      const choose = element('button', 'save-profile-switch');
+      choose.type = 'button';
+      choose.dataset.saveProfileSwitch = profile.id;
+      choose.disabled = profile.active;
+      choose.textContent = profile.active ? 'ACTIF' : profile.hasSave ? 'REPRENDRE' : 'CRÉER';
+      card.append(identity, choose);
+      this.saveProfileList.append(card);
+    });
   }
 
   showAdmin(world: 1 | 2): void {

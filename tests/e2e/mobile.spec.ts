@@ -858,7 +858,7 @@ test('le tutoriel neuf explique la nurserie puis le panneau d’objectifs', asyn
   await closeCrew(page);
   await expect(page.locator('#tutorial-panel')).toBeVisible();
   await expect(page.locator('#tutorial-title')).toHaveText('Ton objectif d’île');
-  await expect(page.locator('#tutorial-detail')).toContainText('Chaque ligne devient verte');
+  await expect(page.locator('#tutorial-detail')).toContainText('flèches dorées');
 });
 
 test('les ressources rétrécissent à chaque coup puis disparaissent sur iPhone SE paysage', async ({ page }) => {

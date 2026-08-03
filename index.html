@@ -204,6 +204,10 @@
             <button id="menu-close-button" class="icon-button" type="button" aria-label="Fermer le menu">×</button>
           </header>
           <p id="menu-status">Ton acte actuel est encore en cours.</p>
+          <button id="menu-save-profiles-button" class="menu-choice save-profile-entry" type="button">
+            <strong>PROFILS DE SAUVEGARDE</strong>
+            <small id="menu-save-profile-label">Joueur 1 · progression locale séparée</small>
+          </button>
           <button id="menu-resume-button" class="primary-button" type="button">REPRENDRE</button>
           <button id="menu-tide-button" class="menu-choice" type="button" disabled>
             <strong>NOUVELLE MARÉE</strong>
@@ -218,6 +222,21 @@
             </button>
           </div>
           <button id="menu-reset-button" class="menu-danger" type="button">RÉINITIALISER LA PROGRESSION</button>
+        </div>
+      </section>
+
+      <section id="save-profile-panel" class="save-profile-panel" role="dialog" aria-modal="true" aria-labelledby="save-profile-title" hidden>
+        <div class="save-profile-card panel-surface">
+          <header class="panel-header">
+            <div>
+              <p class="kicker">TROIS PROGRESSIONS INDÉPENDANTES</p>
+              <h2 id="save-profile-title">Choisir un joueur</h2>
+            </div>
+            <button id="save-profile-close" class="icon-button" type="button" aria-label="Fermer les profils de sauvegarde">×</button>
+          </header>
+          <p class="save-profile-intro">Chaque joueur conserve ses propres îles, renards, Savoirs et World 2 sur cet appareil.</p>
+          <div id="save-profile-list" class="save-profile-list" aria-live="polite"></div>
+          <small class="save-profile-note">Changer de joueur recharge le jeu après avoir sauvegardé la partie actuelle.</small>
         </div>
       </section>
 
@@ -323,6 +342,11 @@
               <small>AZERTY · haute qualité · ombres fines</small>
             </button>
           </fieldset>
+          <button id="start-save-profiles-button" class="save-profile-start-button" type="button">
+            <span aria-hidden="true">♙</span>
+            <span><strong>JOUEUR ACTIF</strong><small id="start-save-profile-label">Joueur 1 · nouvelle aventure</small></span>
+            <b aria-hidden="true">CHANGER</b>
+          </button>
           <button id="start-button" class="primary-button" type="button">COMMENCER</button>
           <button id="install-button" class="text-button" type="button" hidden>Installer sur ce mobile</button>
         </div>

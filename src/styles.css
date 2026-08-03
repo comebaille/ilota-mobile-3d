@@ -2196,7 +2196,7 @@ button:focus-visible {
   50% { border-color: rgba(255, 212, 119, 0.9); }
 }
 
-.skill-inspector .auto-regulation-button {
+.skill-inspector .power-toggles .auto-regulation-button {
   min-height: 34px;
   padding: 5px 7px;
   font-size: 7px;
@@ -4433,4 +4433,370 @@ html.admin-travel #app::after {
 
 @media (prefers-reduced-motion: reduce) {
   html.admin-travel #app::after { animation-timing-function: steps(2, end); }
+}
+
+/* v0.25 — langage visuel commun, textes respirants et profils de sauvegarde. */
+:where(
+  .crew-panel,
+  .projects-panel,
+  .talent-panel,
+  .world-two-skill-panel,
+  .menu-panel,
+  .save-profile-panel,
+  .admin-panel,
+  .tutorial-panel
+) {
+  position: fixed;
+  inset: 0;
+  padding:
+    max(8px, env(safe-area-inset-top))
+    max(10px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(10px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 78% 12%, rgba(255, 212, 119, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(3, 24, 23, 0.88), rgba(7, 35, 34, 0.94));
+}
+
+:where(
+  .crew-sheet,
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card,
+  .tutorial-card,
+  .title-card,
+  .victory-card
+) {
+  min-width: 0;
+  max-width: calc(100vw - max(20px, env(safe-area-inset-left) + env(safe-area-inset-right)));
+  max-height: calc(100dvh - max(16px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  border-color: rgba(255, 214, 128, 0.52);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 225, 154, 0.12), transparent 26%),
+    linear-gradient(150deg, rgba(25, 68, 57, 0.99), rgba(8, 36, 35, 0.99));
+  box-shadow:
+    0 28px 80px rgba(0, 12, 12, 0.58),
+    inset 0 1px rgba(255, 250, 224, 0.13);
+}
+
+:where(
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card,
+  .tutorial-card,
+  .title-card,
+  .victory-card
+) { color: var(--cream); }
+
+.crew-sheet {
+  color: #173d35;
+  border-color: #f1bd5d;
+  background:
+    radial-gradient(circle at 88% 2%, rgba(255, 255, 255, 0.9), transparent 27%),
+    linear-gradient(150deg, #fff9df, #f3dda1);
+}
+
+.crew-panel[data-mode="workshop"] .crew-sheet {
+  border-color: #77a97d;
+  background: linear-gradient(150deg, #fff9df, #dce9bd);
+}
+
+.crew-panel[data-mode="foundry"] .crew-sheet {
+  border-color: #d57b4c;
+  background: linear-gradient(150deg, #fff4dc, #edc69a);
+}
+
+:where(
+  .crew-sheet,
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card,
+  .tutorial-card
+) :where(h2, h3, p, strong, small, span, b, em, button, label) {
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+:where(
+  .crew-sheet,
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card
+) :where(header, .panel-header, .crew-header) {
+  min-width: 0;
+  align-items: center;
+}
+
+:where(header, .panel-header, .crew-header) > div { min-width: 0; }
+
+:where(
+  .crew-sheet,
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card
+) h2 {
+  font-size: clamp(20px, 3.5vw, 30px);
+  line-height: 1.08;
+}
+
+:where(
+  .crew-sheet,
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card,
+  .tutorial-card
+) button {
+  min-width: 0;
+  white-space: normal;
+}
+
+:where(
+  .crew-sheet,
+  .projects-sheet,
+  .talent-sheet,
+  .world-two-skill-sheet,
+  .menu-card,
+  .save-profile-card,
+  .admin-card
+) .icon-button {
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+}
+
+.save-profile-panel {
+  z-index: 210;
+  display: grid;
+  place-items: center;
+  color: var(--cream);
+  backdrop-filter: blur(10px);
+}
+
+.save-profile-card {
+  width: min(780px, 96vw);
+  display: grid;
+  gap: 12px;
+  padding: clamp(14px, 2.5vw, 24px);
+  overflow: auto;
+  border: 2px solid rgba(255, 214, 128, 0.62);
+  border-radius: 26px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-header .kicker,
+.panel-header h2 { margin: 0; }
+
+.save-profile-intro,
+.save-profile-note {
+  margin: 0;
+  color: rgba(255, 247, 219, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.save-profile-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.save-profile-slot {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(58px, auto) 42px;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(255, 247, 219, 0.2);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.save-profile-slot.active {
+  border-color: var(--sun-bright);
+  background: linear-gradient(145deg, rgba(236, 170, 78, 0.18), rgba(143, 215, 207, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(255, 216, 126, 0.18);
+}
+
+.save-profile-identity {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.save-profile-identity > div { min-width: 0; }
+
+.save-profile-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #203d34;
+  background: linear-gradient(145deg, #ffe29a, #dca552);
+  box-shadow: 0 4px 0 #775631;
+  font-size: 18px;
+  font-weight: 1000;
+}
+
+.save-profile-identity input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: 0;
+  color: #fff7db;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.save-profile-identity input:focus {
+  border-color: rgba(255, 216, 126, 0.65);
+  background: rgba(0, 16, 15, 0.4);
+}
+
+.save-profile-identity small {
+  display: block;
+  padding: 2px 7px 0;
+  color: rgba(255, 247, 219, 0.58);
+  font-size: 7px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.save-profile-switch {
+  min-height: 42px;
+  border: 1px solid rgba(255, 216, 126, 0.42);
+  border-radius: 12px;
+  color: #263d34;
+  background: linear-gradient(#ffdb84, #e7a649);
+  font-size: 9px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+
+.save-profile-switch:disabled {
+  color: #baf0dc;
+  border-color: rgba(143, 215, 207, 0.34);
+  background: rgba(143, 215, 207, 0.1);
+}
+
+.save-profile-start-button {
+  width: min(420px, 100%);
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border: 1px solid rgba(143, 215, 207, 0.36);
+  border-radius: 14px;
+  color: var(--cream);
+  background: rgba(143, 215, 207, 0.08);
+  text-align: left;
+}
+
+.save-profile-start-button > span:first-child {
+  width: 34px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #234238;
+  background: #8fd7cf;
+  font-size: 18px;
+}
+
+.save-profile-start-button strong,
+.save-profile-start-button small { display: block; }
+.save-profile-start-button strong { font-size: 8px; letter-spacing: 0.12em; }
+.save-profile-start-button small { color: rgba(255, 247, 219, 0.7); font-size: 8px; line-height: 1.3; }
+.save-profile-start-button b { color: #ffda83; font-size: 7px; letter-spacing: 0.08em; }
+
+.save-profile-entry { border-color: rgba(143, 215, 207, 0.35); }
+
+.skill-inspector {
+  grid-template-rows: minmax(0, 1fr) 42px minmax(72px, auto);
+}
+
+.skill-inspector .power-toggles {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.skill-inspector .power-toggles .auto-regulation-button {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  flex: none;
+  padding: 5px 6px;
+  font-size: 7.2px;
+  line-height: 1.2;
+}
+
+@media (max-width: 760px) {
+  .save-profile-list { grid-template-columns: 1fr; }
+  .save-profile-slot {
+    grid-template-columns: minmax(0, 1fr) 92px;
+    grid-template-rows: auto;
+    align-items: center;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  :where(
+    .crew-sheet,
+    .projects-sheet,
+    .talent-sheet,
+    .world-two-skill-sheet,
+    .menu-card,
+    .save-profile-card,
+    .admin-card,
+    .tutorial-card
+  ) {
+    max-height: calc(100dvh - 12px);
+  }
+
+  .save-profile-card { gap: 7px; padding: 10px 13px; }
+  .save-profile-intro { font-size: 9px; }
+  .save-profile-list { gap: 6px; }
+  .save-profile-slot { min-height: 58px; padding: 7px 8px; }
+  .save-profile-note { font-size: 8px; }
+  .tutorial-card p { font-size: 11px; line-height: 1.4; }
 }

@@ -74,6 +74,95 @@ const expectVisibleTextFits = async (page: Page, selector: string): Promise<void
   expect(overflows, `Textes coupés dans ${selector}`).toEqual([]);
 };
 
+const expectPanelFits = async (page: Page, panelId: string): Promise<void> => {
+  const result = await page.locator(`#${panelId}`).evaluate((panel) => {
+    const shell = panel.firstElementChild as HTMLElement | null;
+    const bounds = shell?.getBoundingClientRect();
+    const textProblems = Array.from(panel.querySelectorAll<HTMLElement>('h2, h3, p, strong, small, button, label'))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && element.textContent?.trim();
+      })
+      .flatMap((element) => {
+        const style = getComputedStyle(element);
+        const horizontal = element.scrollWidth - element.clientWidth;
+        const clipped = style.overflowX !== 'auto' && style.overflowX !== 'scroll' && horizontal > 2;
+        const compressed = Number.parseFloat(style.fontSize) < 7;
+        const broken = style.wordBreak === 'break-all';
+        return clipped || compressed || broken
+          ? [{ text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 70), horizontal, fontSize: style.fontSize, wordBreak: style.wordBreak }]
+          : [];
+      });
+    return {
+      inside: Boolean(bounds)
+        && bounds!.left >= -1
+        && bounds!.top >= -1
+        && bounds!.right <= innerWidth + 1
+        && bounds!.bottom <= innerHeight + 1,
+      textProblems,
+    };
+  });
+  expect(result.inside, `${panelId} dépasse du viewport`).toBe(true);
+  expect(result.textProblems, `${panelId} contient du texte comprimé`).toEqual([]);
+};
+
+test('les comptes gardent des progressions séparées et tous les panneaux restent lisibles', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.setItem('ilota-save-v1', JSON.stringify({
+    version: 12,
+    wood: 240,
+    stone: 210,
+    copper: 180,
+    crystal: 120,
+    knowledge: 48,
+    warehousesBuilt: [true, true, true, true, true],
+    projectHallsBuilt: [true, true, true, true, true],
+    campBuilt: true,
+    workshopBuilt: true,
+    foundryBuilt: true,
+    observatoryBuilt: true,
+    bridgesBuilt: [true, true, true, true],
+    workers: [],
+    projectsCompleted: [],
+    tutorialSeen: ['welcome'],
+    currentWorld: 1,
+    worldTwoMoney: 5000,
+  })));
+  await openWithProfile(page, 'iphone');
+  await page.locator('#start-save-profiles-button').click();
+  await expect(page.locator('.save-profile-slot')).toHaveCount(3);
+  await expectPanelFits(page, 'save-profile-panel');
+  await page.locator('[data-save-profile-name="1"]').fill('Dimitri');
+  await page.locator('[data-save-profile-name="1"]').press('Tab');
+  await page.locator('[data-save-profile-switch="2"]').click();
+  await page.waitForFunction(() => Boolean((window as typeof window & { __ILOTA__?: ProfileDiagnostics }).__ILOTA__?.ready));
+  await expect(page.locator('#start-save-profile-label')).toContainText('Joueur 2');
+  await page.locator('#start-save-profiles-button').click();
+  await expect(page.locator('.save-profile-slot.active')).toContainText('AUCUNE SAUVEGARDE');
+  await page.locator('[data-save-profile-switch="1"]').click();
+  await page.waitForFunction(() => Boolean((window as typeof window & { __ILOTA__?: ProfileDiagnostics }).__ILOTA__?.ready));
+  await expect(page.locator('#start-save-profile-label')).toContainText('Dimitri');
+
+  await start(page);
+  const panelIds = [
+    'crew-panel',
+    'projects-panel',
+    'talent-panel',
+    'world-two-skill-panel',
+    'menu-panel',
+    'admin-panel',
+    'tutorial-panel',
+  ];
+  for (const panelId of panelIds) {
+    await page.evaluate(({ activeId, ids }) => {
+      ids.forEach((id) => { document.getElementById(id)!.hidden = id !== activeId; });
+    }, { activeId: panelId, ids: panelIds });
+    await page.waitForTimeout(80);
+    await expectPanelFits(page, panelId);
+  }
+  await page.screenshot({ path: 'test-results/panels-iphone-readable.png' });
+});
+
 test('le lancement présente clairement les trois formats', async ({ page }) => {
   await openWithProfile(page, 'iphone');
   await expect(page.locator('.profile-picker')).toBeVisible();

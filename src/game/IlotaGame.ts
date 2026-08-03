@@ -96,6 +96,12 @@ import {
 import { InputController } from './input';
 import { FeedbackController } from './feedback';
 import { GAME_PROFILE_CONFIGS, type GameProfile, type GameProfileConfig } from './platform';
+import {
+  clearActiveSaveProfile,
+  readActiveSave,
+  setActiveSaveProfileId,
+  writeActiveSave,
+} from './saveProfiles';
 import { getCargoPiecePosition } from './cargo';
 import {
   chooseUninformedResourceIndex,
@@ -467,8 +473,6 @@ interface Diagnostics {
   adminRouteArmed: boolean;
 }
 
-const SAVE_KEY = 'ilota-save-v1';
-const SAVE_BACKUP_KEY = 'ilota-save-backup-v1';
 const HIDDEN_ISLAND_Y = -8.5;
 const WORKER_FEEL = {
   arrivalSeconds: 0.95,
@@ -803,8 +807,7 @@ export class IlotaGame {
   }
 
   resetProgress(): void {
-    localStorage.removeItem(SAVE_KEY);
-    localStorage.removeItem(SAVE_BACKUP_KEY);
+    clearActiveSaveProfile();
     window.location.reload();
   }
 
@@ -869,6 +872,16 @@ export class IlotaGame {
       },
       onNewTide: () => this.beginNewTide(),
       onReset: () => this.resetProgress(),
+    });
+    this.ui.bindSaveProfileHandlers({
+      onOpen: () => {
+        if (this.active) this.save();
+      },
+      onSwitch: (profile) => {
+        if (this.active) this.save();
+        setActiveSaveProfileId(profile);
+        window.location.reload();
+      },
     });
     this.ui.bindAdminHandlers({
       onOpenChange,
@@ -1078,6 +1091,14 @@ export class IlotaGame {
     this.ui.toast(`${definition.name} achevé · ${definition.effect}`);
     this.feedback.play('build');
     this.changed();
+    if (definition.islandIndex === 0) {
+      this.maybeShowTutorial(
+        'first-project',
+        'Un Travail transforme l’île',
+        'Chaque Maison propose trois améliorations permanentes pour la Marée actuelle. Termine les trois Travaux des Marées : leur sceau s’allume sur le bâtiment et le panneau d’objectif progresse.',
+        '✦',
+      );
+    }
   }
 
   private recruitWorker(): void {
@@ -1100,6 +1121,14 @@ export class IlotaGame {
     this.ui.toast(`${worker.name} rejoint l’équipe et récolte : ${RESOURCE_LABELS[worker.task]}.`);
     this.feedback.play('recruit');
     this.changed();
+    if (this.economy.progress.workers.length === 1) {
+      this.maybeShowTutorial(
+        'first-worker-job',
+        'Donne un métier à ton renard',
+        'Sélectionne sa carte, puis touche BOIS ou PIERRE en haut du panneau. Sur la première île, garde au moins un bûcheron et un mineur pour préparer les constructions sans rester bloqué.',
+        '♟',
+      );
+    }
   }
 
   private assignWorker(workerId: string, task: ResourceKind): void {
@@ -4748,7 +4777,7 @@ export class IlotaGame {
           this.maybeShowTutorial(
             'warehouse-central',
             'Ton dépôt central',
-            'Tout ce que tu récoltes reste visible sur ton dos. Reviens ici et touche DÉCHARGER : les unités tomberont une à une et seulement alors le stock augmentera.',
+            'Tout ce que tu récoltes reste visible sur ton dos. Reviens ici et touche DÉCHARGER : les unités tombent une à une, puis les flèches dorées indiquent le prochain bâtiment de l’objectif.',
             '▣',
           );
         } else {
@@ -4825,6 +4854,14 @@ export class IlotaGame {
           this.ui.toast(`${entity.definition.name} construite · ses trois Travaux sont maintenant consultables.`);
           this.feedback.play('build');
           this.changed();
+          if (islandIndex === 0) {
+            this.maybeShowTutorial(
+              'first-project-hall',
+              'La Maison des Travaux',
+              'Entre dans cette Maison pour consulter trois cartes. Lis le coût et l’effet avant de choisir : chaque Travail terminé rapproche l’île de l’ouverture du pont.',
+              '⌂',
+            );
+          }
         } else if (!isProjectHallReady(this.economy.progress, islandIndex)) {
           this.ui.toast('Construis d’abord le bâtiment principal de cette île.');
         } else this.showMissing(hallCost);
@@ -5735,14 +5772,7 @@ export class IlotaGame {
   }
 
   private save(): void {
-    try {
-      const next = this.economy.serialize();
-      const previous = localStorage.getItem(SAVE_KEY);
-      if (previous && previous !== next) localStorage.setItem(SAVE_BACKUP_KEY, previous);
-      localStorage.setItem(SAVE_KEY, next);
-    } catch {
-      // Le jeu reste jouable lorsque le stockage privé est indisponible.
-    }
+    writeActiveSave(this.economy.serialize());
   }
 
   private updateDiagnostics(): void {
@@ -5918,15 +5948,5 @@ export class IlotaGame {
 }
 
 export const restoreEconomy = (): Economy => {
-  const validSave = (key: string): string | null => {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    try {
-      JSON.parse(raw);
-      return raw;
-    } catch {
-      return null;
-    }
-  };
-  return Economy.restore(validSave(SAVE_KEY) ?? validSave(SAVE_BACKUP_KEY));
+  return Economy.restore(readActiveSave());
 };
