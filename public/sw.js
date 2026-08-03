@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v20-3-procedural-wooden-bridges';
+const CACHE = 'ilota-v27-1-tide-watchdog';
 const CORE = [
   './',
   './index.html',

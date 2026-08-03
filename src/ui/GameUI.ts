@@ -287,6 +287,7 @@ export class GameUI {
   private readonly tideTransitionStage = byId<HTMLElement>('tide-transition-stage');
   private readonly tideTransitionProgress = byId<HTMLElement>('tide-transition-progress');
   private readonly tideTransitionReward = byId<HTMLElement>('tide-transition-reward');
+  private readonly tideTransitionContinue = byId<HTMLButtonElement>('tide-transition-continue');
   private readonly powerVfx = byId<HTMLElement>('power-vfx');
   private readonly powerVfxLabel = byId<HTMLElement>('power-vfx-label');
   private toastTimer = 0;
@@ -1108,7 +1109,19 @@ export class GameUI {
     this.tideTransitionStage.textContent = 'La Couronne disparaît…';
     this.tideTransitionProgress.style.width = '0%';
     this.tideTransitionReward.textContent = `+${reward} SAVOIR`;
+    this.tideTransitionContinue.hidden = true;
     this.tideTransition.hidden = false;
+  }
+
+  bindTideTransitionContinue(handler: () => void): void {
+    this.tideTransitionContinue.addEventListener('click', handler);
+  }
+
+  showTideReloadFallback(message: string): void {
+    this.tideTransitionStage.textContent = message;
+    this.tideTransitionProgress.style.width = '100%';
+    this.tideTransitionContinue.hidden = false;
+    this.tideTransitionContinue.focus({ preventScroll: true });
   }
 
   updateTideTransition(stage: string, progress: number): void {

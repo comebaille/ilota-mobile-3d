@@ -338,6 +338,7 @@ interface TideResetAnimation {
   reward: number;
   rebirthApplied: boolean;
   playerEmerged: boolean;
+  reloadRequested: boolean;
   cameraStart: THREE.Vector3;
 }
 
@@ -619,6 +620,7 @@ export class IlotaGame {
   private readonly worldTwoCargoTemplates = new Map<WorldTwoMineralId, THREE.Group>();
   private playerDeposit: { warehouse: WarehouseEntity; timer: number; worldTwoFullCargo: boolean } | null = null;
   private tideResetAnimation: TideResetAnimation | null = null;
+  private tideResetWatchdog = 0;
   private industrySurgeCooldown = 2.5;
   private industrySurgeRemaining = 0;
   private industrySurgeKind: ResourceKind = 'wood';
@@ -824,9 +826,12 @@ export class IlotaGame {
       reward: getRebirthReward(this.economy.progress),
       rebirthApplied: false,
       playerEmerged: false,
+      reloadRequested: false,
       cameraStart: this.camera.position.clone(),
     };
     this.ui.showTideTransition(this.economy.progress.rebirths + 2, getRebirthReward(this.economy.progress));
+    window.clearTimeout(this.tideResetWatchdog);
+    this.tideResetWatchdog = window.setTimeout(() => this.finishTideReset(), 9_000);
   }
 
   private bindManagement(): void {
@@ -883,6 +888,7 @@ export class IlotaGame {
         window.location.reload();
       },
     });
+    this.ui.bindTideTransitionContinue(() => this.finishTideReset(true));
     this.ui.bindAdminHandlers({
       onOpenChange,
       onAction: (action) => this.runAdminAction(action),
@@ -5719,16 +5725,47 @@ export class IlotaGame {
         ? 'Les ponts cèdent. La Marée reprend l’archipel.'
         : elapsed < 4.7
           ? 'Une seule île demeure.'
-          : `Marée ${this.economy.progress.rebirths + 2} · +${animation.reward} Savoir`;
+          : `Marée ${this.economy.progress.rebirths + 1} · +${animation.reward} Savoir`;
     this.ui.updateTideTransition(stage, Math.min(1, elapsed / 5.6));
 
     if (elapsed >= 4.85 && !animation.rebirthApplied) {
-      animation.rebirthApplied = true;
+      this.applyTideRebirth(animation);
+    }
+    if (elapsed >= 5.65) this.finishTideReset();
+  }
+
+  private applyTideRebirth(animation: TideResetAnimation): boolean {
+    if (animation.rebirthApplied) return true;
+    try {
       this.economy.rebirth();
       this.syncPlayerCargoVisuals();
       this.save();
+      animation.rebirthApplied = true;
+      return true;
+    } catch (error) {
+      console.error('Impossible de terminer la Nouvelle Marée.', error);
+      return false;
     }
-    if (elapsed >= 5.65) window.location.reload();
+  }
+
+  private finishTideReset(force = false): void {
+    const animation = this.tideResetAnimation;
+    if (!animation || (animation.reloadRequested && !force)) return;
+    if (!this.applyTideRebirth(animation)) {
+      this.ui.showTideReloadFallback('La sauvegarde n’a pas pu être finalisée. Réessaie sans fermer le jeu.');
+      return;
+    }
+    animation.reloadRequested = true;
+    window.clearTimeout(this.tideResetWatchdog);
+    this.ui.updateTideTransition(`Marée ${this.economy.progress.rebirths + 1} · sauvegardée`, 1);
+    const target = new URL(window.location.href);
+    target.searchParams.set('ilota-refresh', Date.now().toString(36));
+    if (force) window.location.assign(target.href);
+    else window.location.replace(target.href);
+    window.setTimeout(() => {
+      if (!this.tideResetAnimation) return;
+      this.ui.showTideReloadFallback('La Marée est sauvegardée. Touche pour reprendre le jeu.');
+    }, 1_600);
   }
 
   private updateCamera(delta: number): void {

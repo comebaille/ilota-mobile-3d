@@ -2738,6 +2738,24 @@ button:focus-visible {
   background: linear-gradient(90deg, #7ad1cd, #d6caff, #f7c65f);
 }
 
+#tide-transition-continue {
+  grid-column: 1 / -1;
+  min-width: min(280px, 100%);
+  min-height: 48px;
+  margin-top: 5px;
+  padding: 9px 16px;
+  border: 1px solid #f7c65f;
+  border-radius: 12px;
+  color: #173d35;
+  background: linear-gradient(#ffe18c, #e9aa49);
+  box-shadow: 0 5px 0 rgba(91, 59, 28, 0.7);
+  font-size: 9px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  pointer-events: auto;
+}
+#tide-transition-continue:active { transform: translateY(2px); box-shadow: 0 3px 0 rgba(91, 59, 28, 0.7); }
+
 .power-vfx {
   position: absolute;
   inset: 0;
