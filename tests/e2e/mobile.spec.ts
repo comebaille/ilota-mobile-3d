@@ -476,7 +476,7 @@ test('portail puis menu et Reprendre détourne vers l’île ADMIN sans mot de p
   expect(Math.hypot(returned.x - -7.2, returned.z - 5.1)).toBeLessThan(0.35);
 });
 
-test('les ponts du World 1 retrouvent leurs planches et leurs cordages procéduraux', async ({ page }) => {
+test('les ponts du World 1 gardent leurs planches, deux cordages et quatre poteaux', async ({ page }) => {
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     bridgesBuilt: [true, true, true, true],
@@ -486,13 +486,14 @@ test('les ponts du World 1 retrouvent leurs planches et leurs cordages procédur
   expect((await diagnostics(page)).bridges).toBe(4);
   const state = await diagnostics(page);
   expect(state.bridgePlanks).toBeGreaterThan(60);
-  expect(state.bridgeVisualParts - state.bridgePlanks).toBe(8);
+  // Par pont : deux cordages longitudinaux et quatre poteaux d’extrémité.
+  expect(state.bridgeVisualParts - state.bridgePlanks).toBe(24);
   expect(await page.evaluate(() => performance.getEntriesByType('resource')
     .some((entry) => entry.name.includes('kaykit-bridge')))).toBe(false);
   await page.screenshot({ path: 'test-results/ilota-procedural-wooden-bridges.png' });
 });
 
-test('un nouveau pont se construit réellement planche par planche', async ({ page }) => {
+test('un nouveau pont garde son animation planche par planche et ses quatre poteaux', async ({ page }) => {
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
     ...richSave(),
     campBuilt: true,
@@ -512,7 +513,8 @@ test('un nouveau pont se construit réellement planche par planche', async ({ pa
   await expect.poll(async () => (await diagnostics(page)).bridges).toBe(1);
   await expect.poll(async () => (await diagnostics(page)).bridgesBuilding).toBe(1);
   await expect.poll(async () => (await diagnostics(page)).scaledBridgePlanks).toBeGreaterThan(1);
-  await page.screenshot({ path: 'test-results/ilota-bridge-plank-construction.png' });
+  expect((await diagnostics(page)).bridgeVisualParts - (await diagnostics(page)).bridgePlanks).toBe(6);
+  await page.screenshot({ path: 'test-results/ilota-bridge-four-posts-building.png' });
   await expect.poll(async () => (await diagnostics(page)).bridgesBuilding, { timeout: 4_000 }).toBe(0);
   expect((await diagnostics(page)).scaledBridgePlanks).toBe(0);
 });
@@ -960,7 +962,7 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
   await openCrew(page);
   await recruitUntil(page, 3);
   await expect(page.locator('#worker-detail')).toContainText('Sève');
-  await expect(page.locator('.job-wood')).toContainText('55 · 60 %');
+  await expect(page.locator('.job-wood')).toContainText('ÎLES 1 À 2 · 55 / 60 %');
   await expect(page.locator('.job-copper')).toContainText('MÉTIER VERROUILLÉ');
   await assignWorker(page, 'Milo', 'pierre');
   await closeCrew(page);

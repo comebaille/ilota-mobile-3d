@@ -690,6 +690,15 @@ export class GameUI {
     if (mode === 'workshop' && !this.latestProgress.workshopBuilt) return;
     if (mode === 'foundry' && !this.latestProgress.foundryBuilt) return;
     this.crewMode = mode;
+    if (mode === 'workshop') {
+      this.selectedWorkerId = this.latestProgress.workers.find((worker) => worker.level === 1)?.id
+        ?? this.latestProgress.workers[0]?.id
+        ?? null;
+    } else if (mode === 'foundry') {
+      this.selectedWorkerId = this.latestProgress.workers.find((worker) => worker.level === 2)?.id
+        ?? this.latestProgress.workers[0]?.id
+        ?? null;
+    }
     this.crewPanel.hidden = false;
     this.renderCrew(this.latestProgress);
     this.crewHandlers?.onOpenChange(true);
@@ -1329,7 +1338,7 @@ export class GameUI {
       label.textContent = selectedWorker?.task === task ? `${RESOURCE_LABELS[task]} ✓` : RESOURCE_LABELS[task];
       const chance = element('small');
       chance.textContent = enabled
-        ? `${accessibleProfiles.map((profile) => profile.weights[task]).join(' · ')} % · I1→I${accessibleIslandCount}`
+        ? `ÎLES 1 À ${accessibleIslandCount} · ${accessibleProfiles.map((profile) => profile.weights[task]).join(' / ')} %`
         : 'MÉTIER VERROUILLÉ';
       copy.append(label, chance);
       const count = element('span', 'job-count');
@@ -1353,7 +1362,19 @@ export class GameUI {
     const pendingLevelVisual = this.levelUpWorker
       ? this.levelUpVisualPendingKey === `${this.levelUpWorker.id}:${this.levelUpWorker.level}`
       : false;
-    progress.workers.forEach((worker) => {
+    const displayedWorkers = rosterManagement
+      ? progress.workers
+      : progress.workers
+        .map((worker, order) => ({ worker, order }))
+        .sort((left, right) => {
+          const trainingPriority = (level: number): number => workshop
+            ? level === 1 ? 0 : 1
+            : level === 2 ? 0 : level >= 3 ? 1 : 2;
+          return trainingPriority(left.worker.level) - trainingPriority(right.worker.level)
+            || left.order - right.order;
+        })
+        .map(({ worker }) => worker);
+    displayedWorkers.forEach((worker) => {
       const isSelected = worker.id === this.selectedWorkerId;
       const isNew = worker.id === this.newRecruitWorkerId;
       const isLeveling = pendingLevelVisual && worker.id === this.levelUpWorker?.id;

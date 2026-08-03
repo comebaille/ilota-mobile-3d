@@ -4955,11 +4955,25 @@ html.admin-travel #app::after {
 .crew-sheet[data-mode="workshop"] { --crew-accent: #a8db79; --crew-accent-soft: rgba(168, 219, 121, 0.16); }
 .crew-sheet[data-mode="foundry"] { --crew-accent: #ff9b58; --crew-accent-soft: rgba(255, 155, 88, 0.18); }
 .crew-panel[data-mode="remote"] .crew-sheet { --crew-accent: #78d7d2; --crew-accent-soft: rgba(120, 215, 210, 0.16); }
-.crew-panel[data-mode="workshop"] .crew-sheet { --crew-accent: #a8db79; --crew-accent-soft: rgba(168, 219, 121, 0.16); }
-.crew-panel[data-mode="foundry"] .crew-sheet { --crew-accent: #ff9b58; --crew-accent-soft: rgba(255, 155, 88, 0.18); }
+.crew-panel[data-mode="workshop"] .crew-sheet {
+  --crew-accent: #a8db79;
+  --crew-accent-soft: rgba(168, 219, 121, 0.16);
+  border-color: rgba(168, 219, 121, 0.62);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(168, 219, 121, 0.16), transparent 30%),
+    linear-gradient(145deg, rgba(13, 48, 45, 0.99), rgba(6, 28, 31, 0.995));
+}
+.crew-panel[data-mode="foundry"] .crew-sheet {
+  --crew-accent: #ff9b58;
+  --crew-accent-soft: rgba(255, 155, 88, 0.18);
+  border-color: rgba(255, 155, 88, 0.64);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 155, 88, 0.18), transparent 30%),
+    linear-gradient(145deg, rgba(13, 48, 45, 0.99), rgba(6, 28, 31, 0.995));
+}
 
 .crew-sheet .crew-header { min-height: 48px; }
-.crew-sheet .crew-header .kicker { color: var(--crew-accent); font-size: 8px; letter-spacing: 0.14em; }
+.crew-sheet .crew-header .kicker { color: var(--crew-accent); font-size: 9px; letter-spacing: 0.12em; }
 .crew-sheet .crew-header h2 { color: #fff8df; font-size: clamp(18px, 2.5vw, 28px); }
 .crew-sheet .icon-button {
   min-width: 46px;
@@ -5005,8 +5019,8 @@ html.admin-travel #app::after {
   background: rgba(255, 255, 255, 0.08);
   font-size: 11px;
 }
-.crew-mode-rail > span small { align-self: end; font-size: 7px; font-weight: 950; letter-spacing: 0.11em; }
-.crew-mode-rail > span strong { align-self: start; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.crew-mode-rail > span small { align-self: end; font-size: 8px; font-weight: 950; letter-spacing: 0.09em; }
+.crew-mode-rail > span strong { align-self: start; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .crew-mode-rail > i { color: rgba(255, 255, 255, 0.26); font-size: 22px; font-style: normal; text-align: center; }
 .crew-mode-rail > span.active {
   border-color: color-mix(in srgb, var(--crew-accent) 65%, transparent);
@@ -5058,9 +5072,9 @@ html.admin-travel #app::after {
 }
 .crew-zone-heading > div { min-width: 0; display: flex; flex-direction: column; }
 .crew-zone-heading span,
-.crew-summary strong { color: var(--crew-accent); font-size: 8px; font-weight: 1000; letter-spacing: 0.12em; }
+.crew-summary strong { color: var(--crew-accent); font-size: 9px; font-weight: 1000; letter-spacing: 0.1em; }
 .crew-zone-heading small,
-.crew-summary span { overflow: hidden; color: rgba(255, 248, 223, 0.55); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.crew-summary span { overflow: hidden; color: rgba(255, 248, 223, 0.72); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .crew-zone-heading > b {
   flex: none;
   padding: 5px 8px;
@@ -5118,8 +5132,8 @@ html.admin-travel #app::after {
   background: rgba(255, 255, 255, 0.08);
   font-size: 21px;
 }
-.crew-sheet .worker-identity strong { color: #fff8df; font-size: 9px; }
-.crew-sheet .worker-identity small { color: rgba(255, 248, 223, 0.6); font-size: 7px; }
+.crew-sheet .worker-identity strong { color: #fff8df; font-size: 10px; }
+.crew-sheet .worker-identity small { color: rgba(255, 248, 223, 0.76); font-size: 8px; }
 .crew-sheet .level-pips i { background: rgba(255, 255, 255, 0.14); }
 .crew-sheet .level-pips i.filled { background: var(--crew-accent); }
 .crew-sheet .current-job {
@@ -5129,13 +5143,17 @@ html.admin-travel #app::after {
   color: #fff8df;
   background: rgba(255, 255, 255, 0.07);
 }
-.crew-sheet .current-job small { color: rgba(255, 248, 223, 0.62); font-size: 6px; }
+.crew-sheet .current-job small { color: rgba(255, 248, 223, 0.78); font-size: 8px; }
 .worker-training-state {
   grid-column: 1 / -1;
   justify-self: end;
   margin-top: -4px;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--crew-accent) 38%, transparent);
+  border-radius: 999px;
   color: var(--crew-accent);
-  font-size: 6px;
+  background: var(--crew-accent-soft);
+  font-size: 8px;
   font-weight: 1000;
   letter-spacing: 0.08em;
 }
@@ -5181,8 +5199,8 @@ html.admin-travel #app::after {
 }
 .crew-sheet .worker-detail-avatar { width: 44px; height: 44px; background: var(--crew-accent-soft); font-size: 26px; }
 .crew-sheet .worker-detail-hero strong { color: #fff8df; font-size: 13px; }
-.crew-sheet .worker-detail-hero small { color: rgba(255, 248, 223, 0.59); font-size: 7px; }
-.crew-sheet .worker-detail-level { color: var(--crew-accent); font-size: 8px; white-space: nowrap; }
+.crew-sheet .worker-detail-hero small { color: rgba(255, 248, 223, 0.76); font-size: 8px; }
+.crew-sheet .worker-detail-level { color: var(--crew-accent); font-size: 9px; white-space: nowrap; }
 .crew-sheet .worker-detail-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5201,9 +5219,9 @@ html.admin-travel #app::after {
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.045);
 }
-.worker-stat small { color: rgba(255, 248, 223, 0.48); font-size: 7px; font-weight: 950; letter-spacing: 0.09em; }
-.worker-stat strong { overflow: hidden; color: var(--crew-accent); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.worker-stat span { color: rgba(255, 248, 223, 0.48); font-size: 7px; }
+.worker-stat small { color: rgba(255, 248, 223, 0.67); font-size: 8px; font-weight: 950; letter-spacing: 0.07em; }
+.worker-stat strong { overflow: hidden; color: var(--crew-accent); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-stat span { color: rgba(255, 248, 223, 0.68); font-size: 8px; }
 .worker-progression {
   min-height: 62px;
   display: grid;
@@ -5222,9 +5240,9 @@ html.admin-travel #app::after {
   background: rgba(1, 16, 18, 0.35);
 }
 .worker-stage.next { border-color: color-mix(in srgb, var(--crew-accent) 38%, transparent); background: var(--crew-accent-soft); }
-.worker-stage small { color: rgba(255, 248, 223, 0.46); font-size: 7px; font-weight: 950; letter-spacing: 0.08em; }
-.worker-stage strong { color: #fff8df; font-size: 9px; }
-.worker-stage span { overflow: hidden; color: rgba(255, 248, 223, 0.58); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-stage small { color: rgba(255, 248, 223, 0.68); font-size: 8px; font-weight: 950; letter-spacing: 0.07em; }
+.worker-stage strong { color: #fff8df; font-size: 10px; }
+.worker-stage span { overflow: hidden; color: rgba(255, 248, 223, 0.74); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .worker-stage-arrow { align-self: center; color: var(--crew-accent); font-size: 18px; text-align: center; }
 .worker-upgrade-action {
   min-height: 50px;
@@ -5241,8 +5259,8 @@ html.admin-travel #app::after {
   border-radius: 11px;
   background: rgba(1, 16, 18, 0.46);
 }
-.worker-upgrade-cost small { color: rgba(255, 248, 223, 0.45); font-size: 7px; font-weight: 950; }
-.worker-upgrade-cost strong { overflow: hidden; color: var(--crew-accent); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-upgrade-cost small { color: rgba(255, 248, 223, 0.68); font-size: 8px; font-weight: 950; }
+.worker-upgrade-cost strong { overflow: hidden; color: var(--crew-accent); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .crew-sheet .worker-detail-upgrade {
   min-width: 0;
   min-height: 50px;
@@ -5251,7 +5269,7 @@ html.admin-travel #app::after {
   border-radius: 11px;
   color: #153b36;
   background: var(--crew-accent);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 1000;
   letter-spacing: 0.04em;
 }
@@ -5284,9 +5302,22 @@ html.admin-travel #app::after {
 }
 .crew-sheet .job-dock[aria-pressed="true"] { border-color: var(--crew-accent); background: var(--crew-accent-soft); box-shadow: inset 3px 0 var(--crew-accent); }
 .crew-sheet .job-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
-.crew-sheet .job-copy strong { color: #fff8df; font-size: 8px; }
-.crew-sheet .job-copy small { color: rgba(255, 248, 223, 0.5); font-size: 7px; }
+.crew-sheet .job-copy strong { color: #fff8df; font-size: 9px; }
+.crew-sheet .job-copy small {
+  overflow: visible;
+  color: rgba(255, 248, 223, 0.72);
+  font-size: 8px;
+  line-height: 1.2;
+  text-overflow: clip;
+  white-space: normal;
+}
 .crew-sheet .job-count { width: 25px; height: 25px; color: #173b36; background: var(--crew-accent); font-size: 8px; }
+
+.crew-panel[data-mode="workshop"] .worker-detail,
+.crew-panel[data-mode="foundry"] .worker-detail {
+  justify-content: center;
+  padding-block: 16px;
+}
 
 @media (max-width: 760px), (max-height: 430px) {
   .crew-sheet {

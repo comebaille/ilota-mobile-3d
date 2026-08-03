@@ -2273,6 +2273,26 @@ export class IlotaGame {
       rope.name = `pont-cordage:${definition.id}`;
       root.add(rope);
     });
+
+    const postMaterial = new THREE.MeshStandardMaterial({ color: 0x694327, roughness: 0.96, flatShading: true });
+    [0.06, 0.94].forEach((lengthRatio, endIndex) => {
+      [-1.62, 1.62].forEach((side, sideIndex) => {
+        const post = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.115, 0.14, 1.18, 8),
+          postMaterial,
+        );
+        post.position
+          .lerpVectors(start, end, lengthRatio)
+          .addScaledVector(perpendicular, side)
+          .setY(0.5);
+        post.rotation.y = yaw + (endIndex + sideIndex) * 0.035;
+        post.castShadow = true;
+        post.receiveShadow = true;
+        post.userData.bridgePost = true;
+        post.name = `pont-poteau:${definition.id}:${endIndex}:${sideIndex}`;
+        root.add(post);
+      });
+    });
     root.visible = false;
     this.scene.add(root);
 
