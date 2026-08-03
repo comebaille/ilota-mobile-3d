@@ -4594,6 +4594,7 @@ html.admin-travel #app::after {
 }
 
 .save-profile-card {
+  position: relative;
   width: min(780px, 96vw);
   display: grid;
   gap: 12px;
@@ -4629,7 +4630,7 @@ html.admin-travel #app::after {
 .save-profile-slot {
   min-width: 0;
   display: grid;
-  grid-template-rows: minmax(58px, auto) 42px;
+  grid-template-rows: minmax(58px, auto) 20px 44px;
   gap: 9px;
   padding: 11px;
   border: 1px solid rgba(255, 247, 219, 0.2);
@@ -4696,7 +4697,7 @@ html.admin-travel #app::after {
 }
 
 .save-profile-switch {
-  min-height: 42px;
+  min-height: 44px;
   border: 1px solid rgba(255, 216, 126, 0.42);
   border-radius: 12px;
   color: #263d34;
@@ -4711,6 +4712,119 @@ html.admin-travel #app::after {
   border-color: rgba(143, 215, 207, 0.34);
   background: rgba(143, 215, 207, 0.1);
 }
+
+.save-profile-security {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+.save-profile-security.secured { color: #baf0dc; background: rgba(143, 215, 207, 0.12); }
+.save-profile-security.unsecured { color: #ffd780; background: rgba(255, 184, 80, 0.1); }
+
+.save-profile-auth {
+  position: absolute;
+  z-index: 4;
+  inset: 8px;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-content: center;
+  gap: 12px 15px;
+  padding: clamp(18px, 4vw, 38px);
+  overflow: auto;
+  border: 1px solid rgba(255, 216, 126, 0.58);
+  border-radius: 21px;
+  color: var(--cream);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(255, 194, 90, 0.18), transparent 33%),
+    linear-gradient(145deg, rgba(17, 57, 51, 0.995), rgba(5, 28, 31, 0.998));
+  box-shadow: 0 20px 55px rgba(0, 10, 12, 0.68);
+}
+.save-profile-auth-avatar {
+  grid-row: 1 / 3;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 19px;
+  color: #203d34;
+  background: linear-gradient(145deg, #ffe29a, #dca552);
+  box-shadow: 0 5px 0 #775631;
+  font-size: 26px;
+  font-weight: 1000;
+}
+.save-profile-auth-heading { min-width: 0; align-self: center; }
+.save-profile-auth-heading .kicker { margin: 0 0 3px; color: #ffd780; font-size: 8px; }
+.save-profile-auth-heading h3 { margin: 0 0 4px; font-size: clamp(18px, 3.2vw, 26px); line-height: 1.05; }
+.save-profile-auth-heading small { display: block; color: rgba(255, 247, 219, 0.66); font-size: 9px; line-height: 1.35; }
+.save-profile-password-field {
+  grid-column: 1 / -1;
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.save-profile-password-field > span { color: rgba(255, 247, 219, 0.62); font-size: 7px; font-weight: 1000; letter-spacing: 0.1em; }
+.save-profile-password-field input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding: 8px 50px 8px 13px;
+  border: 1px solid rgba(255, 247, 219, 0.22);
+  border-radius: 12px;
+  outline: 0;
+  color: #fff7db;
+  background: rgba(0, 16, 17, 0.52);
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+}
+.save-profile-password-field input:focus { border-color: #ffd780; box-shadow: 0 0 0 3px rgba(255, 215, 128, 0.12); }
+#save-profile-password-toggle {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 9px;
+  color: #ffd780;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 16px;
+}
+.save-profile-auth-error {
+  grid-column: 1 / -1;
+  min-height: 18px;
+  margin: 0;
+  color: #ff9f8b;
+  font-size: 9px;
+  font-weight: 900;
+  text-align: center;
+}
+.save-profile-auth-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.65fr) minmax(160px, 1.35fr);
+  gap: 8px;
+}
+.save-profile-auth-actions button {
+  min-height: 48px;
+  border: 1px solid rgba(255, 247, 219, 0.18);
+  border-radius: 12px;
+  color: var(--cream);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 8px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+#save-profile-auth-submit { color: #213d34; border-color: #ffd780; background: linear-gradient(#ffdf8a, #e8a949); }
+#save-profile-auth-submit:disabled { opacity: 0.55; }
 
 .save-profile-start-button {
   width: min(420px, 100%);
@@ -5069,9 +5183,9 @@ html.admin-travel #app::after {
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.045);
 }
-.worker-stat small { color: rgba(255, 248, 223, 0.48); font-size: 6px; font-weight: 950; letter-spacing: 0.09em; }
+.worker-stat small { color: rgba(255, 248, 223, 0.48); font-size: 7px; font-weight: 950; letter-spacing: 0.09em; }
 .worker-stat strong { overflow: hidden; color: var(--crew-accent); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.worker-stat span { color: rgba(255, 248, 223, 0.48); font-size: 6px; }
+.worker-stat span { color: rgba(255, 248, 223, 0.48); font-size: 7px; }
 .worker-progression {
   min-height: 62px;
   display: grid;
@@ -5090,9 +5204,9 @@ html.admin-travel #app::after {
   background: rgba(1, 16, 18, 0.35);
 }
 .worker-stage.next { border-color: color-mix(in srgb, var(--crew-accent) 38%, transparent); background: var(--crew-accent-soft); }
-.worker-stage small { color: rgba(255, 248, 223, 0.46); font-size: 6px; font-weight: 950; letter-spacing: 0.08em; }
+.worker-stage small { color: rgba(255, 248, 223, 0.46); font-size: 7px; font-weight: 950; letter-spacing: 0.08em; }
 .worker-stage strong { color: #fff8df; font-size: 9px; }
-.worker-stage span { overflow: hidden; color: rgba(255, 248, 223, 0.58); font-size: 6.5px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-stage span { overflow: hidden; color: rgba(255, 248, 223, 0.58); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .worker-stage-arrow { align-self: center; color: var(--crew-accent); font-size: 18px; text-align: center; }
 .worker-upgrade-action {
   min-height: 50px;
@@ -5109,7 +5223,7 @@ html.admin-travel #app::after {
   border-radius: 11px;
   background: rgba(1, 16, 18, 0.46);
 }
-.worker-upgrade-cost small { color: rgba(255, 248, 223, 0.45); font-size: 6px; font-weight: 950; }
+.worker-upgrade-cost small { color: rgba(255, 248, 223, 0.45); font-size: 7px; font-weight: 950; }
 .worker-upgrade-cost strong { overflow: hidden; color: var(--crew-accent); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .crew-sheet .worker-detail-upgrade {
   min-width: 0;
@@ -5153,7 +5267,7 @@ html.admin-travel #app::after {
 .crew-sheet .job-dock[aria-pressed="true"] { border-color: var(--crew-accent); background: var(--crew-accent-soft); box-shadow: inset 3px 0 var(--crew-accent); }
 .crew-sheet .job-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
 .crew-sheet .job-copy strong { color: #fff8df; font-size: 8px; }
-.crew-sheet .job-copy small { color: rgba(255, 248, 223, 0.5); font-size: 6px; }
+.crew-sheet .job-copy small { color: rgba(255, 248, 223, 0.5); font-size: 7px; }
 .crew-sheet .job-count { width: 25px; height: 25px; color: #173b36; background: var(--crew-accent); font-size: 8px; }
 
 @media (max-width: 760px), (max-height: 430px) {
@@ -5166,25 +5280,25 @@ html.admin-travel #app::after {
   }
   .crew-sheet .crew-header { min-height: 40px; }
   .crew-sheet .crew-header h2 { font-size: 17px; }
-  .crew-sheet .crew-header .kicker { font-size: 6.5px; }
+  .crew-sheet .crew-header .kicker { font-size: 7px; }
   .crew-sheet .icon-button { min-width: 44px; min-height: 44px; }
   .crew-mode-rail { min-height: 38px; padding: 3px; border-radius: 11px; }
   .crew-mode-rail > span { height: 30px; grid-template-columns: 23px minmax(0, 1fr); column-gap: 5px; padding: 3px; }
   .crew-mode-rail > span b { width: 23px; height: 23px; border-radius: 7px; font-size: 8px; }
-  .crew-mode-rail > span small { font-size: 5.8px; }
-  .crew-mode-rail > span strong { font-size: 6.4px; }
+  .crew-mode-rail > span small { font-size: 7px; }
+  .crew-mode-rail > span strong { font-size: 7px; }
   .crew-command-layout { grid-template-columns: minmax(145px, 0.78fr) minmax(245px, 1.42fr) minmax(125px, 0.7fr); gap: 5px; }
   .crew-panel[data-mode="workshop"] .crew-command-layout,
   .crew-panel[data-mode="foundry"] .crew-command-layout { grid-template-columns: minmax(155px, 0.68fr) minmax(285px, 1.32fr); }
   .crew-roster-zone, .crew-focus-zone, .crew-job-zone { gap: 4px; padding: 5px; border-radius: 11px; }
   .crew-zone-heading, .crew-summary { min-height: 24px; }
-  .crew-zone-heading span, .crew-summary strong { font-size: 6.5px; }
-  .crew-zone-heading small, .crew-summary span { font-size: 5.8px; }
+  .crew-zone-heading span, .crew-summary strong { font-size: 7px; }
+  .crew-zone-heading small, .crew-summary span { font-size: 7px; }
   .crew-sheet .worker-card, .crew-sheet .worker-select { min-height: 46px; }
   .crew-sheet .worker-select { grid-template-columns: 31px minmax(0, 1fr) auto; gap: 5px; padding: 4px; }
   .crew-sheet .worker-avatar { width: 31px; height: 31px; font-size: 18px; }
   .crew-sheet .worker-identity strong { font-size: 7.5px; }
-  .crew-sheet .worker-identity small { font-size: 5.8px; }
+  .crew-sheet .worker-identity small { font-size: 7px; }
   .crew-sheet .current-job { min-width: 30px; padding: 3px; }
   .crew-sheet .current-job small { display: none; }
   .crew-sheet .recruit-button { min-height: 44px; padding: 4px; }
@@ -5200,16 +5314,51 @@ html.admin-travel #app::after {
   .worker-progression { min-height: 45px; gap: 3px; }
   .worker-stage { padding: 4px 5px; border-radius: 8px; }
   .worker-stage strong { font-size: 7px; }
-  .worker-stage span { font-size: 5.5px; }
+  .worker-stage span { font-size: 7px; }
   .worker-stage-arrow { font-size: 13px; }
   .worker-upgrade-action { min-height: 44px; grid-template-columns: minmax(85px, 0.75fr) minmax(135px, 1.25fr); gap: 4px; }
-  .crew-sheet .worker-detail-upgrade { min-height: 44px; font-size: 6.5px; }
+  .crew-sheet .worker-detail-upgrade { min-height: 44px; font-size: 7px; }
   .worker-upgrade-cost { padding: 4px 6px; }
-  .worker-upgrade-cost strong { font-size: 6.5px; }
+  .worker-upgrade-cost strong { font-size: 7px; }
   .crew-sheet .job-docks { grid-auto-rows: minmax(44px, 1fr); gap: 4px; }
   .crew-sheet .job-dock { min-height: 44px; grid-template-columns: 29px minmax(0, 1fr) 21px; gap: 4px; padding: 4px; }
   .crew-sheet .job-icon { width: 28px; height: 28px; font-size: 13px; }
-  .crew-sheet .job-copy strong { font-size: 6.5px; }
-  .crew-sheet .job-copy small { font-size: 5.4px; }
-  .crew-sheet .job-count { width: 21px; height: 21px; font-size: 6px; }
+  .crew-sheet .job-copy strong { font-size: 7px; }
+  .crew-sheet .job-copy small { font-size: 7px; }
+  .crew-sheet .job-count { width: 21px; height: 21px; font-size: 7px; }
+}
+
+@media (max-width: 760px) {
+  .save-profile-slot {
+    grid-template-columns: minmax(0, 1fr) 100px;
+    grid-template-rows: 20px 44px;
+  }
+  .save-profile-identity { grid-column: 1; grid-row: 1 / 3; }
+  .save-profile-security { grid-column: 2; grid-row: 1; }
+  .save-profile-switch { grid-column: 2; grid-row: 2; }
+  .save-profile-auth { grid-template-columns: 48px minmax(0, 1fr); gap: 9px 11px; padding: 14px; }
+  .save-profile-auth-avatar { width: 48px; height: 48px; border-radius: 14px; font-size: 20px; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .save-profile-auth {
+    inset: 5px;
+    grid-template-columns: 42px minmax(145px, 0.8fr) minmax(220px, 1.2fr);
+    grid-template-rows: 42px 42px 42px;
+    align-content: center;
+    align-items: center;
+    gap: 6px 9px;
+    padding: 9px 12px;
+  }
+  .save-profile-auth-avatar { grid-column: 1; grid-row: 1; width: 40px; height: 40px; border-radius: 12px; font-size: 17px; }
+  .save-profile-auth-heading { grid-column: 2; grid-row: 1; }
+  .save-profile-auth-heading .kicker { font-size: 7px; }
+  .save-profile-auth-heading h3 { font-size: 14px; }
+  .save-profile-auth-heading small { font-size: 7px; }
+  .save-profile-password-field { grid-column: 3; grid-row: 1; gap: 2px; }
+  #save-profile-confirm-field { grid-column: 3; grid-row: 2; }
+  .save-profile-password-field input { height: 42px; font-size: 13px; }
+  .save-profile-auth-error { grid-column: 1 / 3; grid-row: 2; min-height: 12px; font-size: 7px; text-align: left; }
+  .save-profile-auth-actions { grid-column: 3; grid-row: 3; grid-template-columns: 0.65fr 1.35fr; }
+  .save-profile-auth-actions button { min-height: 42px; font-size: 7px; }
 }

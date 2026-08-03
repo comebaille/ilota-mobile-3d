@@ -10,10 +10,19 @@ export interface SaveProfileSummary {
   tide: number;
   workers: number;
   completed: boolean;
+  hasPassword: boolean;
+}
+
+interface SaveProfilePasswordRecord {
+  version: 1;
+  iterations: number;
+  salt: string;
+  hash: string;
 }
 
 const ACTIVE_PROFILE_KEY = 'ilota-save-profile-active-v1';
 const PROFILE_NAMES_KEY = 'ilota-save-profile-names-v1';
+const PROFILE_PASSWORDS_KEY = 'ilota-save-profile-passwords-v1';
 const LEGACY_SAVE_KEY = 'ilota-save-v1';
 const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
 
@@ -23,6 +32,72 @@ const isProfileId = (value: string | null): value is SaveProfileId => (
 
 const saveKey = (id: SaveProfileId): string => `ilota-save-profile-${id}-v1`;
 const backupKey = (id: SaveProfileId): string => `ilota-save-profile-${id}-backup-v1`;
+const PASSWORD_ITERATIONS = 120_000;
+
+const bytesToBase64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes));
+
+const base64ToBytes = (value: string): Uint8Array => Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+
+const readPasswordRecords = (): Partial<Record<SaveProfileId, SaveProfilePasswordRecord>> => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROFILE_PASSWORDS_KEY) ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(SAVE_PROFILE_IDS.flatMap((id) => {
+      const record = parsed[id] as Partial<SaveProfilePasswordRecord> | undefined;
+      return record?.version === 1
+        && typeof record.iterations === 'number'
+        && typeof record.salt === 'string'
+        && typeof record.hash === 'string'
+        ? [[id, record as SaveProfilePasswordRecord]]
+        : [];
+    }));
+  } catch {
+    return {};
+  }
+};
+
+const derivePasswordHash = async (password: string, salt: Uint8Array, iterations: number): Promise<string> => {
+  const material = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations },
+    material,
+    256,
+  );
+  return bytesToBase64(new Uint8Array(bits));
+};
+
+export const hasSaveProfilePassword = (id: SaveProfileId): boolean => Boolean(readPasswordRecords()[id]);
+
+export const setSaveProfilePassword = async (id: SaveProfileId, password: string): Promise<void> => {
+  if (password.length < 4) throw new Error('Le mot de passe doit contenir au moins 4 caractères.');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const record: SaveProfilePasswordRecord = {
+    version: 1,
+    iterations: PASSWORD_ITERATIONS,
+    salt: bytesToBase64(salt),
+    hash: await derivePasswordHash(password, salt, PASSWORD_ITERATIONS),
+  };
+  const records = readPasswordRecords();
+  records[id] = record;
+  localStorage.setItem(PROFILE_PASSWORDS_KEY, JSON.stringify(records));
+};
+
+export const verifySaveProfilePassword = async (id: SaveProfileId, password: string): Promise<boolean> => {
+  const record = readPasswordRecords()[id];
+  if (!record) return false;
+  const actual = await derivePasswordHash(password, base64ToBytes(record.salt), record.iterations);
+  if (actual.length !== record.hash.length) return false;
+  let difference = 0;
+  for (let index = 0; index < actual.length; index += 1) {
+    difference |= actual.charCodeAt(index) ^ record.hash.charCodeAt(index);
+  }
+  return difference === 0;
+};
 
 const validJson = (raw: string | null): string | null => {
   if (!raw) return null;
@@ -151,7 +226,7 @@ export const getSaveProfileSummaries = (): SaveProfileSummary[] => {
       tide: rebirths + 1,
       workers,
       completed: parsed?.completed === true,
+      hasPassword: hasSaveProfilePassword(id),
     };
   });
 };
-

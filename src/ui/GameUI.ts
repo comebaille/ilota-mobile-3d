@@ -55,6 +55,8 @@ import {
 import { applyGameProfile, GAME_PROFILE_CONFIGS, type GameProfile } from '../game/platform';
 import {
   getSaveProfileSummaries,
+  setSaveProfilePassword,
+  verifySaveProfilePassword,
   renameSaveProfile,
   type SaveProfileId,
 } from '../game/saveProfiles';
@@ -255,6 +257,18 @@ export class GameUI {
   private readonly saveProfilePanel = byId<HTMLElement>('save-profile-panel');
   private readonly saveProfileClose = byId<HTMLButtonElement>('save-profile-close');
   private readonly saveProfileList = byId<HTMLElement>('save-profile-list');
+  private readonly saveProfileAuth = byId<HTMLFormElement>('save-profile-auth');
+  private readonly saveProfileAuthAvatar = byId<HTMLElement>('save-profile-auth-avatar');
+  private readonly saveProfileAuthKicker = byId<HTMLElement>('save-profile-auth-kicker');
+  private readonly saveProfileAuthTitle = byId<HTMLElement>('save-profile-auth-title');
+  private readonly saveProfileAuthHelp = byId<HTMLElement>('save-profile-auth-help');
+  private readonly saveProfilePassword = byId<HTMLInputElement>('save-profile-password');
+  private readonly saveProfilePasswordConfirm = byId<HTMLInputElement>('save-profile-password-confirm');
+  private readonly saveProfilePasswordToggle = byId<HTMLButtonElement>('save-profile-password-toggle');
+  private readonly saveProfileConfirmField = byId<HTMLElement>('save-profile-confirm-field');
+  private readonly saveProfileAuthError = byId<HTMLElement>('save-profile-auth-error');
+  private readonly saveProfileAuthCancel = byId<HTMLButtonElement>('save-profile-auth-cancel');
+  private readonly saveProfileAuthSubmit = byId<HTMLButtonElement>('save-profile-auth-submit');
   private readonly adminPanel = byId<HTMLElement>('admin-panel');
   private readonly adminCloseButton = byId<HTMLButtonElement>('admin-close-button');
   private readonly adminKicker = byId<HTMLElement>('admin-kicker');
@@ -314,6 +328,7 @@ export class GameUI {
   private lastLevelUpKey = '';
   private gameProfile: GameProfile = 'iphone';
   private adminWorld: 1 | 2 = 1;
+  private pendingSaveProfileAuth: { id: SaveProfileId; mode: 'create' | 'unlock' | 'protect' } | null = null;
 
   constructor() {
     const vfxBase = new URL(
@@ -340,7 +355,7 @@ export class GameUI {
         ? event.target.closest<HTMLButtonElement>('button[data-save-profile-switch]')
         : null;
       const id = button?.dataset.saveProfileSwitch as SaveProfileId | undefined;
-      if (id && !button?.disabled) this.saveProfileHandlers?.onSwitch(id);
+      if (id && !button?.disabled) this.beginSaveProfileAccess(id);
     });
     this.saveProfileList.addEventListener('change', (event) => {
       const input = event.target instanceof HTMLInputElement ? event.target : null;
@@ -348,6 +363,19 @@ export class GameUI {
       if (!input || !id) return;
       input.value = renameSaveProfile(id, input.value);
       this.renderSaveProfiles();
+    });
+    this.saveProfileAuth.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this.submitSaveProfileAuth();
+    });
+    this.saveProfileAuthCancel.addEventListener('click', () => this.hideSaveProfileAuth());
+    this.saveProfilePasswordToggle.addEventListener('click', () => {
+      const reveal = this.saveProfilePassword.type === 'password';
+      this.saveProfilePassword.type = reveal ? 'text' : 'password';
+      this.saveProfilePasswordConfirm.type = reveal ? 'text' : 'password';
+      this.saveProfilePasswordToggle.setAttribute('aria-label', reveal ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
+      this.saveProfilePasswordToggle.textContent = reveal ? '⊘' : '◉';
+      this.saveProfilePassword.focus({ preventScroll: true });
     });
     this.renderSaveProfiles();
     window.addEventListener('beforeinstallprompt', (event) => {
@@ -831,9 +859,96 @@ export class GameUI {
 
   private hideSaveProfiles(): void {
     if (this.saveProfilePanel.hidden) return;
+    this.hideSaveProfileAuth(false);
     this.saveProfilePanel.hidden = true;
     if (!this.menuPanel.hidden) this.menuSaveProfilesButton.focus({ preventScroll: true });
     else this.startSaveProfilesButton.focus({ preventScroll: true });
+  }
+
+  private beginSaveProfileAccess(id: SaveProfileId): void {
+    const profile = getSaveProfileSummaries().find((candidate) => candidate.id === id);
+    if (!profile) return;
+    const mode = profile.hasPassword ? 'unlock' : profile.active ? 'protect' : 'create';
+    this.pendingSaveProfileAuth = { id, mode };
+    const creating = mode !== 'unlock';
+    this.saveProfileAuthAvatar.textContent = id;
+    this.saveProfileAuthKicker.textContent = mode === 'unlock' ? 'PROFIL VERROUILLÉ' : 'PROTECTION DU PROFIL';
+    this.saveProfileAuthTitle.textContent = mode === 'unlock'
+      ? `Déverrouiller ${profile.name}`
+      : `Créer le mot de passe de ${profile.name}`;
+    this.saveProfileAuthHelp.textContent = mode === 'unlock'
+      ? 'Entre le mot de passe associé à cette sauvegarde.'
+      : 'Choisis au moins 4 caractères. Ce mot de passe sera demandé pour revenir sur ce profil.';
+    this.saveProfileConfirmField.hidden = !creating;
+    this.saveProfilePassword.autocomplete = creating ? 'new-password' : 'current-password';
+    this.saveProfilePassword.value = '';
+    this.saveProfilePasswordConfirm.value = '';
+    this.saveProfilePassword.type = 'password';
+    this.saveProfilePasswordConfirm.type = 'password';
+    this.saveProfilePasswordToggle.textContent = '◉';
+    this.saveProfilePasswordToggle.setAttribute('aria-label', 'Afficher le mot de passe');
+    this.saveProfileAuthError.textContent = '';
+    this.saveProfileAuthSubmit.textContent = mode === 'unlock' ? 'DÉVERROUILLER' : mode === 'protect' ? 'SÉCURISER CE PROFIL' : 'CRÉER LE PROFIL';
+    this.saveProfileAuthSubmit.disabled = false;
+    this.saveProfileAuth.hidden = false;
+    window.setTimeout(() => this.saveProfilePassword.focus(), 0);
+  }
+
+  private hideSaveProfileAuth(restoreFocus = true): void {
+    const id = this.pendingSaveProfileAuth?.id;
+    this.pendingSaveProfileAuth = null;
+    this.saveProfileAuth.hidden = true;
+    this.saveProfileAuthError.textContent = '';
+    if (restoreFocus && id) {
+      window.setTimeout(() => {
+        this.saveProfileList.querySelector<HTMLButtonElement>(`[data-save-profile-switch="${id}"]`)?.focus({ preventScroll: true });
+      }, 0);
+    }
+  }
+
+  private async submitSaveProfileAuth(): Promise<void> {
+    const pending = this.pendingSaveProfileAuth;
+    if (!pending || this.saveProfileAuthSubmit.disabled) return;
+    const password = this.saveProfilePassword.value;
+    this.saveProfileAuthError.textContent = '';
+    if (password.length < 4) {
+      this.saveProfileAuthError.textContent = 'Utilise au moins 4 caractères.';
+      this.saveProfilePassword.focus();
+      return;
+    }
+    if (pending.mode !== 'unlock' && password !== this.saveProfilePasswordConfirm.value) {
+      this.saveProfileAuthError.textContent = 'Les deux mots de passe ne correspondent pas.';
+      this.saveProfilePasswordConfirm.focus();
+      return;
+    }
+    this.saveProfileAuthSubmit.disabled = true;
+    this.saveProfileAuthSubmit.textContent = pending.mode === 'unlock' ? 'VÉRIFICATION…' : 'PROTECTION…';
+    try {
+      if (pending.mode === 'unlock') {
+        const valid = await verifySaveProfilePassword(pending.id, password);
+        if (!valid) {
+          this.saveProfileAuthError.textContent = 'Mot de passe incorrect.';
+          this.saveProfilePassword.select();
+          return;
+        }
+      } else {
+        await setSaveProfilePassword(pending.id, password);
+      }
+      if (pending.mode === 'protect') {
+        this.hideSaveProfileAuth(false);
+        this.renderSaveProfiles();
+        this.saveProfileList.querySelector<HTMLButtonElement>(`[data-save-profile-switch="${pending.id}"]`)?.focus({ preventScroll: true });
+        return;
+      }
+      this.saveProfileHandlers?.onSwitch(pending.id);
+    } catch {
+      this.saveProfileAuthError.textContent = 'Impossible de sécuriser ce profil sur cet appareil.';
+    } finally {
+      if (this.pendingSaveProfileAuth) {
+        this.saveProfileAuthSubmit.disabled = false;
+        this.saveProfileAuthSubmit.textContent = pending.mode === 'unlock' ? 'DÉVERROUILLER' : pending.mode === 'protect' ? 'SÉCURISER CE PROFIL' : 'CRÉER LE PROFIL';
+      }
+    }
   }
 
   private renderSaveProfiles(): void {
@@ -860,14 +975,18 @@ export class GameUI {
       status.textContent = profile.hasSave
         ? `WORLD ${profile.currentWorld} · MARÉE ${profile.tide} · ${profile.workers} RENARD${profile.workers > 1 ? 'S' : ''}${profile.completed ? ' · ACTE TERMINÉ' : ''}`
         : 'AUCUNE SAUVEGARDE · NOUVELLE AVENTURE';
+      const security = element('span', `save-profile-security${profile.hasPassword ? ' secured' : ' unsecured'}`);
+      security.textContent = profile.hasPassword ? '🔒 PROTÉGÉ' : '◇ À SÉCURISER';
       copy.append(input, status);
       identity.append(badge, copy);
       const choose = element('button', 'save-profile-switch');
       choose.type = 'button';
       choose.dataset.saveProfileSwitch = profile.id;
-      choose.disabled = profile.active;
-      choose.textContent = profile.active ? 'ACTIF' : profile.hasSave ? 'REPRENDRE' : 'CRÉER';
-      card.append(identity, choose);
+      choose.disabled = profile.active && profile.hasPassword;
+      choose.textContent = profile.active
+        ? profile.hasPassword ? 'ACTIF' : 'SÉCURISER'
+        : profile.hasPassword ? 'DÉVERROUILLER' : 'CRÉER';
+      card.append(identity, security, choose);
       this.saveProfileList.append(card);
     });
   }

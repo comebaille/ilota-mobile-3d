@@ -256,7 +256,29 @@
           </header>
           <p class="save-profile-intro">Chaque joueur conserve ses propres îles, renards, Savoirs et World 2 sur cet appareil.</p>
           <div id="save-profile-list" class="save-profile-list" aria-live="polite"></div>
-          <small class="save-profile-note">Changer de joueur recharge le jeu après avoir sauvegardé la partie actuelle.</small>
+          <small class="save-profile-note">Chaque profil est protégé par son propre mot de passe. Changer de joueur sauvegarde puis recharge le jeu.</small>
+          <form id="save-profile-auth" class="save-profile-auth" aria-labelledby="save-profile-auth-title" hidden>
+            <span id="save-profile-auth-avatar" class="save-profile-auth-avatar" aria-hidden="true">1</span>
+            <div class="save-profile-auth-heading">
+              <p id="save-profile-auth-kicker" class="kicker">PROFIL PROTÉGÉ</p>
+              <h3 id="save-profile-auth-title">Déverrouiller Joueur 1</h3>
+              <small id="save-profile-auth-help">Entre le mot de passe de cette sauvegarde.</small>
+            </div>
+            <label class="save-profile-password-field">
+              <span>MOT DE PASSE</span>
+              <input id="save-profile-password" type="password" minlength="4" maxlength="64" autocomplete="current-password" required>
+              <button id="save-profile-password-toggle" type="button" aria-label="Afficher le mot de passe">◉</button>
+            </label>
+            <label id="save-profile-confirm-field" class="save-profile-password-field">
+              <span>CONFIRMER LE MOT DE PASSE</span>
+              <input id="save-profile-password-confirm" type="password" minlength="4" maxlength="64" autocomplete="new-password">
+            </label>
+            <p id="save-profile-auth-error" class="save-profile-auth-error" role="alert"></p>
+            <div class="save-profile-auth-actions">
+              <button id="save-profile-auth-cancel" type="button">ANNULER</button>
+              <button id="save-profile-auth-submit" type="submit">DÉVERROUILLER</button>
+            </div>
+          </form>
         </div>
       </section>
 
