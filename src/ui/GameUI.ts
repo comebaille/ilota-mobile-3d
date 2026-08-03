@@ -119,8 +119,8 @@ interface AdminHandlers {
 
 export type CrewMode = 'nursery' | 'workshop' | 'foundry' | 'remote';
 
-const SKILL_MAP_WIDTH = 920;
-const SKILL_MAP_HEIGHT = 590;
+const SKILL_MAP_WIDTH = 1040;
+const SKILL_MAP_HEIGHT = 640;
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -1736,7 +1736,7 @@ export class GameUI {
       if (this.talentPanel.hidden || !stage.isConnected) return;
       this.skillBranches.scrollLeft = previouslyRendered
         ? previousScrollLeft
-        : Math.max(0, 460 * this.skillZoom - this.skillBranches.clientWidth / 2);
+        : Math.max(0, 520 * this.skillZoom - this.skillBranches.clientWidth / 2);
       this.skillBranches.scrollTop = previouslyRendered ? previousScrollTop : 0;
     });
 

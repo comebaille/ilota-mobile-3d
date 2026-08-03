@@ -704,10 +704,10 @@ button:focus-visible {
 
 .skill-map-canvas {
   position: relative;
-  width: 920px;
-  height: 590px;
-  min-width: 920px;
-  min-height: 590px;
+  width: 1040px;
+  height: 640px;
+  min-width: 1040px;
+  min-height: 640px;
   transform-origin: top left;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
@@ -761,8 +761,8 @@ button:focus-visible {
 .skill-links {
   position: absolute;
   inset: 0;
-  width: 920px;
-  height: 590px;
+  width: 1040px;
+  height: 640px;
   pointer-events: none;
 }
 
@@ -812,15 +812,15 @@ button:focus-visible {
   --skill-color: #c6bff1;
   position: absolute;
   z-index: 2;
-  width: 108px;
-  height: 94px;
+  width: 96px;
+  height: 112px;
   display: grid;
   grid-template-rows: 28px auto 14px;
   place-items: center;
   gap: 1px;
-  padding: 8px 10px 7px;
+  padding: 12px 8px;
   transform: translate(-50%, -50%);
-  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   border: 0;
   color: var(--cream);
   background: linear-gradient(145deg, #53615e, #263634);
@@ -857,7 +857,7 @@ button:focus-visible {
 }
 .skill-hex-icon { color: var(--skill-color); font-size: 22px; font-weight: 1000; line-height: 1; }
 .skill-hex.unlocked .skill-hex-icon { color: #ffe09a; }
-.skill-hex-name { max-width: 88px; font-size: 9px; line-height: 1.08; }
+.skill-hex-name { max-width: 80px; font-size: 9px; line-height: 1.08; }
 .skill-hex-price { color: var(--sun-bright); font-size: 7px; font-weight: 950; white-space: nowrap; }
 
 @keyframes skill-ready {

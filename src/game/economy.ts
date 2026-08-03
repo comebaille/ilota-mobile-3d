@@ -659,15 +659,17 @@ export const SKILL_BRANCH_LABELS: Record<SkillBranch, { name: string; icon: stri
   exploration: { name: 'Exploration', icon: '➶', summary: 'Mobilité, caches et départs accélérés.' },
 };
 
-const SKILL_HEX_STEP_X = 81;
-const SKILL_HEX_STEP_Y = 70.5;
-const SKILL_TREE_CENTER_X = 460;
+// Hexagones pointus réguliers : une rangée partage ses côtés verticaux et la
+// suivante descend de 3/4 de hauteur, comme un véritable pavage en nid d’abeilles.
+const SKILL_HEX_STEP_X = 96;
+const SKILL_HEX_STEP_Y = 84;
+const SKILL_TREE_CENTER_X = 520;
 const skillPosition = (tier: number, column: number): Pick<SkillDefinition, 'tier' | 'x' | 'y'> => {
   const count = tier + 3;
   return {
     tier,
     x: SKILL_TREE_CENTER_X - ((count - 1) * SKILL_HEX_STEP_X) / 2 + column * SKILL_HEX_STEP_X,
-    y: 72 + tier * SKILL_HEX_STEP_Y,
+    y: 68 + tier * SKILL_HEX_STEP_Y,
   };
 };
 

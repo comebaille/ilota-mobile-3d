@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v28-skill-pyramid';
+const CACHE = 'ilota-v28-1-pointed-hexes';
 const CORE = [
   './',
   './index.html',

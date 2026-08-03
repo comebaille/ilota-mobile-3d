@@ -437,13 +437,13 @@ describe('Economy v12', () => {
     expect(rows.map((row) => row.length)).toEqual([3, 4, 5, 6, 7, 8, 9]);
 
     rows.forEach((row, tier) => {
-      row.slice(1).forEach((skill, index) => expect(skill.x - row[index]!.x).toBeCloseTo(81));
+      row.slice(1).forEach((skill, index) => expect(skill.x - row[index]!.x).toBeCloseTo(96));
       if (tier === 0) return;
       const parents = rows[tier - 1]!;
       row.forEach((skill, column) => {
         const expectedParents = [parents[column - 1]?.id, parents[column]?.id].filter(Boolean);
         expect(skill.requires).toEqual(expectedParents);
-        expect(skill.y - parents[0]!.y).toBeCloseTo(70.5);
+        expect(skill.y - parents[0]!.y).toBeCloseTo(84);
       });
     });
   });

@@ -1364,6 +1364,7 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   await expect.poll(async () => (await diagnostics(page)).autoRegulation).toBe(true);
   await expect(page.locator('#toast')).not.toHaveClass(/show/);
   await expect(page.getByRole('button', { name: /auto-régulation active/i })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
   const widthBeforePinch = await page.locator('.skill-map-stage').evaluate((stage) => stage.getBoundingClientRect().width);
   await page.locator('#skill-branches').evaluate((target) => {
     const rect = target.getBoundingClientRect();
@@ -1408,7 +1409,6 @@ test('fait naître le graphe hexagonal puis atteint l’auto-régulation profond
   await expect.poll(async () => (await diagnostics(page)).player.x).toBeGreaterThan(beforeClose.x + 1);
   await expect(page.locator('.skill-zoom-controls')).toHaveCount(0);
   await openTalents(page);
-  await page.screenshot({ path: 'test-results/ilota-skill-tree.png' });
 });
 
 test('la dernière paire de parents révèle la Conscience absolue', async ({ page }) => {
