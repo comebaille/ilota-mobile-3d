@@ -355,7 +355,7 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await expect.poll(async () => (await diagnostics(page)).warehouses).toBe(1);
   await expect.poll(async () => (await diagnostics(page)).assemblingBuildings).toBeGreaterThan(0);
   await expect(page.locator('#tutorial-panel')).toBeVisible();
-  await expect(page.locator('#tutorial-detail')).toContainText('tomberont une à une');
+  await expect(page.locator('#tutorial-detail')).toContainText('tombent une à une');
   await page.locator('#tutorial-continue-button').click();
   await expect.poll(async () => (await diagnostics(page)).inputEnabled).toBe(true);
   await expect.poll(async () => (await diagnostics(page)).objectiveGuideTarget).toBe('Camp des Marées');
