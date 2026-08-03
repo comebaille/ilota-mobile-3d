@@ -21,6 +21,7 @@ interface IlotaWindow extends Window {
     bridgeBuilt: boolean;
     bridges: number;
     bridgeGuides: number;
+    objectiveGuideTarget: string;
     chapter: number;
     cacheFound: boolean;
     completed: boolean;

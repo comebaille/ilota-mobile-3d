@@ -1,6 +1,6 @@
 {
   "name": "ilota-mobile-3d",
-  "version": "0.24.0",
+  "version": "0.24.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:smoke": "playwright test --grep \"affiche l’invitation|reprend une sauvegarde v1|harnais agrandis|Tournées complètes|Conseil itinérant|sommets Technique\"",
+    "test:e2e:smoke": "playwright test --grep \"première marée explique|lancement présente clairement les trois formats\"",
     "perf:transition": "node --experimental-strip-types scripts/measure-transition.mjs",
     "test": "npm run test:unit && npm run build && npm run test:e2e"
   },

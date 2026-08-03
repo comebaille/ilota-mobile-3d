@@ -370,6 +370,7 @@ interface Diagnostics {
   bridgesBuilding: number;
   scaledBridgePlanks: number;
   bridgeGuides: number;
+  objectiveGuideTarget: string;
   chapter: number;
   cacheFound: boolean;
   completed: boolean;
@@ -573,6 +574,8 @@ export class IlotaGame {
   private readonly islands: IslandEntity[] = [];
   private readonly workers: WorkerEntity[] = [];
   private readonly bridges: BridgeEntity[] = [];
+  private readonly objectiveGuide = new THREE.Group();
+  private objectiveGuideTarget = '';
   private readonly structures = new Map<StructureKind, StructureEntity>();
   private readonly warehouses: WarehouseEntity[] = [];
   private readonly projects: ProjectEntity[] = [];
@@ -685,6 +688,7 @@ export class IlotaGame {
       bridgesBuilding: 0,
       scaledBridgePlanks: 0,
       bridgeGuides: 0,
+      objectiveGuideTarget: '',
       chapter: getChapter(progress),
       cacheFound: progress.cachesFound.includes('main-cache'),
       completed: progress.completed,
@@ -895,7 +899,7 @@ export class IlotaGame {
       window.setTimeout(() => this.maybeShowTutorial(
         'island-goals',
         'Ton objectif d’île',
-        'Le panneau à droite résume les conditions du prochain pont. Chaque ligne devient verte une fois validée ; quand tout est prêt, des flèches dorées apparaissent jusqu’au chantier.',
+        'Le panneau à droite résume la prochaine étape. Les flèches dorées te conduisent au bâtiment utile, puis au chantier du pont quand toute l’île est prête.',
         '⚑',
       ), 0);
     }
@@ -1183,6 +1187,7 @@ export class IlotaGame {
     this.createWater();
     ISLANDS.forEach((island, index) => this.createIsland(island, index));
     BRIDGES.forEach((bridge, index) => this.createBridge(bridge, index));
+    this.createObjectiveGuide();
     WAREHOUSES.forEach((definition) => this.createWarehouse(definition));
     STRUCTURES.forEach((definition) => this.createStructure(definition));
     PROJECT_HALLS.forEach((definition) => this.createProjectHall(definition));
@@ -2266,6 +2271,27 @@ export class IlotaGame {
     guide.visible = false;
     this.addToIsland(guide, from.x, from.z);
     this.bridges.push({ index, definition, root, pad, guide, start, end });
+  }
+
+  private createObjectiveGuide(): void {
+    this.objectiveGuide.name = 'guidage:objectif-actif';
+    for (let arrowIndex = 0; arrowIndex < 6; arrowIndex += 1) {
+      const arrow = new THREE.Mesh(
+        new THREE.ConeGeometry(0.28, 0.72, 3),
+        new THREE.MeshStandardMaterial({
+          color: 0xffd56f,
+          emissive: 0x9a5f16,
+          emissiveIntensity: 1.25,
+          roughness: 0.42,
+        }),
+      );
+      arrow.userData.bridgeGuide = true;
+      arrow.userData.guidePhase = arrowIndex * 0.7;
+      arrow.castShadow = true;
+      this.objectiveGuide.add(arrow);
+    }
+    this.objectiveGuide.visible = false;
+    this.scene.add(this.objectiveGuide);
   }
 
   private createWarehouse(definition: WarehouseDefinition): void {
@@ -3413,7 +3439,7 @@ export class IlotaGame {
       const terraceIndex = Math.max(0, findWorldTwoTerraceIndex(this.player.position.x, this.player.position.z));
       this.ui.updateWorldTwoGoal(terraceIndex, this.economy.progress.worldTwoPeakReached);
     } else this.ui.updateIslandGoal(findIslandIndexForPoint(this.player.position.x, this.player.position.z));
-    this.updateBridgeGuides();
+    this.updateObjectiveGuides();
     if (!this.playerDeposit) this.updatePlayer(delta);
     else this.playPlayerAction('idle');
     this.interaction = this.findInteraction();
@@ -3440,33 +3466,94 @@ export class IlotaGame {
     }
   }
 
-  private updateBridgeGuides(): void {
-    this.bridges.forEach((bridge) => {
-      const shouldGuide = bridge.pad.visible
-        && getIslandGoal(this.economy.progress, bridge.definition.fromIsland).completed;
-      bridge.guide.visible = shouldGuide;
-      if (shouldGuide) {
-        const pad = bridge.pad.getWorldPosition(new THREE.Vector3());
-        const direction = pad.clone().sub(this.player.position).setY(0);
-        if (direction.lengthSq() > 0.04) {
-          direction.normalize();
-          const start = this.player.position.clone().addScaledVector(direction, 1.25).setY(0.48);
-          const end = pad.clone().addScaledVector(direction, -0.9).setY(0.48);
-          bridge.guide.children.forEach((arrow, arrowIndex) => {
-            arrow.position.lerpVectors(start, end, (arrowIndex + 1) / (bridge.guide.children.length + 1));
-            arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
-          });
-        }
-      }
-      if (shouldGuide && bridge.index === 0 && !this.managementOpen) {
-        this.maybeShowTutorial(
-          'bridge-guidance',
-          'Le pont est prêt',
-          'Tous les objectifs sont validés. Suis les flèches dorées apparues dans le monde : elles te conduisent directement au chantier du pont.',
-          '➤',
-        );
-      }
+  private getObjectiveBuildingTarget(
+    islandIndex: number,
+    itemId: string,
+  ): { object: THREE.Object3D; label: string } | null {
+    const warehouse = this.warehouses.find((entity) => entity.world === 1 && entity.definition.islandIndex === islandIndex);
+    const projectHall = this.projects.find((entity) => entity.definition.islandIndex === islandIndex);
+    const structureFor = (kind: StructureKind): { object: THREE.Object3D; label: string } | null => {
+      const entity = this.structures.get(kind);
+      if (!entity) return null;
+      return {
+        object: structureBuilt(this.economy.progress, kind) ? entity.building : entity.pad,
+        label: entity.definition.name,
+      };
+    };
+
+    if (itemId === 'warehouse' && warehouse) {
+      return {
+        object: this.economy.progress.warehousesBuilt[islandIndex] ? warehouse.building : warehouse.pad,
+        label: warehouse.definition.name,
+      };
+    }
+    if (itemId === 'camp') return structureFor('camp');
+    if (itemId === 'workshop') return structureFor('workshop');
+    if (itemId === 'foundry') return structureFor('foundry');
+    if (itemId === 'altar') return structureFor('observatory');
+    if ((itemId === 'project-hall' || itemId === 'projects') && projectHall) {
+      return {
+        object: isProjectHallBuilt(this.economy.progress, projectHall.definition.islandIndex)
+          ? projectHall.building
+          : projectHall.pad,
+        label: projectHall.definition.name,
+      };
+    }
+    if (itemId === 'workers' || itemId.endsWith('-job') || itemId === 'jobs') return structureFor('camp');
+    if (itemId === 'level') return structureFor('workshop');
+    if (itemId === 'levels') return structureFor('foundry');
+    if (itemId === 'heart') return { object: this.heart, label: 'Cœur de l’Archipel' };
+    return null;
+  }
+
+  private positionGuide(guide: THREE.Group, target: THREE.Vector3): boolean {
+    const direction = target.clone().sub(this.player.position).setY(0);
+    const distance = direction.length();
+    if (distance <= 2.35) {
+      guide.visible = false;
+      return false;
+    }
+    direction.normalize();
+    const start = this.player.position.clone().addScaledVector(direction, 1.25).setY(0.48);
+    const end = target.clone().addScaledVector(direction, -0.9).setY(0.48);
+    guide.children.forEach((arrow, arrowIndex) => {
+      arrow.position.lerpVectors(start, end, (arrowIndex + 1) / (guide.children.length + 1));
+      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
     });
+    guide.visible = true;
+    return true;
+  }
+
+  private updateObjectiveGuides(): void {
+    this.objectiveGuide.visible = false;
+    this.objectiveGuideTarget = '';
+    this.bridges.forEach((bridge) => { bridge.guide.visible = false; });
+    if (this.adminIslandActive || this.economy.progress.currentWorld !== 1) return;
+
+    const islandIndex = findIslandIndexForPoint(this.player.position.x, this.player.position.z);
+    if (islandIndex < 0) return;
+    const goal = getIslandGoal(this.economy.progress, islandIndex);
+    if (!goal.completed) {
+      const next = goal.items.find((item) => !item.done);
+      const target = next ? this.getObjectiveBuildingTarget(islandIndex, next.id) : null;
+      if (!target) return;
+      const position = target.object.getWorldPosition(new THREE.Vector3());
+      if (this.positionGuide(this.objectiveGuide, position)) this.objectiveGuideTarget = target.label;
+      return;
+    }
+
+    const bridge = this.bridges.find((candidate) => candidate.definition.fromIsland === islandIndex);
+    if (!bridge?.pad.visible) return;
+    const pad = bridge.pad.getWorldPosition(new THREE.Vector3());
+    if (this.positionGuide(bridge.guide, pad)) this.objectiveGuideTarget = bridge.definition.name;
+    if (bridge.index === 0 && !this.managementOpen) {
+      this.maybeShowTutorial(
+        'bridge-guidance',
+        'Le pont est prêt',
+        'Tous les objectifs sont validés. Suis les flèches dorées apparues dans le monde : elles te conduisent directement au chantier du pont.',
+        '➤',
+      );
+    }
   }
 
   private updatePlayer(delta: number): void {
@@ -5687,6 +5774,7 @@ export class IlotaGame {
       0,
     );
     this.diagnostics.bridgeGuides = this.bridges.filter((bridge) => bridge.guide.visible).length;
+    this.diagnostics.objectiveGuideTarget = this.objectiveGuideTarget;
     this.diagnostics.chapter = getChapter(progress);
     this.diagnostics.cacheFound = progress.cachesFound.includes('main-cache');
     this.diagnostics.completed = progress.completed;

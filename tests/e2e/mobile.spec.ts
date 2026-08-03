@@ -23,6 +23,7 @@ interface IlotaDiagnostics {
   bridgesBuilding: number;
   scaledBridgePlanks: number;
   bridgeGuides: number;
+  objectiveGuideTarget: string;
   chapter: number;
   completed: boolean;
   crewOpen: boolean;
@@ -346,6 +347,7 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await page.locator('#tutorial-continue-button').click();
 
   expect((await diagnostics(page)).warehouses).toBe(0);
+  await expect.poll(async () => (await diagnostics(page)).objectiveGuideTarget).toBe('Dépôt des Marées');
   const { moveTo } = createNavigator(page);
   await moveTo(-7, -3.8, 0.7);
   await expect(page.locator('#context-prompt')).toContainText('Assembler Dépôt des Marées');
@@ -356,6 +358,7 @@ test('la première marée explique puis assemble le dépôt physique avant toute
   await expect(page.locator('#tutorial-detail')).toContainText('tomberont une à une');
   await page.locator('#tutorial-continue-button').click();
   await expect.poll(async () => (await diagnostics(page)).inputEnabled).toBe(true);
+  await expect.poll(async () => (await diagnostics(page)).objectiveGuideTarget).toBe('Camp des Marées');
   expect(await diagnostics(page)).toMatchObject({
     managementOpen: false,
     blockingOverlay: false,
