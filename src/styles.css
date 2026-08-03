@@ -4800,3 +4800,416 @@ html.admin-travel #app::after {
   .save-profile-note { font-size: 8px; }
   .tutorial-card p { font-size: 11px; line-height: 1.4; }
 }
+
+/* v0.26 — Centre de gestion des renards */
+.crew-sheet {
+  --crew-accent: #f6bd58;
+  --crew-accent-soft: rgba(246, 189, 88, 0.16);
+  width: min(980px, calc(100vw - 16px));
+  height: min(570px, calc(100dvh - 16px));
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--crew-accent) 62%, transparent);
+  border-radius: 22px;
+  color: #fff8df;
+  background:
+    radial-gradient(circle at 8% 0%, var(--crew-accent-soft), transparent 30%),
+    linear-gradient(145deg, rgba(13, 48, 45, 0.99), rgba(6, 28, 31, 0.995));
+  box-shadow: 0 28px 90px rgba(2, 14, 17, 0.72), inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.crew-sheet[data-mode="remote"] { --crew-accent: #78d7d2; --crew-accent-soft: rgba(120, 215, 210, 0.16); }
+.crew-sheet[data-mode="workshop"] { --crew-accent: #a8db79; --crew-accent-soft: rgba(168, 219, 121, 0.16); }
+.crew-sheet[data-mode="foundry"] { --crew-accent: #ff9b58; --crew-accent-soft: rgba(255, 155, 88, 0.18); }
+.crew-panel[data-mode="remote"] .crew-sheet { --crew-accent: #78d7d2; --crew-accent-soft: rgba(120, 215, 210, 0.16); }
+.crew-panel[data-mode="workshop"] .crew-sheet { --crew-accent: #a8db79; --crew-accent-soft: rgba(168, 219, 121, 0.16); }
+.crew-panel[data-mode="foundry"] .crew-sheet { --crew-accent: #ff9b58; --crew-accent-soft: rgba(255, 155, 88, 0.18); }
+
+.crew-sheet .crew-header { min-height: 48px; }
+.crew-sheet .crew-header .kicker { color: var(--crew-accent); font-size: 8px; letter-spacing: 0.14em; }
+.crew-sheet .crew-header h2 { color: #fff8df; font-size: clamp(18px, 2.5vw, 28px); }
+.crew-sheet .icon-button {
+  min-width: 46px;
+  min-height: 46px;
+  border-color: rgba(255, 255, 255, 0.17);
+  color: #fff8df;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.crew-mode-rail {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 15px;
+  background: rgba(1, 15, 18, 0.4);
+}
+
+.crew-mode-rail > span {
+  min-width: 0;
+  height: 36px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  column-gap: 7px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: rgba(255, 248, 223, 0.52);
+}
+
+.crew-mode-rail > span b {
+  grid-row: 1 / 3;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+}
+.crew-mode-rail > span small { align-self: end; font-size: 7px; font-weight: 950; letter-spacing: 0.11em; }
+.crew-mode-rail > span strong { align-self: start; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.crew-mode-rail > i { color: rgba(255, 255, 255, 0.26); font-size: 22px; font-style: normal; text-align: center; }
+.crew-mode-rail > span.active {
+  border-color: color-mix(in srgb, var(--crew-accent) 65%, transparent);
+  color: #fff8df;
+  background: var(--crew-accent-soft);
+  box-shadow: inset 0 0 18px var(--crew-accent-soft);
+}
+.crew-mode-rail > span.active b { color: #163c37; background: var(--crew-accent); }
+.crew-mode-rail > span.locked { opacity: 0.35; filter: saturate(0.2); }
+
+.crew-command-layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(300px, 1.45fr) minmax(190px, 0.85fr);
+  gap: 9px;
+  overflow: hidden;
+}
+.crew-panel[data-mode="workshop"] .crew-command-layout,
+.crew-panel[data-mode="foundry"] .crew-command-layout { grid-template-columns: minmax(210px, 0.72fr) minmax(360px, 1.28fr); }
+
+.crew-roster-zone,
+.crew-focus-zone,
+.crew-job-zone {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+.crew-focus-zone {
+  border-color: color-mix(in srgb, var(--crew-accent) 30%, transparent);
+  background: linear-gradient(155deg, var(--crew-accent-soft), rgba(255, 255, 255, 0.035) 45%);
+}
+.crew-zone-heading,
+.crew-summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 3px;
+  color: #fff8df;
+  background: transparent;
+}
+.crew-zone-heading > div { min-width: 0; display: flex; flex-direction: column; }
+.crew-zone-heading span,
+.crew-summary strong { color: var(--crew-accent); font-size: 8px; font-weight: 1000; letter-spacing: 0.12em; }
+.crew-zone-heading small,
+.crew-summary span { overflow: hidden; color: rgba(255, 248, 223, 0.55); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.crew-zone-heading > b {
+  flex: none;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #173b36;
+  background: var(--crew-accent);
+  font-size: 8px;
+}
+.crew-summary { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+.crew-summary span { text-align: right; }
+
+.crew-sheet .worker-list {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 1px 4px 1px 1px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--crew-accent) transparent;
+}
+.crew-sheet .worker-card {
+  flex: none;
+  min-height: 52px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #fff8df;
+  background: rgba(2, 20, 22, 0.56);
+  box-shadow: none;
+}
+.crew-sheet .worker-card.selected {
+  border-color: var(--crew-accent);
+  background: var(--crew-accent-soft);
+  box-shadow: inset 3px 0 var(--crew-accent);
+}
+.crew-sheet .worker-card.training-ready { border-color: rgba(168, 219, 121, 0.38); }
+.crew-sheet .worker-card.training-complete { opacity: 0.7; }
+.crew-sheet .worker-card.training-locked { opacity: 0.45; }
+.crew-sheet .worker-select {
+  width: 100%;
+  min-height: 52px;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 6px;
+  color: inherit;
+}
+.crew-sheet .worker-avatar {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 21px;
+}
+.crew-sheet .worker-identity strong { color: #fff8df; font-size: 9px; }
+.crew-sheet .worker-identity small { color: rgba(255, 248, 223, 0.6); font-size: 7px; }
+.crew-sheet .level-pips i { background: rgba(255, 255, 255, 0.14); }
+.crew-sheet .level-pips i.filled { background: var(--crew-accent); }
+.crew-sheet .current-job {
+  min-width: 38px;
+  padding: 4px;
+  border-radius: 9px;
+  color: #fff8df;
+  background: rgba(255, 255, 255, 0.07);
+}
+.crew-sheet .current-job small { color: rgba(255, 248, 223, 0.62); font-size: 6px; }
+.worker-training-state {
+  grid-column: 1 / -1;
+  justify-self: end;
+  margin-top: -4px;
+  color: var(--crew-accent);
+  font-size: 6px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+
+.crew-sheet .crew-footer { flex: none; padding: 0; background: transparent; }
+.crew-sheet .recruit-button {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid color-mix(in srgb, var(--crew-accent) 58%, transparent);
+  border-radius: 13px;
+  color: #173b36;
+  background: var(--crew-accent);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.22);
+}
+.crew-sheet .recruit-portrait { width: 38px; height: 34px; background: rgba(255, 255, 255, 0.36); }
+.crew-sheet .recruit-copy strong { font-size: 8px; }
+.crew-sheet .recruit-button small { color: rgba(21, 55, 51, 0.72); font-size: 7px; }
+
+.crew-sheet .worker-detail {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0;
+  color: #fff8df;
+  background: transparent;
+  box-shadow: none;
+}
+.crew-sheet .worker-detail-hero {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 9px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(1, 16, 18, 0.42);
+}
+.crew-sheet .worker-detail-avatar { width: 44px; height: 44px; background: var(--crew-accent-soft); font-size: 26px; }
+.crew-sheet .worker-detail-hero strong { color: #fff8df; font-size: 13px; }
+.crew-sheet .worker-detail-hero small { color: rgba(255, 248, 223, 0.59); font-size: 7px; }
+.crew-sheet .worker-detail-level { color: var(--crew-accent); font-size: 8px; white-space: nowrap; }
+.crew-sheet .worker-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 0;
+  background: transparent;
+}
+.worker-stat {
+  min-width: 0;
+  min-height: 53px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.045);
+}
+.worker-stat small { color: rgba(255, 248, 223, 0.48); font-size: 6px; font-weight: 950; letter-spacing: 0.09em; }
+.worker-stat strong { overflow: hidden; color: var(--crew-accent); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-stat span { color: rgba(255, 248, 223, 0.48); font-size: 6px; }
+.worker-progression {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 5px;
+}
+.worker-stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  background: rgba(1, 16, 18, 0.35);
+}
+.worker-stage.next { border-color: color-mix(in srgb, var(--crew-accent) 38%, transparent); background: var(--crew-accent-soft); }
+.worker-stage small { color: rgba(255, 248, 223, 0.46); font-size: 6px; font-weight: 950; letter-spacing: 0.08em; }
+.worker-stage strong { color: #fff8df; font-size: 9px; }
+.worker-stage span { overflow: hidden; color: rgba(255, 248, 223, 0.58); font-size: 6.5px; text-overflow: ellipsis; white-space: nowrap; }
+.worker-stage-arrow { align-self: center; color: var(--crew-accent); font-size: 18px; text-align: center; }
+.worker-upgrade-action {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: minmax(105px, 0.8fr) minmax(150px, 1.2fr);
+  gap: 6px;
+}
+.worker-upgrade-cost {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 9px;
+  border-radius: 11px;
+  background: rgba(1, 16, 18, 0.46);
+}
+.worker-upgrade-cost small { color: rgba(255, 248, 223, 0.45); font-size: 6px; font-weight: 950; }
+.worker-upgrade-cost strong { overflow: hidden; color: var(--crew-accent); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.crew-sheet .worker-detail-upgrade {
+  min-width: 0;
+  min-height: 50px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--crew-accent) 55%, transparent);
+  border-radius: 11px;
+  color: #153b36;
+  background: var(--crew-accent);
+  font-size: 8px;
+  font-weight: 1000;
+  letter-spacing: 0.04em;
+}
+.crew-sheet .worker-detail-upgrade:disabled {
+  color: rgba(255, 248, 223, 0.47);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.crew-sheet .job-docks {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: minmax(50px, 1fr);
+  gap: 6px;
+  overflow-y: auto;
+  background: transparent;
+}
+.crew-sheet .job-dock {
+  min-width: 0;
+  min-height: 50px;
+  grid-template-columns: 36px minmax(0, 1fr) 25px;
+  gap: 7px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff8df;
+  background: rgba(2, 20, 22, 0.54);
+  box-shadow: none;
+}
+.crew-sheet .job-dock[aria-pressed="true"] { border-color: var(--crew-accent); background: var(--crew-accent-soft); box-shadow: inset 3px 0 var(--crew-accent); }
+.crew-sheet .job-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
+.crew-sheet .job-copy strong { color: #fff8df; font-size: 8px; }
+.crew-sheet .job-copy small { color: rgba(255, 248, 223, 0.5); font-size: 6px; }
+.crew-sheet .job-count { width: 25px; height: 25px; color: #173b36; background: var(--crew-accent); font-size: 8px; }
+
+@media (max-width: 760px), (max-height: 430px) {
+  .crew-sheet {
+    width: calc(100vw - 10px);
+    height: calc(100dvh - 10px);
+    gap: 5px;
+    padding: 7px;
+    border-radius: 16px;
+  }
+  .crew-sheet .crew-header { min-height: 40px; }
+  .crew-sheet .crew-header h2 { font-size: 17px; }
+  .crew-sheet .crew-header .kicker { font-size: 6.5px; }
+  .crew-sheet .icon-button { min-width: 44px; min-height: 44px; }
+  .crew-mode-rail { min-height: 38px; padding: 3px; border-radius: 11px; }
+  .crew-mode-rail > span { height: 30px; grid-template-columns: 23px minmax(0, 1fr); column-gap: 5px; padding: 3px; }
+  .crew-mode-rail > span b { width: 23px; height: 23px; border-radius: 7px; font-size: 8px; }
+  .crew-mode-rail > span small { font-size: 5.8px; }
+  .crew-mode-rail > span strong { font-size: 6.4px; }
+  .crew-command-layout { grid-template-columns: minmax(145px, 0.78fr) minmax(245px, 1.42fr) minmax(125px, 0.7fr); gap: 5px; }
+  .crew-panel[data-mode="workshop"] .crew-command-layout,
+  .crew-panel[data-mode="foundry"] .crew-command-layout { grid-template-columns: minmax(155px, 0.68fr) minmax(285px, 1.32fr); }
+  .crew-roster-zone, .crew-focus-zone, .crew-job-zone { gap: 4px; padding: 5px; border-radius: 11px; }
+  .crew-zone-heading, .crew-summary { min-height: 24px; }
+  .crew-zone-heading span, .crew-summary strong { font-size: 6.5px; }
+  .crew-zone-heading small, .crew-summary span { font-size: 5.8px; }
+  .crew-sheet .worker-card, .crew-sheet .worker-select { min-height: 46px; }
+  .crew-sheet .worker-select { grid-template-columns: 31px minmax(0, 1fr) auto; gap: 5px; padding: 4px; }
+  .crew-sheet .worker-avatar { width: 31px; height: 31px; font-size: 18px; }
+  .crew-sheet .worker-identity strong { font-size: 7.5px; }
+  .crew-sheet .worker-identity small { font-size: 5.8px; }
+  .crew-sheet .current-job { min-width: 30px; padding: 3px; }
+  .crew-sheet .current-job small { display: none; }
+  .crew-sheet .recruit-button { min-height: 44px; padding: 4px; }
+  .crew-sheet .recruit-portrait { width: 31px; height: 30px; }
+  .crew-sheet .worker-detail { gap: 4px; }
+  .crew-sheet .worker-detail-hero { min-height: 45px; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 6px; padding: 5px; }
+  .crew-sheet .worker-detail-avatar { width: 34px; height: 34px; font-size: 20px; }
+  .crew-sheet .worker-detail-hero strong { font-size: 9px; }
+  .crew-sheet .worker-detail-stats { gap: 3px; }
+  .worker-stat { min-height: 39px; padding: 4px; border-radius: 8px; }
+  .worker-stat strong { font-size: 8px; }
+  .worker-stat span { display: none; }
+  .worker-progression { min-height: 45px; gap: 3px; }
+  .worker-stage { padding: 4px 5px; border-radius: 8px; }
+  .worker-stage strong { font-size: 7px; }
+  .worker-stage span { font-size: 5.5px; }
+  .worker-stage-arrow { font-size: 13px; }
+  .worker-upgrade-action { min-height: 44px; grid-template-columns: minmax(85px, 0.75fr) minmax(135px, 1.25fr); gap: 4px; }
+  .crew-sheet .worker-detail-upgrade { min-height: 44px; font-size: 6.5px; }
+  .worker-upgrade-cost { padding: 4px 6px; }
+  .worker-upgrade-cost strong { font-size: 6.5px; }
+  .crew-sheet .job-docks { grid-auto-rows: minmax(44px, 1fr); gap: 4px; }
+  .crew-sheet .job-dock { min-height: 44px; grid-template-columns: 29px minmax(0, 1fr) 21px; gap: 4px; padding: 4px; }
+  .crew-sheet .job-icon { width: 28px; height: 28px; font-size: 13px; }
+  .crew-sheet .job-copy strong { font-size: 6.5px; }
+  .crew-sheet .job-copy small { font-size: 5.4px; }
+  .crew-sheet .job-count { width: 21px; height: 21px; font-size: 6px; }
+}

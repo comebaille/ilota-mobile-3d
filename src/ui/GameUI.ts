@@ -199,6 +199,8 @@ export class GameUI {
   private readonly crewTitle = byId<HTMLElement>('crew-title');
   private readonly crewCapacity = byId<HTMLElement>('crew-capacity');
   private readonly crewHelp = byId<HTMLElement>('crew-help');
+  private readonly crewModeStages = Array.from(document.querySelectorAll<HTMLElement>('[data-crew-stage]'));
+  private readonly crewJobZone = byId<HTMLElement>('crew-job-zone');
   private readonly jobDocks = byId<HTMLElement>('job-docks');
   private readonly workerList = byId<HTMLElement>('worker-list');
   private readonly workerDetail = byId<HTMLElement>('worker-detail');
@@ -1120,6 +1122,17 @@ export class GameUI {
     const rosterManagement = nursery || remote;
     const workshop = this.crewMode === 'workshop';
     this.crewPanel.dataset.mode = this.crewMode;
+    this.crewModeStages.forEach((stage) => {
+      const mode = stage.dataset.crewStage;
+      const activeMode = remote ? 'nursery' : this.crewMode;
+      const unlocked = mode === 'nursery'
+        || (mode === 'workshop' && progress.workshopBuilt)
+        || (mode === 'foundry' && progress.foundryBuilt);
+      stage.classList.toggle('active', mode === activeMode);
+      stage.classList.toggle('locked', !unlocked);
+      stage.setAttribute('aria-current', mode === activeMode ? 'step' : 'false');
+      stage.setAttribute('aria-label', `${stage.textContent?.trim() ?? ''}${unlocked ? '' : ', verrouillé'}`);
+    });
     this.crewKicker.textContent = rosterManagement
       ? remote ? 'CONSEIL ITINÉRANT · LIAISON DES TROIS VOIES' : 'NURSERIE DE L’ÎLOT CENTRAL'
       : workshop ? 'ATELIER DES PINS · FORMATION' : 'FONDERIE CUIVRÉE · MAÎTRISE';
@@ -1132,8 +1145,8 @@ export class GameUI {
       selectedWorker = progress.workers[0];
     } else if (this.selectedWorkerId && !selectedWorker) this.selectedWorkerId = null;
     this.crewCapacity.textContent = rosterManagement
-      ? `${progress.workers.length} / ${capacity} renards disponibles`
-      : `${progress.workers.filter((worker) => workshop ? worker.level >= 2 : worker.level >= 3).length} formés · cible niveau ${workshop ? 2 : 3}`;
+      ? `${progress.workers.length} / ${capacity}`
+      : `${progress.workers.filter((worker) => workshop ? worker.level >= 2 : worker.level >= 3).length} FORMÉS`;
     this.crewHelp.textContent = rosterManagement
       ? selectedWorker
         ? remote
@@ -1150,7 +1163,7 @@ export class GameUI {
     this.recruitCost.textContent = progress.workers.length >= capacity ? 'CAPACITÉ ATTEINTE' : formatCost(recruitCost);
     this.recruitButton.disabled = progress.workers.length >= capacity || !canAfford(progress, recruitCost);
     this.crewFooter.hidden = !rosterManagement;
-    this.jobDocks.hidden = !rosterManagement;
+    this.crewJobZone.hidden = !rosterManagement;
 
     const accessibleIslandCount = Math.min(ISLANDS.length, progress.bridgesBuilt.filter(Boolean).length + 1);
     this.jobDocks.replaceChildren();
@@ -1218,6 +1231,9 @@ export class GameUI {
         isSelected ? 'selected' : '',
         isNew ? 'new-recruit' : '',
         isLeveling ? 'leveling-up' : '',
+        !rosterManagement && ((workshop && worker.level === 1) || (!workshop && worker.level === 2)) ? 'training-ready' : '',
+        !rosterManagement && ((workshop && worker.level >= 2) || (!workshop && worker.level >= 3)) ? 'training-complete' : '',
+        !rosterManagement && !workshop && worker.level < 2 ? 'training-locked' : '',
       ].filter(Boolean).join(' '));
       const heading = element('button', 'worker-select');
       heading.type = 'button';
@@ -1247,6 +1263,14 @@ export class GameUI {
       const currentJob = element('span', 'current-job');
       currentJob.innerHTML = `<span aria-hidden="true">${RESOURCE_ICONS[worker.task]}</span><small>${RESOURCE_LABELS[worker.task]}</small>`;
       heading.append(avatar, identity, currentJob);
+
+      if (!rosterManagement) {
+        const trainingState = element('span', 'worker-training-state');
+        trainingState.textContent = workshop
+          ? worker.level >= 2 ? 'FORMÉ' : 'PRÊT'
+          : worker.level >= 3 ? 'MAÎTRE' : worker.level === 2 ? 'PRÊT' : 'ATELIER REQUIS';
+        heading.append(trainingState);
+      }
 
       if (isNew) {
         const burst = element('span', 'worker-burst recruit-burst');
@@ -1299,44 +1323,71 @@ export class GameUI {
     level.textContent = `NIV ${worker.level} · ${'★'.repeat(worker.level)}${'☆'.repeat(3 - worker.level)}`;
     hero.append(avatar, identity, level);
 
-    const levelSummary = (nextLevel: 1 | 2 | 3): string =>
-      `NIV ${nextLevel} · +${getWorkerYield(nextLevel, progress)}/COUP · SAC ${
-        getWorkerCargoCapacity(nextLevel, progress)
-      } · ${formatStat(getWorkerGatherSeconds(nextLevel, progress))} S`;
+    const stats = element('div', 'worker-detail-stats');
+    const statDefinitions = [
+      ['COUP', `+${currentYield}`, 'ressources'],
+      ['SAC', String(currentCapacity), 'places'],
+      ['FRAPPE', `${formatStat(currentGather)} s`, 'par coup'],
+      ['COURSE', `${formatStat(currentSpeed)} m/s`, 'déplacement'],
+    ];
+    statDefinitions.forEach(([label, value, hint]) => {
+      const stat = element('div', 'worker-stat');
+      stat.innerHTML = `<small>${label}</small><strong>${value}</strong><span>${hint}</span>`;
+      stats.append(stat);
+    });
+
+    const nextLevel = Math.min(3, worker.level + 1) as 1 | 2 | 3;
+    const progression = element('div', 'worker-progression');
+    const currentStage = element('div', 'worker-stage current');
+    currentStage.innerHTML = `<small>AUJOURD’HUI</small><strong>NIVEAU ${worker.level}</strong><span>+${currentYield}/coup · sac ${currentCapacity}</span>`;
+    const arrow = element('span', 'worker-stage-arrow');
+    arrow.textContent = worker.level >= 3 ? '★' : '→';
+    arrow.setAttribute('aria-hidden', 'true');
+    const nextStage = element('div', 'worker-stage next');
+    nextStage.innerHTML = worker.level >= 3
+      ? '<small>PARCOURS TERMINÉ</small><strong>MAÎTRE RENARD</strong><span>Niveau maximum atteint</span>'
+      : `<small>APRÈS FORMATION</small><strong>NIVEAU ${nextLevel}</strong><span>+${getWorkerYield(nextLevel, progress)}/coup · sac ${getWorkerCargoCapacity(nextLevel, progress)}</span>`;
+    progression.append(currentStage, arrow, nextStage);
+
+    const action = element('div', 'worker-upgrade-action');
+    const cost = element('div', 'worker-upgrade-cost');
     const upgrade = element('button', 'upgrade-button worker-detail-upgrade');
     upgrade.type = 'button';
     upgrade.dataset.action = 'upgrade';
     upgrade.dataset.workerId = worker.id;
+    let actionLabel = 'FORMATION INDISPONIBLE';
+    let costLabel = 'BÂTIMENT REQUIS';
     if (this.crewMode === 'nursery') {
-      upgrade.textContent = worker.level >= 3
-        ? `${levelSummary(3)} · MAÎTRE`
-        : worker.level === 2
-          ? `${levelSummary(3)} · FONDERIE REQUISE`
-          : `${levelSummary(2)} · ATELIER REQUIS`;
+      actionLabel = worker.level >= 3 ? 'NIVEAU MAXIMUM' : 'REJOINDRE LE BÂTIMENT';
+      costLabel = worker.level >= 3 ? 'PARCOURS TERMINÉ' : worker.level === 2 ? 'FONDERIE REQUISE' : 'ATELIER REQUIS';
       upgrade.disabled = true;
     } else if (this.crewMode === 'workshop' && worker.level >= 2) {
-      upgrade.textContent = worker.level === 3
-        ? `${levelSummary(3)} · DÉJÀ MAÎTRE`
-        : `${levelSummary(2)} · FORMATION TERMINÉE`;
+      actionLabel = worker.level === 3 ? 'DÉJÀ MAÎTRE' : 'FORMATION TERMINÉE';
+      costLabel = 'NIVEAU 2 VALIDÉ';
       upgrade.disabled = true;
     } else if (this.crewMode === 'foundry' && worker.level < 2) {
-      upgrade.textContent = `${levelSummary(2)} · ATELIER REQUIS`;
+      actionLabel = 'PASSER PAR L’ATELIER';
+      costLabel = 'NIVEAU 2 REQUIS';
       upgrade.disabled = true;
     } else if (worker.level >= 3) {
-      upgrade.textContent = `${levelSummary(3)} · MAXIMUM`;
+      actionLabel = 'NIVEAU MAXIMUM';
+      costLabel = 'PARCOURS TERMINÉ';
       upgrade.disabled = true;
     } else if (worker.level >= levelCap) {
-      const nextLevel = (worker.level + 1) as 2 | 3;
-      upgrade.textContent = `${levelSummary(nextLevel)} · ${levelCap === 1 ? 'ATELIER' : 'FONDERIE'} REQUIS`;
+      actionLabel = 'BÂTIMENT REQUIS';
+      costLabel = `${levelCap === 1 ? 'ATELIER' : 'FONDERIE'} À CONSTRUIRE`;
       upgrade.disabled = true;
     } else {
       const upgradeCost = getUpgradeCost(worker, progress);
-      const nextLevel = (worker.level + 1) as 2 | 3;
-      upgrade.textContent = `${levelSummary(nextLevel)} · ${formatCost(upgradeCost)} · CONFIRMER`;
+      actionLabel = `FORMER AU NIVEAU ${nextLevel}`;
+      costLabel = formatCost(upgradeCost);
       upgrade.setAttribute('aria-label', `Améliorer ${worker.name} au niveau ${worker.level + 1}, coût ${formatCost(upgradeCost)}`);
       upgrade.disabled = !canAfford(progress, upgradeCost);
     }
-    this.workerDetail.append(hero, upgrade);
+    cost.innerHTML = `<small>COÛT DE FORMATION</small><strong>${costLabel}</strong>`;
+    upgrade.textContent = actionLabel;
+    action.append(cost, upgrade);
+    this.workerDetail.append(hero, stats, progression, action);
 
     if (showLevelVisual && worker.id === this.levelUpWorker?.id) {
       const burst = element('span', 'worker-detail-burst');

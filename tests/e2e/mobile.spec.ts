@@ -954,6 +954,7 @@ test('recrute, réaffecte et améliore plusieurs travailleurs dans le panneau ta
     campBuilt: true,
     workshopBuilt: true,
     bridgesBuilt: [true, false, false, false],
+    tutorialSeen: ['welcome', 'warehouse-central', 'nursery', 'first-worker-job', 'island-goals', 'bridge-guidance', 'pins-logistics', 'workshop'],
   });
   await waitForGame(page);
   await openCrew(page);
