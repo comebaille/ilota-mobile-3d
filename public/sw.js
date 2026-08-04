@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v28-6-player-three-grant-retry';
+const CACHE = 'ilota-v28-7-player-three-empty-buildings';
 const CORE = [
   './',
   './index.html',

@@ -29,6 +29,7 @@ const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
 // avaient déjà exécuté la première migration demandée pour le Joueur 2.
 const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v2';
 const PLAYER_THREE_RESOURCE_GRANT_KEY = 'ilota-player-3-resource-grant-300-v2';
+const PLAYER_THREE_EMPTY_BUILDINGS_KEY = 'ilota-player-3-empty-buildings-v1';
 
 const isProfileId = (value: string | null): value is SaveProfileId => (
   SAVE_PROFILE_IDS.includes(value as SaveProfileId)
@@ -184,6 +185,43 @@ const grantPlayerThreeResourcesOnce = (): void => {
   }
 };
 
+const resetPlayerThreeBuildingsOnce = (): void => {
+  if (getActiveSaveProfileId() !== '3') return;
+  if (localStorage.getItem(PLAYER_THREE_EMPTY_BUILDINGS_KEY) === 'done') return;
+  const raw = validJson(localStorage.getItem(saveKey('3')))
+    ?? validJson(localStorage.getItem(backupKey('3')));
+  if (!raw) return;
+  try {
+    const progress = JSON.parse(raw) as Record<string, unknown>;
+    progress.wood = 300;
+    progress.stone = 300;
+    progress.copper = 300;
+    progress.warehousesBuilt = [false, false, false, false, false];
+    progress.projectHallsBuilt = [false, false, false, false];
+    progress.campBuilt = false;
+    progress.workshopBuilt = false;
+    progress.foundryBuilt = false;
+    progress.observatoryBuilt = false;
+    progress.projectsCompleted = [];
+    progress.worldTwoBuildings = [];
+    progress.completed = false;
+    progress.currentWorld = 1;
+    progress.cycleMilestones = Array.isArray(progress.cycleMilestones)
+      ? progress.cycleMilestones.filter((milestone) => (
+        typeof milestone === 'string'
+        && !/^(warehouse|structure|project-hall|project):/.test(milestone)
+        && milestone !== 'heart'
+      ))
+      : [];
+    const migrated = JSON.stringify(progress);
+    localStorage.setItem(saveKey('3'), migrated);
+    localStorage.setItem(backupKey('3'), migrated);
+    localStorage.setItem(PLAYER_THREE_EMPTY_BUILDINGS_KEY, 'done');
+  } catch {
+    // Une sauvegarde illisible reste intacte et pourra être retentée plus tard.
+  }
+};
+
 export const ensureLegacySaveMigrated = (): void => {
   try {
     if (!localStorage.getItem(saveKey('1'))) {
@@ -198,6 +236,7 @@ export const ensureLegacySaveMigrated = (): void => {
     localStorage.removeItem(LEGACY_BACKUP_KEY);
     resetPlayerTwoSkillTreeOnce();
     grantPlayerThreeResourcesOnce();
+    resetPlayerThreeBuildingsOnce();
   } catch {
     // Le jeu reste utilisable si le stockage privé est indisponible.
   }

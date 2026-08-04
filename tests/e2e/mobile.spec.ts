@@ -447,7 +447,7 @@ test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqu
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
 });
 
-test('le joueur 3 reçoit une seule fois 300 bois, pierre et cuivre', async ({ page }) => {
+test('le joueur 3 démarre avec 300 bois, pierre et cuivre sans bâtiment', async ({ page }) => {
   await page.addInitScript((save) => {
     localStorage.setItem('ilota-save-profile-active-v1', '3');
     localStorage.setItem('ilota-player-3-resource-grant-300-v1', 'done');
@@ -460,15 +460,43 @@ test('le joueur 3 reçoit une seule fois 300 bois, pierre et cuivre', async ({ p
     stone: 20,
     copper: 30,
     crystal: 40,
+    warehousesBuilt: [true, true, true, true, true],
+    projectHallsBuilt: [true, true, true, true],
+    campBuilt: true,
+    workshopBuilt: true,
+    foundryBuilt: true,
+    observatoryBuilt: true,
+    projectsCompleted: ['starter_tools'],
+    worldTwoBuildings: ['base_exchange'],
+    completed: true,
+    cycleMilestones: ['warehouse:0', 'structure:camp', 'project-hall:0', 'project:starter_tools', 'heart'],
     tutorialSeen: ['welcome'],
   });
   await waitForGame(page);
-  expect(await diagnostics(page)).toMatchObject({ wood: 310, stone: 320, copper: 330, crystal: 40 });
+  const cleanSave = await page.evaluate(() => JSON.parse(localStorage.getItem('ilota-save-profile-3-v1') ?? '{}'));
+  expect(cleanSave).toMatchObject({
+    wood: 300,
+    stone: 300,
+    copper: 300,
+    crystal: 40,
+    warehousesBuilt: [false, false, false, false, false],
+    projectHallsBuilt: [false, false, false, false],
+    campBuilt: false,
+    workshopBuilt: false,
+    foundryBuilt: false,
+    observatoryBuilt: false,
+    projectsCompleted: [],
+    worldTwoBuildings: [],
+    completed: false,
+    currentWorld: 1,
+    cycleMilestones: [],
+  });
+  expect(await diagnostics(page)).toMatchObject({ wood: 300, stone: 300, copper: 300, crystal: 40 });
 
   await waitForGame(page);
-  expect(await diagnostics(page)).toMatchObject({ wood: 310, stone: 320, copper: 330, crystal: 40 });
+  expect(await diagnostics(page)).toMatchObject({ wood: 300, stone: 300, copper: 300, crystal: 40 });
   await expect.poll(async () => page.evaluate(() => (
-    localStorage.getItem('ilota-player-3-resource-grant-300-v2')
+    localStorage.getItem('ilota-player-3-empty-buildings-v1')
   ))).toBe('done');
 });
 
