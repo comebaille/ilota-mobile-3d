@@ -1,4 +1,4 @@
-const CACHE = 'ilota-v28-4-opaque-gate-error';
+const CACHE = 'ilota-v28-5-player-three-resources';
 const CORE = [
   './',
   './index.html',

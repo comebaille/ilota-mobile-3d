@@ -28,6 +28,7 @@ const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
 // v2 force une nouvelle remise à zéro ponctuelle, même pour les appareils qui
 // avaient déjà exécuté la première migration demandée pour le Joueur 2.
 const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v2';
+const PLAYER_THREE_RESOURCE_GRANT_KEY = 'ilota-player-3-resource-grant-300-v1';
 
 const isProfileId = (value: string | null): value is SaveProfileId => (
   SAVE_PROFILE_IDS.includes(value as SaveProfileId)
@@ -157,6 +158,29 @@ const resetPlayerTwoSkillTreeOnce = (): void => {
   }
 };
 
+const grantPlayerThreeResourcesOnce = (): void => {
+  if (localStorage.getItem(PLAYER_THREE_RESOURCE_GRANT_KEY) === 'done') return;
+  const raw = validJson(localStorage.getItem(saveKey('3')))
+    ?? validJson(localStorage.getItem(backupKey('3')));
+  if (!raw) return;
+  try {
+    const progress = JSON.parse(raw) as Record<string, unknown>;
+    (['wood', 'stone', 'copper'] as const).forEach((resource) => {
+      const current = Number(progress[resource]);
+      progress[resource] = Math.min(
+        999_999_999,
+        Math.max(0, Number.isFinite(current) ? Math.floor(current) : 0) + 300,
+      );
+    });
+    const migrated = JSON.stringify(progress);
+    localStorage.setItem(saveKey('3'), migrated);
+    localStorage.setItem(backupKey('3'), migrated);
+    localStorage.setItem(PLAYER_THREE_RESOURCE_GRANT_KEY, 'done');
+  } catch {
+    // Une sauvegarde illisible reste intacte et pourra être retentée plus tard.
+  }
+};
+
 export const ensureLegacySaveMigrated = (): void => {
   try {
     if (!localStorage.getItem(saveKey('1'))) {
@@ -170,6 +194,7 @@ export const ensureLegacySaveMigrated = (): void => {
     localStorage.removeItem(LEGACY_SAVE_KEY);
     localStorage.removeItem(LEGACY_BACKUP_KEY);
     resetPlayerTwoSkillTreeOnce();
+    grantPlayerThreeResourcesOnce();
   } catch {
     // Le jeu reste utilisable si le stockage privé est indisponible.
   }

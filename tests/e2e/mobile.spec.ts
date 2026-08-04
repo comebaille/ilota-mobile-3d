@@ -447,6 +447,30 @@ test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqu
   await expect.poll(async () => (await diagnostics(page)).currentWorld).toBe(1);
 });
 
+test('le joueur 3 reçoit une seule fois 300 bois, pierre et cuivre', async ({ page }) => {
+  await page.addInitScript((save) => {
+    localStorage.setItem('ilota-save-profile-active-v1', '3');
+    if (!localStorage.getItem('ilota-save-profile-3-v1')) {
+      localStorage.setItem('ilota-save-profile-3-v1', JSON.stringify(save));
+    }
+  }, {
+    ...richSave(),
+    wood: 10,
+    stone: 20,
+    copper: 30,
+    crystal: 40,
+    tutorialSeen: ['welcome'],
+  });
+  await waitForGame(page);
+  expect(await diagnostics(page)).toMatchObject({ wood: 310, stone: 320, copper: 330, crystal: 40 });
+
+  await waitForGame(page);
+  expect(await diagnostics(page)).toMatchObject({ wood: 310, stone: 320, copper: 330, crystal: 40 });
+  await expect.poll(async () => page.evaluate(() => (
+    localStorage.getItem('ilota-player-3-resource-grant-300-v1')
+  ))).toBe('done');
+});
+
 test('portail puis menu et Reprendre détourne vers l’île ADMIN sans mot de passe', async ({ page }) => {
   test.setTimeout(150_000);
   await page.addInitScript((save) => localStorage.setItem('ilota-save-v1', JSON.stringify(save)), {
