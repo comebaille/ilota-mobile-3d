@@ -29,7 +29,7 @@ const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
 // avaient déjà exécuté la première migration demandée pour le Joueur 2.
 const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v2';
 const PLAYER_THREE_RESOURCE_GRANT_KEY = 'ilota-player-3-resource-grant-300-v2';
-const PLAYER_THREE_EMPTY_BUILDINGS_KEY = 'ilota-player-3-empty-buildings-v1';
+const PLAYER_THREE_EMPTY_BUILDINGS_KEY = 'ilota-player-3-empty-buildings-v2';
 
 const isProfileId = (value: string | null): value is SaveProfileId => (
   SAVE_PROFILE_IDS.includes(value as SaveProfileId)
@@ -202,6 +202,7 @@ const resetPlayerThreeBuildingsOnce = (): void => {
     progress.workshopBuilt = false;
     progress.foundryBuilt = false;
     progress.observatoryBuilt = false;
+    progress.bridgesBuilt = [false, false, false, false];
     progress.projectsCompleted = [];
     progress.worldTwoBuildings = [];
     progress.completed = false;
@@ -209,7 +210,7 @@ const resetPlayerThreeBuildingsOnce = (): void => {
     progress.cycleMilestones = Array.isArray(progress.cycleMilestones)
       ? progress.cycleMilestones.filter((milestone) => (
         typeof milestone === 'string'
-        && !/^(warehouse|structure|project-hall|project):/.test(milestone)
+        && !/^(warehouse|structure|bridge|project-hall|project):/.test(milestone)
         && milestone !== 'heart'
       ))
       : [];

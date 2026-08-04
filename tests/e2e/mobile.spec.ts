@@ -466,10 +466,11 @@ test('le joueur 3 démarre avec 300 bois, pierre et cuivre sans bâtiment', asyn
     workshopBuilt: true,
     foundryBuilt: true,
     observatoryBuilt: true,
+    bridgesBuilt: [true, true, true, true],
     projectsCompleted: ['starter_tools'],
     worldTwoBuildings: ['base_exchange'],
     completed: true,
-    cycleMilestones: ['warehouse:0', 'structure:camp', 'project-hall:0', 'project:starter_tools', 'heart'],
+    cycleMilestones: ['warehouse:0', 'structure:camp', 'bridge:0', 'project-hall:0', 'project:starter_tools', 'heart'],
     tutorialSeen: ['welcome'],
   });
   await waitForGame(page);
@@ -485,6 +486,7 @@ test('le joueur 3 démarre avec 300 bois, pierre et cuivre sans bâtiment', asyn
     workshopBuilt: false,
     foundryBuilt: false,
     observatoryBuilt: false,
+    bridgesBuilt: [false, false, false, false],
     projectsCompleted: [],
     worldTwoBuildings: [],
     completed: false,
@@ -492,11 +494,12 @@ test('le joueur 3 démarre avec 300 bois, pierre et cuivre sans bâtiment', asyn
     cycleMilestones: [],
   });
   expect(await diagnostics(page)).toMatchObject({ wood: 300, stone: 300, copper: 300, crystal: 40 });
+  await page.screenshot({ path: 'test-results/ilota-player-3-empty-buildings.png' });
 
   await waitForGame(page);
   expect(await diagnostics(page)).toMatchObject({ wood: 300, stone: 300, copper: 300, crystal: 40 });
   await expect.poll(async () => page.evaluate(() => (
-    localStorage.getItem('ilota-player-3-empty-buildings-v1')
+    localStorage.getItem('ilota-player-3-empty-buildings-v2')
   ))).toBe('done');
 });
 
