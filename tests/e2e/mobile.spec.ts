@@ -450,6 +450,7 @@ test('le joueur 2 repart avec un arbre vierge et son portail World 2 reste bloqu
 test('le joueur 3 reçoit une seule fois 300 bois, pierre et cuivre', async ({ page }) => {
   await page.addInitScript((save) => {
     localStorage.setItem('ilota-save-profile-active-v1', '3');
+    localStorage.setItem('ilota-player-3-resource-grant-300-v1', 'done');
     if (!localStorage.getItem('ilota-save-profile-3-v1')) {
       localStorage.setItem('ilota-save-profile-3-v1', JSON.stringify(save));
     }
@@ -467,7 +468,7 @@ test('le joueur 3 reçoit une seule fois 300 bois, pierre et cuivre', async ({ p
   await waitForGame(page);
   expect(await diagnostics(page)).toMatchObject({ wood: 310, stone: 320, copper: 330, crystal: 40 });
   await expect.poll(async () => page.evaluate(() => (
-    localStorage.getItem('ilota-player-3-resource-grant-300-v1')
+    localStorage.getItem('ilota-player-3-resource-grant-300-v2')
   ))).toBe('done');
 });
 

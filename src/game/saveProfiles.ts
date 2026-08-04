@@ -28,7 +28,7 @@ const LEGACY_BACKUP_KEY = 'ilota-save-backup-v1';
 // v2 force une nouvelle remise à zéro ponctuelle, même pour les appareils qui
 // avaient déjà exécuté la première migration demandée pour le Joueur 2.
 const PLAYER_TWO_SKILL_RESET_KEY = 'ilota-player-2-skill-tree-reset-v2';
-const PLAYER_THREE_RESOURCE_GRANT_KEY = 'ilota-player-3-resource-grant-300-v1';
+const PLAYER_THREE_RESOURCE_GRANT_KEY = 'ilota-player-3-resource-grant-300-v2';
 
 const isProfileId = (value: string | null): value is SaveProfileId => (
   SAVE_PROFILE_IDS.includes(value as SaveProfileId)
@@ -159,6 +159,9 @@ const resetPlayerTwoSkillTreeOnce = (): void => {
 };
 
 const grantPlayerThreeResourcesOnce = (): void => {
+  // Attendre que le profil soit réellement ouvert évite qu’une création ou
+  // restauration ultérieure du slot 3 n’écrase le cadeau déjà marqué.
+  if (getActiveSaveProfileId() !== '3') return;
   if (localStorage.getItem(PLAYER_THREE_RESOURCE_GRANT_KEY) === 'done') return;
   const raw = validJson(localStorage.getItem(saveKey('3')))
     ?? validJson(localStorage.getItem(backupKey('3')));
